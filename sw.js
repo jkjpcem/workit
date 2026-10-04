@@ -1,8 +1,8 @@
 // Keeps the app working offline. Bump VERSION whenever you change app files.
-const VERSION = 'workit-v22';
+const VERSION = 'workit-v23';
 const FILES = [
   './', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
-  'js/app.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js',
+  'js/app.js', 'js/classes.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

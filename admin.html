@@ -83,10 +83,10 @@
           <button class="btn primary" id="roster-save">Save students</button>
         </div>
       </div>
-      <p class="hint">Copy rows from Excel or Google Sheets in this order: <b>First name, Last name, Grade, City, Classes</b>. Click a cell and paste; the rows fill in below it. Separate classes with commas. To remove a student, click ✕ on their row. Nothing changes until you click Save students.</p>
+      <p class="hint">Copy rows from Excel or Google Sheets in this order: <b>First name, Last name, Grade, City, Sem 1 classes, Sem 2 classes</b>. Click a cell and paste; the rows fill in below it. Separate classes with commas. Sem 1 is LP1 to LP4 and Sem 2 is LP5 to LP8. Type <b>(Accel)</b> after an accelerated class, for example <i>Algebra 1A H (Accel)</i>: it needs 2 samples per LP. Leave Sem 2 blank to use Sem 1 with A changed to B (the grey text shows the result); accelerated and one-semester classes like Econ are left out, so type Sem 2 whenever it differs. To remove a student, click ✕ on their row. Nothing changes until you click Save students.</p>
       <div class="roster-wrap">
         <table class="roster">
-          <thead><tr><th>#</th><th>First name</th><th>Last name</th><th>Grade</th><th>City</th><th>Classes</th><th>Signs in as</th><th><span class="sr-only">Remove</span></th></tr></thead>
+          <thead><tr><th>#</th><th>First name</th><th>Last name</th><th>Grade</th><th>City</th><th class="sem1">Sem 1 classes <span>LP1–4</span></th><th class="sem2">Sem 2 classes <span>LP5–8</span></th><th>Signs in as</th><th><span class="sr-only">Remove</span></th></tr></thead>
           <tbody id="roster-body"></tbody>
         </table>
       </div>
@@ -176,6 +176,7 @@
   <script src="js/pdf.js"></script>
   <script src="js/pdfview.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/classes.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

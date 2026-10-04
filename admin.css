@@ -270,3 +270,12 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .dates-grid input { padding: 8px 10px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 #dates-dialog { width: min(520px, calc(100% - 32px)); }
+.subj.short { background: var(--warn-soft, #fff4e0); color: var(--warn); }
+.sem-line { margin-top: 2px; }
+.sem-line i { font-style: normal; color: var(--muted); }
+.roster th.sem1, .roster th.sem2 { white-space: nowrap; }
+.roster th.sem1 { box-shadow: inset 0 -3px 0 var(--brand); }
+.roster th.sem2 { box-shadow: inset 0 -3px 0 var(--st-finalized); }
+.roster th span { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
+.roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
+.roster td.col-classes2 input::placeholder { color: var(--muted); opacity: .75; font-style: italic; }

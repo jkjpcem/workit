@@ -229,7 +229,7 @@
 
   function renderSubjects() {
     const sel = $('#subject-select');
-    const classes = session.student.classes || [];
+    const classes = Classes.forLp(session.student, wiz.lp || session.currentLp).map(c => c.name);
     const keep = sel.value;
     sel.innerHTML = '<option value="">Choose a subject</option>' +
       classes.map(c => `<option>${esc(c)}</option>`).join('');
@@ -917,23 +917,26 @@
     renderHistory();
   });
 
-  // Every class needs at least one sample per LP. An upload waiting on a redo doesn't count yet.
+  // Every class needs one sample per LP, and an accelerated class needs two.
+  // An upload waiting on a redo doesn't count yet.
   function renderMissing(items) {
     const lp = historyFilter.lp === 'all' ? session.currentLp : historyFilter.lp;
-    const classes = session.student.classes || [];
+    const classes = Classes.forLp(session.student, lp);
     const box = $('#missing');
     if (!classes.length) { box.hidden = true; return; }
     const inLp = items.filter(i => i.lp === lp);
-    const done = (c) => inLp.some(i => i.subject === c && !(i.redo && !i.resubmitted));
-    const missing = classes.filter(c => !done(c));
+    const have = (c) => inLp.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
+    const missing = classes.filter(c => have(c) < c.need);
+    const accel = classes.some(c => c.need > 1);
     box.hidden = false;
     box.className = `card stack missing ${missing.length ? '' : 'all-done'}`;
     box.innerHTML = missing.length
       ? `<h2>Missing samples for ${esc(lp)} <span class="count">${missing.length} of ${classes.length} subjects</span></h2>
-         <p class="hint">Every subject needs at least one sample each LP.</p>
-         <ul class="missing-list">${missing.map(c => `<li><span>${esc(c)}</span>
-           <button class="btn small primary" type="button" data-turnin="${esc(c)}" data-lp="${esc(lp)}">Turn in</button></li>`).join('')}</ul>`
-      : `<h2>✓ Every subject has a sample for ${esc(lp)}</h2>`;
+         <p class="hint">Every subject needs one sample each LP${accel ? ', and an accelerated subject needs two' : ''}.</p>
+         <ul class="missing-list">${missing.map(c => `<li><span>${esc(c.name)}${c.need > 1
+           ? ` <span class="need">${have(c)} of ${c.need} · accelerated</span>` : ''}</span>
+           <button class="btn small primary" type="button" data-turnin="${esc(c.name)}" data-lp="${esc(lp)}">Turn in</button></li>`).join('')}</ul>`
+      : `<h2>✓ Every subject has its samples for ${esc(lp)}</h2>`;
   }
   $('#missing').addEventListener('click', (e) => {
     const b = e.target.closest('[data-turnin]');
@@ -958,7 +961,7 @@
     }
     list.innerHTML = '';
     // Group by subject, in the order of the student's classes; newest first inside each subject.
-    const classes = session.student.classes || [];
+    const classes = [...Classes.forLp(session.student, 'LP1'), ...Classes.forLp(session.student, 'LP5')].map(c => c.name);
     const rank = (c) => { const i = classes.indexOf(c); return i === -1 ? classes.length : i; };
     items.sort((x, y) => rank(x.subject) - rank(y.subject) || x.subject.localeCompare(y.subject)
       || String(y.dateCompleted).localeCompare(String(x.dateCompleted)) || y.createdAt - x.createdAt);
@@ -1057,9 +1060,12 @@
       <div><div class="meta">Student ID</div><strong class="bigid">${esc(s.id)}</strong></div>
       <div><div class="meta">Grade</div><strong>${esc(s.grade)}</strong></div>
       <div><div class="meta">Current Learning Period</div><strong>${esc(session.currentLp)}</strong></div>
-      <div><div class="meta">My classes</div>
-        <div class="class-list">${(s.classes || []).map(c => `<span class="pill">${esc(c)}</span>`).join('') || 'None yet. Ask your ES.'}</div>
-      </div>`;
+      ${[1, 2].map(sem => {
+        const list = Classes.forLp(s, sem === 1 ? 'LP1' : 'LP5');
+        const now = Classes.semOf(session.currentLp) === sem;
+        return `<div><div class="meta">Semester ${sem} classes (LP${sem === 1 ? '1 to 4' : '5 to 8'})${now ? ' · now' : ''}</div>
+          <div class="class-list">${list.map(c => `<span class="pill">${esc(c.name)}${c.need > 1 ? ' · accelerated' : ''}</span>`).join('') || 'None yet. Ask your ES.'}</div></div>`;
+      }).join('')}`;
   }
   // Families share devices, so logging out is one tap from every screen.
   async function logOut() {

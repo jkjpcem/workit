@@ -441,3 +441,5 @@ dialog::backdrop { background: rgba(10, 16, 36, .55); -webkit-backdrop-filter: b
 .file-icon { flex: none; width: 48px; height: 56px; border-radius: 8px; display: grid; place-items: center;
   background: #2b579a; color: #fff; font-weight: 800; font-size: 22px; }
 .field-hint { font-size: 12px; font-weight: 500; color: var(--muted); }
+.missing-list .need { font-size: 12px; font-weight: 600; color: var(--warn); margin-left: 4px; white-space: nowrap; }
+.missing-list .btn { white-space: nowrap; }

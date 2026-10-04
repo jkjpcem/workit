@@ -146,9 +146,11 @@
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter') card.click(); });
-      const subjects = s.classes.map(c => {
-        const n = mine.filter(i => i.subject === c).length;
-        return `<span class="subj ${n ? '' : 'missing'}">${esc(c)}${n ? ` · ${n}` : ''}</span>`;
+      // Sem 1 classes for LP1-4, Sem 2 for LP5-8; an accelerated class needs 2 samples.
+      const subjects = Classes.forLp(s, viewLp).map(c => {
+        const n = mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
+        const label = c.need > 1 ? ` · ${n}/${c.need}` : n ? ` · ${n}` : '';
+        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${c.need > 1 ? 'Accelerated: 2 samples per LP' : '1 sample per LP'}">${esc(c.name)}${label}</span>`;
       }).join('');
       const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
         `<img src="${i.thumb || blankThumb()}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
@@ -208,7 +210,11 @@
   function renderStudent() {
     const s = currentStudent;
     $('#student-head').innerHTML = `<h1>${esc(s.name)}</h1>
-      <div class="meta">${esc(s.id)} · Grade ${esc(s.grade)} · ${s.classes.map(esc).join(', ') || 'No classes set'}</div>`;
+      <div class="meta">${esc(s.id)} · Grade ${esc(s.grade)}</div>
+      ${[1, 2].map(sem => {
+        const list = Classes.forLp(s, sem === 1 ? 'LP1' : 'LP5');
+        return `<div class="meta sem-line"><b>Sem ${sem}</b> (LP${sem === 1 ? '1–4' : '5–8'}): ${list.map(c => esc(c.name) + (c.need > 1 ? ' <i>(accelerated, 2 per LP)</i>' : '')).join(', ') || 'No classes set'}${sem === 2 && s.sem2Typed === false && list.length ? ' <i>(from Sem 1)</i>' : ''}</div>`;
+      }).join('')}`;
     $('#student-lps').innerHTML = ['all', ...data.lps].map(lp => `
       <button class="chip ${studentLp === lp ? 'active' : ''}" data-lp="${lp}">${lp === 'all' ? 'All' : lp}${lp === data.currentLp ? ' •' : ''}</button>`).join('');
     const items = studentItems();
@@ -844,7 +850,7 @@
 
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
-  const COLS = ['first', 'last', 'grade', 'city', 'classes'];
+  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2'];
   const GRADE_LIST = ['8', '9', '10', '11', '12'];
   let roster = [];
   let rosterDirty = false;
@@ -854,7 +860,12 @@
     const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
-  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '' });
+  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '' });
+  // A blank Sem 2 cell shows what the student will get: Sem 1 with A changed to B.
+  const sem2Hint = (r) => {
+    const list = Classes.sem2From(Classes.parse(r.classes));
+    return list.length ? `Blank = ${list.map(c => c.name).join(', ')}` : '';
+  };
   const isEmpty = (r) => COLS.every(k => !String(r[k] || '').trim());
 
   $('#open-roster').addEventListener('click', async () => {
@@ -896,7 +907,7 @@
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Same sign-in as another row' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}">
         <td class="num">${i + 1}</td>
-        ${COLS.map(k => `<td><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}></td>`).join('')}
+        ${COLS.map(k => `<td class="col-${k}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}></td>`).join('')}
         <td class="sid-cell" title="${esc(problem)}">${id ? `<b>${id}</b>` : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
         <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
       </tr>`;
@@ -909,6 +920,7 @@
     if (!inp) return;
     const i = Number(inp.closest('tr').dataset.r);
     roster[i][inp.dataset.k] = inp.value;
+    if (inp.dataset.k === 'classes') $('input[data-k="classes2"]', inp.closest('tr')).placeholder = sem2Hint(roster[i]);
     setDirty(true);
     refreshIds();
   });
