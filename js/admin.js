@@ -98,6 +98,14 @@
     return 'new';
   }
   const STATUS_LABEL = { new: 'To review', approved: 'Approved', finalized: 'Finalized', redo: 'Redo', resubmitted: 'Resubmitted' };
+  const statusLabel = (i) => status(i) === 'finalized' ? (i.filedAs === 'Extra' ? 'Extra' : 'Annotated') : STATUS_LABEL[status(i)];
+
+  // Joon needs 2 annotated samples per student per LP; the rest are filed as Extra.
+  const ANNOTATED_NEEDED = 2;
+  function annotatedCount(studentId, lp) {
+    const all = studentCache[studentId] || data.items;
+    return all.filter(i => i.studentId === studentId && i.lp === lp && i.finalizedAt && i.filedAs !== 'Extra').length;
+  }
 
   // ---------- Dashboard ----------
 
@@ -114,8 +122,8 @@
       ['', data.students.length, 'Students'],
       ['', `${submitted.size}`, `Have uploaded to ${viewLp}`],
       ['', count('new'), 'To review'],
-      ['approved', count('approved'), 'Approved, not finalized'],
-      ['finalized', count('finalized'), 'Finalized'],
+      ['approved', count('approved'), 'Approved, not filed yet'],
+      ['finalized', count('finalized'), 'Filed (Annotated or Extra)'],
       ['redo', count('redo'), 'Waiting on redo'],
     ].map(([cls, n, label]) => `<div class="tile ${cls}"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
 
@@ -151,7 +159,7 @@
           <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
             by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
           <div class="counts"><b>${mine.length}</b> upload${mine.length > 1 ? 's' : ''} ·
-            ${by.new} to review · ${by.finalized} finalized${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
+            ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}
         ${subjects ? `<div class="subjects">${subjects}</div>` : ''}`;
@@ -213,7 +221,7 @@
       <button class="utile st-${status(i)}" data-idx="${idx}">
         ${i.thumb ? `<img src="${i.thumb}" alt="">` : '<div class="noimg">📄</div>'}
         <span class="cap">
-          <span class="tag">${STATUS_LABEL[status(i)]}</span>
+          <span class="tag">${statusLabel(i)}</span>
           <strong>${esc(i.subject)}</strong>
           <span class="meta">${esc(i.lp)} · ${esc(niceDate(i.dateCompleted))}${i.score ? ` · ${esc(i.score)}` : ''}</span>
         </span>
@@ -366,13 +374,19 @@
       $('#finish-row').hidden = !it.approved;
       $('#t-annotate').setAttribute('aria-pressed', String(annotating));
       $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotate';
-      $('#t-finalize').textContent = finalized ? (it.finalStale ? '🏁 Update final copy' : '🏁 Finalize again') : '🏁 Finalize';
+      const asExtra = finalized && it.filedAs === 'Extra';
+      const asAnnotated = finalized && !asExtra;
+      $('#t-finalize').textContent = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '🏁 Save annotated again') : '🏁 Finalize as Annotated';
+      $('#t-extra').textContent = asExtra ? '✓ Filed as Extra' : '📁 File as Extra';
+      $('#t-extra').disabled = asExtra;
+      const n = annotatedCount(it.studentId, it.lp);
       const fs = $('#final-state');
       fs.className = `final-state ${finalized ? (it.finalStale ? 'stale' : 'done') : ''}`;
       fs.innerHTML = !it.approved ? ''
-        : !finalized ? 'Add text boxes if you need to, then Finalize to save it to the Approved and Annotated folder.'
-        : `${it.finalStale ? 'You changed the annotations after finalizing. Click Update final copy to save them.' : `✓ Finalized ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
-           ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the final copy ↗</a>` : ''}`;
+        : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
+          (!finalized ? `Annotate and Finalize to save it to Approved › ${esc(it.lp)} Annotated, or File as Extra to save it as is to ${esc(it.lp)} Extra.`
+          : `${it.finalStale ? 'You changed the annotations after finalizing. Click Update annotated copy to save them.' : `✓ Filed in ${esc(it.lp)} ${asExtra ? 'Extra' : 'Annotated'} ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
+           ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}`);
     }
 
     // ----- Approve / redo (saved a moment after the last click) -----
@@ -631,7 +645,7 @@
 
     function changed() {
       const it = item();
-      if (it.finalizedAt) it.finalStale = true;
+      if (it.finalizedAt && it.filedAs !== 'Extra') it.finalStale = true;
       syncCaches(it, ['annotations', 'finalStale']);
       renderReview(it);
       $('#v-save').textContent = 'Saving…';
@@ -670,21 +684,40 @@
         } else {
           blob = new Blob([f.bytes], { type: 'application/pdf' });
         }
-        busy('Saving to Approved and Annotated…');
+        busy(`Saving to ${it.lp} Annotated…`);
         const res = await call('adminFinalize', {
-          studentId: it.studentId, id: it.id, annotations: cleanAnnotations(it), data: await blobToBase64(blob),
+          studentId: it.studentId, id: it.id, filedAs: 'Annotated', annotations: cleanAnnotations(it), data: await blobToBase64(blob),
         });
-        Object.assign(it, { finalizedAt: res.finalizedAt, finalUrl: res.finalUrl, finalStale: false, approved: true });
-        syncCaches(it, ['finalizedAt', 'finalUrl', 'finalStale', 'approved']);
-        setAnnotating(false);
-        renderReview(it);
-        toast(`✓ Saved as ${res.name}`);
+        filed(it, res);
       } catch (err) {
         toast(`Couldn’t finalize: ${err.message}`);
       } finally {
         busy(false);
       }
     });
+
+    $('#t-extra').addEventListener('click', async () => {
+      const it = item();
+      if (!it.approved || (it.finalizedAt && it.filedAs === 'Extra')) return;
+      if (it.finalizedAt && !confirm(`Move this from ${it.lp} Annotated to ${it.lp} Extra? The annotated copy is removed.`)) return;
+      flushSaves();
+      busy(`Saving to ${it.lp} Extra…`);
+      try {
+        filed(it, await call('adminFinalize', { studentId: it.studentId, id: it.id, filedAs: 'Extra' }));
+      } catch (err) {
+        toast(`Couldn’t file it: ${err.message}`);
+      } finally {
+        busy(false);
+      }
+    });
+
+    function filed(it, res) {
+      Object.assign(it, { finalizedAt: res.finalizedAt, finalUrl: res.finalUrl, filedAs: res.filedAs || 'Annotated', finalStale: false, approved: true });
+      syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'finalStale', 'approved']);
+      setAnnotating(false);
+      renderReview(it);
+      toast(`✓ Saved to ${it.lp} ${it.filedAs} as ${res.name}`);
+    }
 
     // Draws one page with its text boxes, matching what's on screen.
     async function renderPage(url, annotations) {

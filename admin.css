@@ -181,7 +181,11 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 
 /* ---------- Approve → annotate → finalize ---------- */
 
-.finish-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+.finish-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+.finish-row .btn { white-space: normal; line-height: 1.2; }
+.anno-count { display: block; margin-bottom: 4px; color: var(--text); font-weight: 650; }
+.anno-count.met { color: var(--st-finalized); }
+.counts .met { color: var(--st-finalized); }
 .finish-row .btn[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 .final-state { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 .final-state.done { color: var(--st-finalized); font-weight: 650; }
