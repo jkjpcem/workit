@@ -377,18 +377,22 @@
       $('#reasons-box').hidden = !it.redo;
       $('#reasons').innerHTML = data.reasons.map(r => `
         <button class="reason" aria-pressed="${(it.reasons || []).includes(r)}" data-reason="${esc(r)}">${esc(r)}</button>`).join('');
-      $('#finish-row').hidden = !it.approved;
+      // Annotate works any time except on a redo; filing needs Approve first.
+      $('#finish-row').hidden = !!it.redo;
+      $('#t-annotate').disabled = !!it.redo;
       $('#t-annotate').setAttribute('aria-pressed', String(annotating));
       $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotate';
       const asExtra = finalized && it.filedAs === 'Extra';
       const asAnnotated = finalized && !asExtra;
       $('#t-finalize').textContent = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '🏁 Save annotated again') : '🏁 Finalize as Annotated';
       $('#t-extra').textContent = asExtra ? '✓ Filed as Extra' : '📁 File as Extra';
-      $('#t-extra').disabled = asExtra;
+      $('#t-extra').disabled = asExtra || !it.approved;
+      $('#t-finalize').disabled = !it.approved;
       const n = annotatedCount(it.studentId, it.lp);
       const fs = $('#final-state');
       fs.className = `final-state ${finalized ? (it.finalStale ? 'stale' : 'done') : ''}`;
-      fs.innerHTML = !it.approved ? ''
+      fs.innerHTML = it.redo ? ''
+        : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Finalize as Annotated or File as Extra.'
         : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
           (!finalized ? `Annotate and Finalize to save it to Approved › ${esc(it.lp)} Annotated, or File as Extra to save it as is to ${esc(it.lp)} Extra.`
           : `${it.finalStale ? 'You changed the annotations after finalizing. Click Update annotated copy to save them.' : `✓ Filed in ${esc(it.lp)} ${asExtra ? 'Extra' : 'Annotated'} ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
@@ -402,7 +406,7 @@
       fn(it);
       if (it.redo) it.approved = false;
       if (!it.redo) it.reasons = [];
-      if (!it.approved) setAnnotating(false);
+      if (it.redo) setAnnotating(false);
       syncCaches(it, ['approved', 'redo', 'reasons']);
       renderReview(it);
       $('#v-save').textContent = 'Saving…';
@@ -440,7 +444,7 @@
     // ----- Annotating -----
 
     function setAnnotating(on) {
-      annotating = on && !!item() && !!item().approved;
+      annotating = on && !!item() && !item().redo;
       $('#v-pages').classList.toggle('annotating', annotating);
       $('#anno-bar').hidden = !annotating;
       $('#anno-hint').hidden = !annotating;
