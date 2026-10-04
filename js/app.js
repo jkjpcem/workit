@@ -51,7 +51,8 @@
       toast(`Welcome, ${res.student.firstName || res.student.id}!`);
       syncHistory();
     } catch (err) {
-      toast(err.message);
+      toast(/not find|not found/i.test(err.message)
+        ? "We couldn't find you. Did you enter all the letters correctly?" : err.message);
     } finally {
       busy(false);
     }
