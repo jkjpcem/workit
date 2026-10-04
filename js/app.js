@@ -1057,7 +1057,6 @@
     const s = session.student;
     $('#me-card').innerHTML = `
       <div><div class="meta">Name</div><strong>${esc(s.name || s.firstName || '')}</strong></div>
-      <div><div class="meta">Student ID</div><strong class="bigid">${esc(s.id)}</strong></div>
       <div><div class="meta">Grade</div><strong>${esc(s.grade)}</strong></div>
       <div><div class="meta">Current Learning Period</div><strong>${esc(session.currentLp)}</strong></div>
       ${[1, 2].map(sem => {

@@ -279,3 +279,4 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster th span { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
 .roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
 .roster td.col-classes2 input::placeholder { color: var(--muted); opacity: .75; font-style: italic; }
+.roster .sid-cell b.ok { color: var(--st-finalized); }

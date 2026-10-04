@@ -156,7 +156,7 @@
         `<img src="${i.thumb || blankThumb()}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
         (mine.length > 6 ? `<span class="more">+${mine.length - 5}</span>` : '');
       card.innerHTML = `
-        <div class="top"><h3>${esc(s.name)}</h3><span class="sid">${esc(s.id)} · Gr ${esc(s.grade)}</span></div>
+        <div class="top"><h3>${esc(s.name)}</h3><span class="sid">Grade ${esc(s.grade)}</span></div>
         ${mine.length ? `
           <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
             by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
@@ -210,7 +210,7 @@
   function renderStudent() {
     const s = currentStudent;
     $('#student-head').innerHTML = `<h1>${esc(s.name)}</h1>
-      <div class="meta">${esc(s.id)} · Grade ${esc(s.grade)}</div>
+      <div class="meta">Grade ${esc(s.grade)}</div>
       ${[1, 2].map(sem => {
         const list = Classes.forLp(s, sem === 1 ? 'LP1' : 'LP5');
         return `<div class="meta sem-line"><b>Sem ${sem}</b> (LP${sem === 1 ? '1–4' : '5–8'}): ${list.map(c => esc(c.name) + (c.need > 1 ? ' <i>(accelerated, 2 per LP)</i>' : '')).join(', ') || 'No classes set'}${sem === 2 && s.sem2Typed === false && list.length ? ' <i>(from Sem 1)</i>' : ''}</div>`;
@@ -904,11 +904,11 @@
     $('#roster-count').textContent = `${roster.filter(r => !isEmpty(r)).length}`;
     $('#roster-body').innerHTML = roster.map((r, i) => {
       const id = rosterId(r);
-      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Same sign-in as another row' : '';
+      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}">
         <td class="num">${i + 1}</td>
         ${COLS.map(k => `<td class="col-${k}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}></td>`).join('')}
-        <td class="sid-cell" title="${esc(problem)}">${id ? `<b>${id}</b>` : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
+        <td class="sid-cell" title="${esc(problem)}">${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
         <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
@@ -930,9 +930,9 @@
     $$('#roster-body tr').forEach(tr => {
       const r = roster[Number(tr.dataset.r)];
       const id = rosterId(r);
-      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Same sign-in as another row' : '';
+      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       tr.classList.toggle('bad', !!problem);
-      $('.sid-cell', tr).innerHTML = `${id ? `<b>${id}</b>` : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}`;
+      $('.sid-cell', tr).innerHTML = `${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}`;
     });
     $('#roster-count').textContent = `${roster.filter(r => !isEmpty(r)).length}`;
   }
