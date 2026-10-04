@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Workit</title>
+  <meta name="description" content="Turn in your homework with your camera.">
+  <meta name="theme-color" content="#13204a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Workit">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> Workit</div>
+    <!-- Bottom bar on phones, part of the top bar on wider screens. -->
+    <nav class="tabs" aria-label="Main menu" hidden>
+      <button data-screen="upload" class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>Turn in</button>
+      <button data-screen="history" class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>My uploads</button>
+    </nav>
+    <div class="account" id="account" hidden>
+      <button class="account-btn" id="account-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu">
+        <span class="avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+        <span id="who"></span>
+        <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="account-menu" id="account-menu" role="menu" hidden>
+        <div class="account-head" id="account-head"></div>
+        <button type="button" role="menuitem" data-menu="me">👤 My info &amp; classes</button>
+        <button type="button" role="menuitem" data-menu="logout" class="danger">↪ Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Sign in -->
+    <section id="screen-login" class="screen" hidden>
+      <div class="login-hero">
+        <div class="logo"><img src="icons/icon.svg" alt=""></div>
+        <h1>Sign in to Workit</h1>
+        <p class="lead">Use the answers your ES set up for you.</p>
+      </div>
+      <form id="login-form" class="card stack" autocomplete="off">
+        <label>First two letters of your first name
+          <input name="name2" class="letters-input" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}"
+            autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="e.g. Ma">
+        </label>
+        <label>Your grade
+          <select name="grade" required>
+            <option value="">Choose your grade</option>
+            <option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
+          </select>
+        </label>
+        <label>First two letters of the city you live in
+          <input name="city2" class="letters-input" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}"
+            autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="e.g. Sp">
+        </label>
+        <button class="btn primary big" type="submit">Sign in</button>
+      </form>
+      <p class="teacher-link"><a href="admin.html">ES dashboard</a></p>
+    </section>
+
+    <!-- Upload wizard -->
+    <section id="screen-upload" class="screen" hidden>
+      <p class="greeting" id="greeting"></p>
+      <div class="lp-banner" id="lp-banner"></div>
+
+      <div class="step stack" id="step-pages">
+        <div class="card stack step-card" id="subject-card">
+          <label><span><span class="step-num">1</span> Subject <span class="req" aria-hidden="true">*</span></span>
+            <select id="subject-select" required></select>
+          </label>
+        </div>
+        <div class="card stack step-card" id="add-card">
+          <h2><span class="step-num">2</span> Add your pages</h2>
+          <p class="hint" id="add-hint">Add pages in any order. You can mix photos and files, then put them in order below.</p>
+          <div class="add-row">
+            <button class="btn big add-btn" type="button" id="add-camera">📷<span>Take a photo</span></button>
+            <button class="btn big add-btn" type="button" id="add-gallery">🖼️<span>Choose photos</span></button>
+            <button class="btn big add-btn" type="button" id="add-file">📄<span>Choose a file</span></button>
+            <button class="btn big add-btn" type="button" id="add-link">🔗<span>Google Doc or Slides</span></button>
+          </div>
+          <p class="hint file-hint">Files can be PDF, Word (.docx), JPG or PNG. A Word file or a Google Doc or Slides goes in by itself.</p>
+          <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
+          <input id="gallery-input" type="file" accept="image/*" multiple hidden>
+          <input id="file-input" type="file" multiple hidden
+            accept=".pdf,.docx,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png">
+        </div>
+        <div class="card stack step-card" id="list-card">
+          <h2 id="list-title">Your pages</h2>
+          <ol class="page-list" id="page-list"></ol>
+          <p class="hint empty-pages" id="empty-pages">No pages yet. Use the buttons above to add them.</p>
+        </div>
+        <button class="btn primary big wide" id="to-details" type="button" disabled>Next: add details →</button>
+      </div>
+
+      <form class="step stack" id="step-review" hidden novalidate>
+        <h1><span class="step-num">3</span> Add details</h1>
+        <div class="review-strip" id="review-pages"></div>
+        <div class="card stack">
+          <h2 id="details-title">Details</h2>
+          <div class="field-row">
+            <label><span>Minutes spent <span class="req" aria-hidden="true">*</span></span>
+              <input name="minutes" type="number" inputmode="numeric" min="1" max="600" step="1" required placeholder="e.g. 45">
+            </label>
+            <label><span>Date completed <span class="req" aria-hidden="true">*</span></span>
+              <input name="dateCompleted" type="date" required aria-describedby="date-hint">
+              <span class="field-hint" id="date-hint"></span>
+            </label>
+          </div>
+          <label><span>Grade / Score <span class="req" aria-hidden="true">*</span></span>
+            <input name="score" required maxlength="40" placeholder="e.g. 18/20, 92%, A-">
+          </label>
+          <label>Comments
+            <textarea name="comments" rows="2" maxlength="1000" placeholder="Any comments re: this assignment"></textarea>
+          </label>
+          <p class="meta"><span class="req">*</span> Required</p>
+        </div>
+        <p class="summary-line" id="summary-line"></p>
+        <button class="btn primary big wide" type="submit" id="upload-btn">Submit</button>
+        <button class="btn ghost back" type="button" id="review-back">← Change pages</button>
+      </form>
+
+      <div class="step done" id="step-done" hidden>
+        <div class="done-mark" id="done-mark">✓</div>
+        <h1 id="done-title">Uploaded!</h1>
+        <p class="lead" id="done-text"></p>
+        <div class="stack">
+          <button class="btn primary big" id="done-again">Turn in another</button>
+          <button class="btn big" data-goto="history">See my uploads</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- History -->
+    <section id="screen-history" class="screen" hidden>
+      <h1>My uploads</h1>
+      <div class="card stack missing" id="missing" hidden></div>
+      <div class="chips" id="lp-chips" role="tablist" aria-label="Learning Period"></div>
+      <div id="history-list" class="history"></div>
+    </section>
+
+    <!-- Me -->
+    <section id="screen-me" class="screen" hidden>
+      <h1>My info</h1>
+      <div class="card stack" id="me-card"></div>
+      <button class="btn wide" id="sign-out">Log out</button>
+    </section>
+  </main>
+
+  <!-- Page editor: preview first, edge adjusting if needed -->
+  <div id="editor" class="editor" hidden>
+    <div class="editor-bar">
+      <button class="btn ghost" id="ed-cancel">Cancel</button>
+      <strong id="ed-title">Check your page</strong>
+      <span></span>
+    </div>
+    <div class="editor-stage" id="ed-stage">
+      <canvas id="ed-canvas"></canvas>
+    </div>
+    <div class="editor-tools" id="ed-tools-preview">
+      <div class="segmented small">
+        <button class="seg active" data-mode="color">Color</button>
+        <button class="seg" data-mode="bw">B&amp;W</button>
+      </div>
+      <button class="btn" id="ed-edges">✂️ Fix edges</button>
+      <div class="tool-row">
+        <button class="btn" id="ed-rescan">↺ Rescan</button>
+        <button class="btn primary" id="ed-keep">✓ Keep</button>
+      </div>
+    </div>
+    <div class="editor-tools" id="ed-tools-crop" hidden>
+      <button class="btn" id="ed-rotate">↻ Rotate</button>
+      <button class="btn" id="ed-auto">✨ Auto</button>
+      <button class="btn" id="ed-full">⬚ Whole photo</button>
+      <button class="btn primary" id="ed-crop-done">Done</button>
+    </div>
+  </div>
+
+  <!-- Change LP -->
+  <dialog id="lp-dialog">
+    <form method="dialog" class="stack" id="lp-pick">
+      <h2>Change Learning Period</h2>
+      <p class="hint">Only change this if your ES asked you to.</p>
+      <div class="lp-list" id="lp-list"></div>
+      <button class="btn" value="cancel">Cancel</button>
+    </form>
+    <form method="dialog" class="stack" id="lp-warn" hidden>
+      <div class="warn-icon">⚠️</div>
+      <h2 id="lp-warn-title">Are you sure?</h2>
+      <p id="lp-warn-text"></p>
+      <button class="btn danger" value="confirm" id="lp-warn-yes">Yes, use it</button>
+      <button class="btn primary" value="cancel">No, keep the current LP</button>
+    </form>
+  </dialog>
+
+  <!-- A Google Doc or Slides, sent as its share link -->
+  <dialog id="link-dialog">
+    <form class="stack" id="link-form" novalidate>
+      <h2>Add a Google Doc or Slides</h2>
+      <ol class="link-steps">
+        <li>In Google Docs or Slides, tap <strong>Share</strong>.</li>
+        <li>Under General access, choose <strong>Anyone with the link</strong>.</li>
+        <li>Tap <strong>Copy link</strong>, then paste it here.</li>
+      </ol>
+      <label>Link
+        <input id="link-input" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+          placeholder="https://docs.google.com/…">
+      </label>
+      <button class="btn primary" type="submit">Add it</button>
+      <button class="btn" type="button" id="link-cancel">Cancel</button>
+    </form>
+  </dialog>
+
+  <!-- Redo requests from the ES, shown once after sign-in -->
+  <dialog id="alert-dialog">
+    <form method="dialog" class="stack">
+      <div class="warn-icon">📝</div>
+      <h2 class="center">Your ES asked you to redo</h2>
+      <div id="alert-list" class="alert-list"></div>
+      <button class="btn primary" value="ok">Got it</button>
+    </form>
+  </dialog>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div><p id="busy-text">Working…</p></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="js/scan.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/pdfview.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

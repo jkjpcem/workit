@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Workit Admin</title>
+  <meta name="theme-color" content="#13204a">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin">
+  <header class="topbar">
+    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> Workit <span class="pill">Admin</span></div>
+    <div class="admin-controls" id="admin-controls" hidden>
+      <label class="inline">Viewing
+        <select id="view-lp"></select>
+      </label>
+      <label class="inline">Current LP
+        <select id="current-lp"></select>
+      </label>
+      <button class="btn small" id="open-roster">Students</button>
+      <button class="btn small" id="open-dates">LP dates</button>
+      <button class="btn small" id="refresh" title="Refresh">⟳</button>
+      <button class="btn small" id="admin-signout">Sign out</button>
+    </div>
+  </header>
+
+  <section class="desk-only card">
+    <h1>Open this on a computer</h1>
+    <p class="hint">The ES dashboard works in a computer's web browser. Students use the app on their phones.</p>
+  </section>
+
+  <main class="wide">
+    <!-- Password -->
+    <section id="screen-login" class="screen narrow" hidden>
+      <div class="login-hero">
+        <div class="logo"><img src="icons/icon.svg" alt=""></div>
+        <h1>ES sign in</h1>
+        <p class="lead">Review, annotate and finalize homework.</p>
+      </div>
+      <form id="admin-login" class="card stack">
+        <label>Username
+          <input name="username" required autocomplete="username" autocapitalize="none" spellcheck="false">
+        </label>
+        <label>Password
+          <input type="password" name="password" required autocomplete="current-password">
+        </label>
+        <button class="btn primary big" type="submit">Open dashboard</button>
+      </form>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="screen-dash" class="screen" hidden>
+      <div class="dash-head">
+        <h1 id="dash-title">LP</h1>
+        <input type="search" id="student-search" placeholder="Find a student" aria-label="Find a student">
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div class="legend">
+        <span><i class="sw new"></i>To review</span>
+        <span><i class="sw approved"></i>Approved</span>
+        <span><i class="sw finalized"></i>Finalized</span>
+        <span><i class="sw redo"></i>Redo</span>
+        <span><i class="sw resubmitted"></i>Resubmitted</span>
+        <span><i class="sw missing"></i>No upload yet for that class</span>
+      </div>
+      <div class="student-grid" id="student-grid"></div>
+    </section>
+
+    <!-- Student list, edited like a spreadsheet -->
+    <section id="screen-roster" class="screen" hidden>
+      <button class="btn ghost back-link" id="roster-back">← Dashboard</button>
+      <div class="dash-head">
+        <h1>Students <span class="pill" id="roster-count"></span></h1>
+        <div class="roster-actions">
+          <span class="meta" id="roster-state"></span>
+          <button class="btn" id="roster-add">＋ Add 5 rows</button>
+          <button class="btn primary" id="roster-save">Save students</button>
+        </div>
+      </div>
+      <p class="hint">Copy rows from Excel or Google Sheets in this order: <b>First name, Last name, Grade, City, Classes</b>. Click a cell and paste; the rows fill in below it. Separate classes with commas. To remove a student, click ✕ on their row. Nothing changes until you click Save students.</p>
+      <div class="roster-wrap">
+        <table class="roster">
+          <thead><tr><th>#</th><th>First name</th><th>Last name</th><th>Grade</th><th>City</th><th>Classes</th><th>Signs in as</th><th><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody id="roster-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- One student -->
+    <section id="screen-student" class="screen" hidden>
+      <button class="btn ghost back-link" id="back-to-dash">← All students</button>
+      <div class="student-head" id="student-head"></div>
+      <div class="chips" id="student-lps"></div>
+      <div class="upload-grid" id="upload-grid"></div>
+    </section>
+  </main>
+
+  <!-- Upload viewer -->
+  <div class="viewer" id="viewer" hidden>
+    <div class="viewer-bar">
+      <button class="btn ghost" id="v-close" aria-label="Close">✕ Close</button>
+      <div class="viewer-title"><strong id="v-title"></strong><span id="v-count" class="meta"></span></div>
+      <span class="save-state" id="v-save"></span>
+    </div>
+    <button class="nav-arrow prev" id="v-prev" aria-label="Previous upload">‹</button>
+    <button class="nav-arrow next" id="v-next" aria-label="Next upload">›</button>
+    <div class="viewer-body" id="v-body">
+      <!-- Text box tools, shown while annotating -->
+      <div class="anno-bar" id="anno-bar" hidden>
+        <button class="btn small primary" id="a-add">＋ Text box</button>
+        <button class="btn small" id="a-header" title="Add the name, class, Minutes, Grade, Date and Std box">＋ Header</button>
+        <select id="a-font" aria-label="Font">
+          <option value="sans">Arial</option>
+          <option value="serif">Times</option>
+          <option value="hand">Comic</option>
+          <option value="mono">Courier</option>
+        </select>
+        <select id="a-size" aria-label="Text size">
+          <option>10</option><option>12</option><option selected>14</option><option>18</option>
+          <option>24</option><option>32</option><option>48</option>
+        </select>
+        <div class="swatches" id="a-colors" role="radiogroup" aria-label="Color"></div>
+        <button class="btn small a-bold" id="a-bold" aria-pressed="false" title="Bold"><b>B</b></button>
+        <button class="btn small" id="a-delete" title="Delete text box">🗑</button>
+        <span class="grow-space"></span>
+        <button class="btn small" id="a-done">Done</button>
+      </div>
+      <p class="hint anno-hint" id="anno-hint" hidden>Click anywhere on a page to add a text box. Drag the ⠿ handle to move it and the right edge to resize it.</p>
+      <div class="v-pages" id="v-pages"></div>
+      <div class="v-panel">
+        <div class="card" id="v-info"></div>
+        <div class="card review-card" id="v-review">
+          <h2>Review</h2>
+          <div class="toggle-row">
+            <button class="toggle approved" id="t-approve" aria-pressed="false">✓ Approve</button>
+            <button class="toggle redo" id="t-redo" aria-pressed="false">↺ Redo</button>
+          </div>
+          <div class="finish-row" id="finish-row" hidden>
+            <button class="btn big" id="t-annotate">✏️ Annotate</button>
+            <button class="btn big primary" id="t-finalize">🏁 Finalize</button>
+          </div>
+          <p class="final-state" id="final-state"></p>
+          <div id="reasons-box" hidden>
+            <p class="hint">Why does it need a redo? Pick all that apply. The student is alerted the next time they sign in.</p>
+            <div class="reason-grid" id="reasons"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start and end dates for each LP -->
+  <dialog id="dates-dialog">
+    <form class="stack" id="dates-form">
+      <h2>LP dates</h2>
+      <p class="hint">Students can only enter a weekday inside the LP they upload to. Leave an LP blank for no date limit.</p>
+      <div class="dates-grid" id="dates-grid"></div>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="dates-cancel">Cancel</button>
+        <button class="btn primary" type="submit">Save dates</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div><p id="busy-text">Loading…</p></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/pdfview.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
