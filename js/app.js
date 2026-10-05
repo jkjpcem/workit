@@ -885,6 +885,11 @@
     syncing = true;
     try {
       const res = await Api.call('list', { studentId: session.student.id });
+      // Drop uploads deleted on another device.
+      const ids = new Set(res.items.map(s => s.id));
+      for (const l of await Store.all()) {
+        if (l.studentId === session.student.id && l.status === 'sent' && !ids.has(l.id)) await Store.remove(l.id);
+      }
       for (const s of res.items) {
         const local = await Store.get(s.id);
         await Store.put({
@@ -1003,6 +1008,7 @@
             <button class="btn" data-act="view">View</button>
             ${needsRedo ? '<button class="btn primary" data-act="resubmit">Resubmit</button>' : ''}
             ${item.status !== 'sent' ? '<button class="btn primary" data-act="retry">Send now</button><button class="btn" data-act="discard">Delete</button>' : ''}
+            ${item.status === 'sent' && !item.approved && !item.finalized ? '<button class="btn danger" data-act="delete">Delete</button>' : ''}
           </div>
         </div>`;
       el.addEventListener('click', (e) => onItem(e, item));
@@ -1069,6 +1075,21 @@
       const r = await send(item);
       busy(false);
       toast(r.ok ? `✅ Uploaded to ${item.lp}!` : r.error);
+      renderHistory();
+    } else if (act === 'delete') {
+      // Students may take back an upload until the ES approves it.
+      if (!confirm(`Delete your ${item.subject} sample for ${item.lp}? Your ES will no longer see it.`)) return;
+      busy('Deleting…');
+      try {
+        await Api.call('remove', { studentId: session.student.id, id: item.id });
+        await Store.remove(item.id);
+        if (item.resubmitOf) await Store.update(item.resubmitOf, { resubmitted: false });
+        toast('Deleted.');
+      } catch (err) {
+        toast(/unknown request/i.test(err.message) ? 'Deleting isn\u2019t turned on yet. Ask your ES.' : err.message);
+      } finally {
+        busy(false);
+      }
       renderHistory();
     } else if (act === 'discard') {
       if (confirm('This upload has not been sent. Delete it from this device?')) {
