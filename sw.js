@@ -1,5 +1,5 @@
 // Keeps the app working offline. Bump VERSION whenever you change app files.
-const VERSION = 'workit-v27';
+const VERSION = 'workit-v28';
 const FILES = [
   './', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
   'js/app.js', 'js/classes.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js',
@@ -7,7 +7,7 @@ const FILES = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -17,11 +17,13 @@ self.addEventListener('activate', (e) => {
 });
 
 // Network first for our own files so updates show up, cache when offline.
+// 'no-cache' makes the browser check GitHub every time instead of reusing a
+// copy up to 10 minutes old, so a new version shows up on the next open.
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request.url, { cache: 'no-cache' })
       .then(res => {
         const copy = res.clone();
         caches.open(VERSION).then(c => c.put(e.request, copy));
