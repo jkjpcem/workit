@@ -310,7 +310,7 @@
       Editor.open(p.src, { corners: p.corners, mode: p.mode });
       return;
     }
-    if (act === 'view') return window.open(wiz.pages[i].preview, '_blank');
+    if (act === 'view') return viewImages([wiz.pages[i].preview], `Page ${i + 1}`);
     renderPages();
     if (act === 'up' || act === 'down') {
       const moved = $(`#page-list [data-act="${act}"][data-i="${act === 'up' ? i - 1 : i + 1}"]`);
@@ -359,6 +359,9 @@
     $('#link-input').focus();
   });
   $('#link-cancel').addEventListener('click', () => linkDialog.close());
+  $('#view-close').addEventListener('click', () => $('#view-dialog').close());
+  // Tapping the dark area around the pages closes the viewer too.
+  $('#view-dialog').addEventListener('click', (e) => { if (e.target.id === 'view-dialog') e.target.close(); });
   $('#link-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const link = $('#link-input').value.trim();
@@ -1007,6 +1010,33 @@
     }
   }
 
+  // ---------- Viewer ----------
+  // Pages open in a window inside Workit, not a new tab (Joon's request).
+
+  function viewImages(srcs, title) {
+    const urls = srcs.map(x => (typeof x === 'string' ? x : URL.createObjectURL(x)));
+    $('#view-title').textContent = title;
+    $('#view-pages').innerHTML = urls.map((u, n) => `<img src="${u}" alt="Page ${n + 1}">`).join('');
+    const dlg = $('#view-dialog');
+    dlg.onclose = () => {
+      urls.forEach(u => u.startsWith('blob:') && URL.revokeObjectURL(u));
+      $('#view-pages').innerHTML = '';
+    };
+    dlg.showModal();
+    $('#view-pages').scrollTop = 0;
+  }
+
+  async function viewPdf(blob, title) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    // Workit's own PDFs are page photos, so they show at once. Others go through pdf.js.
+    let pages = Pdf.extractJpegs(bytes);
+    if (!pages.length) {
+      const canvases = await PdfView.render(bytes, { width: 1100 });
+      pages = await Promise.all(canvases.map(c => new Promise(r => c.toBlob(r, 'image/jpeg', 0.85))));
+    }
+    viewImages(pages, title);
+  }
+
   async function onItem(e, item) {
     const act = e.target.closest('[data-act]')?.dataset.act || (e.target.tagName === 'IMG' ? 'view' : null);
     if (!act) return;
@@ -1018,8 +1048,6 @@
       return;
     }
     if (act === 'view') {
-      // Open the tab during the tap, then fill it, so it isn't blocked as a popup.
-      const win = window.open('', '_blank');
       try {
         // A Word file or Google Doc is only a PDF once the server has made it one.
         let blob = item.source === 'docx' || item.source === 'gdoc' ? item.serverPdf : item.pdf;
@@ -1029,11 +1057,9 @@
           blob = new Blob([Uint8Array.from(atob(res.data), c => c.charCodeAt(0))], { type: 'application/pdf' });
           await Store.update(item.id, item.source === 'docx' || item.source === 'gdoc' ? { serverPdf: blob } : { pdf: blob });
         }
-        const url = URL.createObjectURL(blob);
-        if (win) win.location.href = url; else location.href = url;
-        setTimeout(() => URL.revokeObjectURL(url), 120_000);
+        busy('Opening…');
+        await viewPdf(blob, `${item.subject} · ${item.lp}`);
       } catch (err) {
-        if (win) win.close();
         toast(err.message);
       } finally {
         busy(false);
