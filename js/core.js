@@ -194,13 +194,6 @@ function AdminCore(ctx) {
     return false;
   }
 
-  function strip(student, lp) {
-    if (!core) return '';
-    const forRp = rpOf(lp);
-    return `<div class="core-strip" title="Core subjects for ${forRp}">${slots(student, forRp).map(s =>
-      `<span class="${s.state}">${done(s) ? '✓ ' : ''}${SHORT[s.area]}${s.elective ? '*' : ''}</span>`).join('')}</div>`;
-  }
-
   // Each student and how many core subjects they're missing for the reporting period.
   // Click a name to see what was annotated when, what's missing, and to mark one done.
   let sideLp = null, expanded = null;
@@ -224,18 +217,27 @@ function AdminCore(ctx) {
       <h2>${forRp} core subjects</h2>
       <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
       <p class="side-sum"><b>${complete} of ${rows.length}</b> students have all 4</p>
+      <div class="side-head"><span></span>${boxes(null)}</div>
       <ul class="side-students">${rows.map(r => `
-        <li class="${r.missing ? (late ? 'late' : 'open') : 'done'} ${expanded === r.st.id ? 'expanded' : ''}">
+        <li class="${expanded === r.st.id ? 'expanded' : ''}">
           <button type="button" class="side-name" data-act="toggle" data-student="${esc(r.st.id)}" aria-expanded="${expanded === r.st.id}">
             <span>${esc(r.st.name)}</span>
-            <b>${r.missing ? `missing ${r.missing} of 4` : '✓ done'}</b>
+            ${boxes(r.list)}
           </button>
           ${expanded === r.st.id ? detail(r.st, forRp, r.list) : ''}
         </li>`).join('')}</ul>`;
     box.hidden = false;
   }
 
-  function detail(st, forRp, list) {
+  // Four small boxes: green when that core subject is covered, red when it's still missing.
+  // With no list, the column labels.
+  function boxes(list) {
+    if (!list) return `<span class="core-boxes labels">${AREAS.map(a => `<i>${SHORT[a]}</i>`).join('')}</span>`;
+    return `<span class="core-boxes">${list.map(x =>
+      `<i class="${done(x) ? 'ok' : 'no'}" title="${esc(x.area)}${x.elective ? ' (elective)' : ''}: ${done(x) ? 'done' : 'missing'}"></i>`).join('')}</span>`;
+  }
+
+  function detail(st, forRp, list, onPage) {
     const btn = (act, area, text) => `<button type="button" class="core-mark ${act === 'undo' ? 'undo' : ''}" data-act="${act}" data-student="${esc(st.id)}" data-area="${esc(area)}">${text}</button>`;
     return `<div class="side-detail">
       <ul>${list.map(x => {
@@ -253,9 +255,42 @@ function AdminCore(ctx) {
           <small>${x.state === 'missed' ? 'Missed. ' : 'Missing. '}${esc(hintText(x))}</small>
           ${btn('mark', x.area, 'Mark done')}</span></li>`;
       }).join('')}</ul>
-      <button type="button" class="btn small" data-act="samples" data-student="${esc(st.id)}">Open ${esc(st.firstName)}’s samples</button>
+      ${onPage ? '' : `<button type="button" class="btn small" data-act="samples" data-student="${esc(st.id)}">Open ${esc(st.firstName)}’s samples</button>`}
     </div>`;
   }
+
+  // ---------- One student's page: their core subjects for each reporting period ----------
+
+  let pageStudent = null, pageRp = null;
+
+  function studentPage(student, lp) {
+    const box = $('#student-core');
+    if (student) { pageStudent = student.id; if (lp && lp !== 'all') pageRp = rpOf(lp); }
+    const st = core && core.students.find(x => x.id === pageStudent);
+    if (!st) {
+      box.hidden = true;
+      if (!core && !failed && !loading) load(false).then(() => studentPage(), () => { failed = true; });
+      return;
+    }
+    if (!pageRp) pageRp = rpOf(core.currentLp);
+    box.innerHTML = `
+      <div class="student-core-head">
+        <h2>Core subjects</h2>
+        <span class="chips">${Object.keys(RPS).map(r => `<button type="button" class="chip ${r === pageRp ? 'active' : ''}" data-rp="${r}">${r} <small>${RPS[r][0]}–${RPS[r][RPS[r].length - 1]}</small></button>`).join('')}</span>
+        ${boxes(slots(st, pageRp))}
+      </div>
+      ${detail(st, pageRp, slots(st, pageRp), true)}`;
+    box.hidden = false;
+  }
+
+  $('#student-core').addEventListener('click', async (e) => {
+    const chip = e.target.closest('[data-rp]');
+    if (chip) { pageRp = chip.dataset.rp; return studentPage(); }
+    const b = e.target.closest('[data-act]');
+    if (!b || !core) return;
+    const st = core.students.find(x => x.id === b.dataset.student);
+    if (st && (b.dataset.act === 'mark' || b.dataset.act === 'undo') && await mark(st, pageRp, b.dataset.area, b.dataset.act === 'undo')) studentPage();
+  });
 
   $('#rp-side').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]');
@@ -281,5 +316,5 @@ function AdminCore(ctx) {
     }
   }
 
-  return { panel, filed, whenReady, strip, side, reset: () => { core = null; failed = false; } };
+  return { panel, filed, whenReady, side, studentPage, reset: () => { core = null; failed = false; } };
 }

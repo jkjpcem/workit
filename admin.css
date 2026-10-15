@@ -474,3 +474,18 @@ label.inline.check input { width: auto; }
 .side-detail li.annotated .core-dot { background: var(--good); border-color: var(--good); }
 .side-detail li.manual .core-dot { background: var(--brand); border-color: var(--brand); }
 .side-detail li.missed .core-dot { border-color: var(--bad); }
+.core-boxes { display: inline-grid; grid-template-columns: repeat(4, 26px); gap: 4px; flex: none; }
+.core-boxes i { height: 16px; border-radius: 4px; background: var(--bad); }
+.core-boxes i.ok { background: var(--good); }
+.core-boxes.labels i { height: auto; background: none; font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; text-transform: uppercase; }
+.side-head { display: flex; justify-content: space-between; padding: 0 8px 2px; }
+.side-name { align-items: center; }
+.student-core { margin: 12px 0 16px; padding: 14px 18px; }
+.student-core-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.student-core-head h2 { margin: 0; font-size: 18px; }
+.student-core-head .chips { display: flex; gap: 6px; }
+.student-core-head .chip small { font-weight: 500; opacity: .75; margin-left: 4px; }
+.student-core .side-detail { border-left: 0; margin: 10px 0 0; padding: 0; }
+.student-core .side-detail ul { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.side-detail li.needed small, .side-detail li.missed small { color: var(--bad); }
+.side-detail li.needed .core-dot, .side-detail li.missed .core-dot { border-color: var(--bad); }

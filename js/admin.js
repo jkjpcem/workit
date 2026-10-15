@@ -180,7 +180,7 @@
   $('#student-search').addEventListener('input', renderDash);
 
   function renderDash() {
-    const coreReady = Core.whenReady(() => { if (!$('#screen-dash').hidden) renderDash(); });
+    Core.whenReady(() => { if (!$('#screen-dash').hidden) renderDash(); });
     Core.side(viewLp);
     const range = (data.lpDates || {})[viewLp];
     $('#dash-title').innerHTML = `${esc(viewLp)}${viewLp === data.currentLp ? ' (current)' : ''}` +
@@ -234,8 +234,7 @@
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}
-        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}
-        ${coreReady ? Core.strip(s, viewLp) : ''}`;
+        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}`;
       card.addEventListener('click', (e) => {
         const img = e.target.closest('img[data-id]');
         if (img) {
@@ -286,6 +285,7 @@
         const list = Classes.forLp(s, sem === 1 ? 'LP1' : 'LP5');
         return `<div class="meta sem-line"><b>Sem ${sem}</b> (LP${sem === 1 ? '1–4' : '5–8'}): ${list.map(c => esc(c.name) + (c.need > 1 ? ' <i>(accelerated, 2 per LP)</i>' : '')).join(', ') || 'No classes set'}${sem === 2 && s.sem2Typed === false && list.length ? ' <i>(from Sem 1)</i>' : ''}</div>`;
       }).join('')}`;
+    Core.studentPage(s, studentLp);
     $('#student-lps').innerHTML = ['all', ...data.lps].map(lp => `
       <button class="chip ${studentLp === lp ? 'active' : ''}" data-lp="${lp}">${lp === 'all' ? 'All' : lp}${lp === data.currentLp ? ' •' : ''}</button>`).join('');
     const items = studentItems();
