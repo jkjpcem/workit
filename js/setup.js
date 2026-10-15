@@ -437,7 +437,10 @@ function AdminSetup(ctx) {
   $('#add-es').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
-    const first = f.first.value.trim(), last = f.last.value.trim(), email = f.email.value.trim();
+    const handle = f.email.value.trim();
+    // Everyone is at suncoastcharter.org, so only the part before the @ is typed.
+    const email = handle.includes('@') ? handle : `${handle}@suncoastcharter.org`;
+    const first = f.first.value.trim(), last = f.last.value.trim();
     busy('Creating the account and emailing them…');
     try {
       const res = await call('superEsAdd', { first, last, email, link: adminUrl() });

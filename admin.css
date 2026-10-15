@@ -405,3 +405,6 @@ label.inline.check input { width: auto; }
 .meta.block { display: block; font-weight: 500; }
 #welcome-hint.sent { color: var(--good); font-weight: 650; }
 #welcome-hint.bad { color: var(--bad); font-weight: 650; }
+.email-field { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--field); overflow: hidden; }
+.email-field input { border: 0; border-radius: 0; background: transparent; min-width: 0; flex: 1; }
+.email-domain { padding: 0 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
