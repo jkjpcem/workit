@@ -468,3 +468,5 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 /* The ES's own typed redo reason, shown to the student */
 .alert-item .redo-note-text { margin: 6px 0 0; font-size: 14px; white-space: pre-wrap; }
 .notes.redo-note-text { white-space: pre-wrap; }
+
+.es-name { display: inline-block; margin: 6px 0 0; padding: 4px 12px; border-radius: 99px; font-size: 14px; font-weight: 650; color: var(--brand); background: var(--brand-soft); }

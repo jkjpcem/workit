@@ -3,4 +3,6 @@ window.WORKIT_CONFIG = {
   // The "Web app URL" Google gives you when you deploy Code.gs (see SETUP.md).
   // It looks like https://script.google.com/macros/s/AKfy.../exec
   SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbw7l29EgCxT6R9zueT5svkwC5SWYNbGVXLosi65NjPpkWzT2thLvMQyt2w7XhbUSnAT/exec',
+  // "Make a copy" link for the Workit template sheet that other ES copy during setup.
+  TEMPLATE_COPY_URL: 'https://docs.google.com/spreadsheets/d/15V85_TAm0g2LABGiCGkflZ7BvkxHKtPooUxIcu61iAM/copy',
 };
