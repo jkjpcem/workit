@@ -352,3 +352,8 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 #welcome-dialog { width: min(600px, calc(100% - 32px)); }
 #welcome-text { width: 100%; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
 .roster.accounts td:nth-child(4) { width: auto; }
+.connect-state.waiting { color: var(--brand); font-weight: 650; }
+.connect-state.waiting::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; vertical-align: -1px; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.by-hand { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 14px; }
+.by-hand summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; }
