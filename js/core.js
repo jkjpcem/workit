@@ -93,6 +93,10 @@ function AdminCore(ctx) {
   }
 
   const done = (s) => s.state === 'annotated' || s.state === 'manual';
+  const PER_LP = 2;   // annotated samples each student needs in every LP
+  const SHORT = { English: 'Eng', Math: 'Math', 'Social Studies': 'SS', Science: 'Sci' };
+  const lpCount = (studentId, lp) => core.items.filter(i => i.studentId === studentId && i.lp === lp).length;
+  const dots = (n) => Array.from({ length: PER_LP }, (_, k) => `<i class="${k < n ? 'on' : ''}"></i>`).join('');
   const hintText = (s) => s.elective
     ? (s.hint.length ? `Elective: ${s.hint.join(' or ')}` : 'Any elective')
     : s.hint.join(' or ');
@@ -147,10 +151,14 @@ function AdminCore(ctx) {
     const shown = onlyMissing ? rows.filter(r => !r.slots.every(done)) : rows;
     $('#core-body').innerHTML = shown.length ? shown.map(r => `
       <tr>
-        <th scope="row">${esc(r.st.name)}<small>${r.slots.filter(done).length} of 4</small></th>
+        <th scope="row">${esc(r.st.name)}<small>${r.slots.filter(done).length} of 4 core</small></th>
+        <td class="core-lps">${RPS[rp].map(lp => {
+          const n = lpCount(r.st.id, lp);
+          return `<span class="${n >= PER_LP ? 'met' : ''}">${lp} <b>${Math.min(n, 9)}/${PER_LP}</b></span>`;
+        }).join('')}</td>
         ${r.slots.map(s => cell(r.st, rp, s)).join('')}
       </tr>`).join('')
-      : `<tr><td colspan="5" class="empty">${rows.length ? 'Every student is complete. 🎉' : 'No students yet.'}</td></tr>`;
+      : `<tr><td colspan="6" class="empty">${rows.length ? 'Every student is complete. 🎉' : 'No students yet.'}</td></tr>`;
     renderSorting();
   }
 
@@ -243,17 +251,27 @@ function AdminCore(ctx) {
     const area = areaOf(it.subject);
     const counted = list.find(s => s.item && s.item.id === it.id);
     let tag = '';
+    const gains = [];
     if (counted) {
       tag = `<p class="core-tag ok">✓ This sample covers ${esc(counted.area)}${counted.elective ? ' (elective)' : ''} for ${forRp}.</p>`;
     } else {
       const missing = list.filter(s => !done(s));
       const fills = area ? missing.find(s => s.area === area && !s.elective) : missing.find(s => s.elective);
-      if (fills) tag = `<p class="core-tag fill">★ Annotating this fills ${esc(fills.area)}${fills.elective ? ' (elective)' : ''} for ${forRp}.</p>`;
+      if (fills) gains.push(`fills ${esc(fills.area)}${fills.elective ? ' (elective)' : ''} for ${forRp}`);
       else if (area && list.find(s => s.area === area && done(s))) tag = `<p class="core-tag">${esc(area)} is already covered for ${forRp}.</p>`;
     }
+    const n = lpCount(student.id, it.lp);
+    if (!counted && !it.finalizedAt && n < PER_LP) gains.push(`makes ${esc(it.lp)} ${n + 1} of ${PER_LP}`);
+    if (gains.length) tag = `<p class="core-tag fill">★ Annotating this ${gains.join(' and ')}.</p>` + tag;
     box.innerHTML = `
-      <h2>Core subjects · ${forRp}</h2>
+      <h2>${esc(student.firstName)} · ${forRp} (${RPS[forRp][0]}–${RPS[forRp][RPS[forRp].length - 1]})</h2>
       ${tag}
+      <h3 class="core-sub">Annotated per LP (goal ${PER_LP})</h3>
+      <ul class="lp-dots">${RPS[forRp].map(lp => {
+        const c = lpCount(student.id, lp);
+        return `<li class="${c >= PER_LP ? 'met' : ''} ${lp === it.lp ? 'here' : ''}"><span>${lp}</span><span class="dots">${dots(c)}</span><b>${c}/${PER_LP}${c >= PER_LP ? ' ✓' : ''}</b></li>`;
+      }).join('')}</ul>
+      <h3 class="core-sub">Core subjects: ${list.filter(done).length} of 4</h3>
       <ul class="core-mini">${list.map(s => `
         <li class="${s.state}">
           <span class="core-dot"></span>
@@ -267,6 +285,60 @@ function AdminCore(ctx) {
     $('#v-core-open').addEventListener('click', () => { ctx.closeViewer(); rp = forRp; open(); });
   }
 
+  // ---------- Dashboard: running totals beside the student cards ----------
+
+  let failed = false;
+
+  /** Loads once, then calls back so the dashboard can draw the totals and card strips. */
+  function whenReady(redraw) {
+    if (core) return true;
+    if (!loading && !failed) load(false).then(redraw, () => { failed = true; });
+    return false;
+  }
+
+  function strip(student, lp) {
+    if (!core) return '';
+    const forRp = rpOf(lp);
+    return `<div class="core-strip" title="Core subjects for ${forRp}">${slots(student, forRp).map(s =>
+      `<span class="${s.state}">${done(s) ? '✓ ' : ''}${SHORT[s.area]}${s.elective ? '*' : ''}</span>`).join('')}</div>`;
+  }
+
+  function side(viewLp) {
+    const box = $('#rp-side');
+    if (!core) { box.hidden = true; return; }
+    const forRp = rpOf(viewLp);
+    const lps = RPS[forRp];
+    const rows = core.students.map(st => ({ st, slots: slots(st, forRp) }));
+    const total = rows.length || 1;
+    const bar = (n) => `<span class="mini-bar"><i style="width:${Math.round((n / total) * 100)}%"></i></span>`;
+    const range = [(core.lpDates || {})[lps[0]], (core.lpDates || {})[lps[lps.length - 1]]];
+    const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const behind = rows.filter(r => !r.slots.every(done));
+    box.innerHTML = `
+      <h2>${forRp} progress</h2>
+      <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
+      <h3 class="core-sub">${PER_LP} annotated per LP</h3>
+      <ul class="side-list">${lps.map(lp => {
+        const n = rows.filter(r => lpCount(r.st.id, lp) >= PER_LP).length;
+        return `<li class="${lp === viewLp ? 'here' : ''}"><span>${lp}</span>${bar(n)}<b>${n}/${rows.length}</b></li>`;
+      }).join('')}</ul>
+      <h3 class="core-sub">Core subjects, 1 each</h3>
+      <ul class="side-list">${AREAS.map((a, k) => {
+        const n = rows.filter(r => done(r.slots[k])).length;
+        return `<li><span>${a}</span>${bar(n)}<b>${n}/${rows.length}</b></li>`;
+      }).join('')}
+        <li class="all"><span>All 4</span>${bar(rows.length - behind.length)}<b>${rows.length - behind.length}/${rows.length}</b></li></ul>
+      ${behind.length ? `<h3 class="core-sub">Still missing a core subject</h3>
+      <ul class="behind">${behind.slice(0, 8).map(r => `<li><button type="button" class="linkish" data-student="${esc(r.st.id)}">${esc(r.st.name)}</button>
+        <small>${r.slots.filter(s => !done(s)).map(s => SHORT[s.area] + (s.elective ? '*' : '')).join(', ')}</small></li>`).join('')}</ul>
+      ${behind.length > 8 ? `<p class="meta">and ${behind.length - 8} more</p>` : ''}` : '<p class="core-tag ok">Every student has all 4 core subjects. 🎉</p>'}
+      <p class="meta">* elective counts for that subject</p>
+      <button type="button" class="btn small" id="side-open-core">Open Core subjects</button>`;
+    box.hidden = false;
+    $('#side-open-core').addEventListener('click', () => { rp = forRp; open(); });
+    box.querySelectorAll('[data-student]').forEach(b => b.addEventListener('click', () => ctx.openStudent(b.dataset.student)));
+  }
+
   /** The viewer just filed a sample: count it (or stop counting it) right away. */
   function filed(it) {
     if (!core) return;
@@ -276,5 +348,5 @@ function AdminCore(ctx) {
     }
   }
 
-  return { open, panel, filed, reset: () => { core = null; } };
+  return { open, panel, filed, whenReady, strip, side, reset: () => { core = null; failed = false; } };
 }

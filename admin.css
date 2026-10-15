@@ -408,3 +408,50 @@ label.inline.check input { width: auto; }
 .email-field { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--field); overflow: hidden; }
 .email-field input { border: 0; border-radius: 0; background: transparent; min-width: 0; flex: 1; }
 .email-domain { padding: 0 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+/* Running totals beside the student cards */
+.dash-body { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
+.dash-body:has(> .rp-side[hidden]) { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) { .dash-body { grid-template-columns: minmax(0, 1fr); } }
+.rp-side { position: sticky; top: 90px; padding: 16px 18px; }
+.rp-side h2 { margin: 0; font-size: 18px; }
+.core-sub { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 6px; }
+.side-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.side-list li { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 8px; }
+.side-list li.here span:first-child, .side-list li.all span:first-child { font-weight: 700; }
+.side-list b { font-variant-numeric: tabular-nums; }
+.mini-bar { height: 8px; border-radius: 99px; background: var(--raised); overflow: hidden; border: 1px solid var(--line); }
+.mini-bar i { display: block; height: 100%; background: var(--good); }
+.behind { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.behind small { color: var(--muted); margin-left: 6px; }
+.rp-side .btn { margin-top: 10px; }
+.core-strip { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.core-strip span { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--warn); color: var(--warn); }
+.core-strip span.annotated { background: var(--good); border-color: var(--good); color: #fff; }
+.core-strip span.manual { background: var(--brand); border-color: var(--brand); color: #fff; }
+.core-strip span.missed { border-color: var(--bad); color: var(--bad); }
+.core-lps { white-space: nowrap; }
+.core-lps span { display: block; font-size: 13px; color: var(--warn); }
+.core-lps span.met { color: var(--good); }
+.lp-dots { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.lp-dots li { display: grid; grid-template-columns: 44px auto 1fr; gap: 10px; align-items: center; }
+.lp-dots li.here span:first-child { font-weight: 700; }
+.lp-dots li.met b { color: var(--good); }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--muted); }
+.dots i.on { background: var(--good); border-color: var(--good); }
+
+/* Wide screens: the review panel sits beside the pages, so the totals stay in view. */
+@media (min-width: 1200px) {
+  .viewer-body { display: grid; grid-template-columns: minmax(0, 860px) 340px; justify-content: center; column-gap: 24px; align-items: start; }
+  .viewer-body > .anno-bar, .viewer-body > .anno-hint { grid-column: 1 / -1; }
+  .v-pages { margin: 0; max-width: none; }
+  .v-panel { margin: 0; position: sticky; top: 0; max-height: calc(100vh - 110px); overflow: hidden auto; display: grid; gap: 14px; min-width: 0; }
+  .v-panel > * { min-width: 0; margin: 0; }
+  /* Review first, then the running totals, then the sample's details. */
+  #v-review { order: 1; }
+  #v-core { order: 2; }
+  #v-info { order: 3; }
+  .v-panel .finish-row { display: grid; grid-template-columns: 1fr; }
+  .v-panel .finish-row .btn { width: 100%; }
+}

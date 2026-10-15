@@ -180,6 +180,8 @@
   $('#student-search').addEventListener('input', renderDash);
 
   function renderDash() {
+    const coreReady = Core.whenReady(() => { if (!$('#screen-dash').hidden) renderDash(); });
+    Core.side(viewLp);
     const range = (data.lpDates || {})[viewLp];
     $('#dash-title').innerHTML = `${esc(viewLp)}${viewLp === data.currentLp ? ' (current)' : ''}` +
       (range ? ` <span class="lp-range">${esc(niceDate(range.start))} – ${esc(niceDate(range.end))}</span>` : '');
@@ -232,7 +234,8 @@
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}
-        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}`;
+        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}
+        ${coreReady ? Core.strip(s, viewLp) : ''}`;
       card.addEventListener('click', (e) => {
         const img = e.target.closest('img[data-id]');
         if (img) {
@@ -1159,6 +1162,7 @@
     $, esc, toast, busy, show, call,
     openDash: () => show('dash'),
     closeViewer: () => Viewer.close(),
+    openStudent: (id) => openStudent(id, viewLp).catch(err => toast(err.message)),
   });
 
   // Another tab (the one "Finish in Workit" opened) connected the copy: move on here too.
