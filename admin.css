@@ -280,3 +280,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
 .roster td.col-classes2 input::placeholder { color: var(--muted); opacity: .75; font-style: italic; }
 .roster .sid-cell b.ok { color: var(--st-finalized); }
+
+/* The ES's own typed redo reason */
+.redo-note { display: grid; gap: 6px; margin-top: 12px; font-weight: 600; font-size: 14px; }
+.redo-note textarea { width: 100%; resize: vertical; min-height: 72px; font: inherit; font-weight: 400; }

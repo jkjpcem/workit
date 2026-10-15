@@ -88,6 +88,7 @@
       <div class="alert-item">
         <strong>${esc(a.subject)}</strong> <span class="meta">${esc(a.lp)} · ${esc(niceDate(a.dateCompleted))}</span>
         ${a.reasons.length ? `<ul>${a.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+        ${a.redoNote ? `<p class="redo-note-text">${esc(a.redoNote)}</p>` : ''}
       </div>`).join('') +
       '<p class="hint">Find it in My uploads and tap Resubmit.</p>';
     alertDialog.showModal();
@@ -1001,6 +1002,7 @@
           ${item.score ? `<div class="score">Score: <strong>${esc(item.score)}</strong>${item.minutes ? ` · ${esc(item.minutes)} min` : ''}</div>` : ''}
           <div class="badges">${badge}${review}</div>
           ${needsRedo && item.reasons && item.reasons.length ? `<ul class="reasons">${item.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+          ${needsRedo && item.redoNote ? `<div class="notes redo-note-text"><b>From your ES:</b> ${esc(item.redoNote)}</div>` : ''}
           ${item.feedback ? `<div class="notes"><b>Feedback:</b> ${esc(item.feedback)}</div>` : ''}
           ${item.comments ? `<div class="notes"><b>Comments:</b> ${esc(item.comments)}</div>` : ''}
           ${item.status !== 'sent' && item.error ? `<div class="meta">${esc(item.error)}</div>` : ''}

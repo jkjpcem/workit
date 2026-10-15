@@ -352,7 +352,7 @@
       $('#v-info').innerHTML = `
         <h2>${esc(it.subject)}</h2>
         <div class="info-grid">
-          <div><span>Student</span>${esc(student ? student.name : it.name)} (${esc(it.studentId)})</div>
+          <div><span>Student</span>${esc(student ? student.name : it.name)}</div>
           <div><span>Learning Period</span>${esc(it.lp)}</div>
           <div><span>Date completed</span>${esc(niceDate(it.dateCompleted))}</div>
           <div><span>Grade / score</span><strong>${esc(it.score || '—')}</strong></div>
@@ -377,6 +377,8 @@
       $('#reasons-box').hidden = !it.redo;
       $('#reasons').innerHTML = data.reasons.map(r => `
         <button class="reason" aria-pressed="${(it.reasons || []).includes(r)}" data-reason="${esc(r)}">${esc(r)}</button>`).join('');
+      // Don't reset the box while it's being typed in.
+      if (document.activeElement !== $('#redo-note')) $('#redo-note').value = it.redoNote || '';
       // Annotate works any time except on a redo; filing needs Approve first.
       $('#finish-row').hidden = !!it.redo;
       $('#t-annotate').disabled = !!it.redo;
@@ -401,22 +403,22 @@
 
     // ----- Approve / redo (saved a moment after the last click) -----
 
-    function changeReview(fn) {
+    function changeReview(fn, wait = 500) {
       const it = item();
       fn(it);
       if (it.redo) it.approved = false;
-      if (!it.redo) it.reasons = [];
+      if (!it.redo) { it.reasons = []; it.redoNote = ''; }
       if (it.redo) setAnnotating(false);
-      syncCaches(it, ['approved', 'redo', 'reasons']);
+      syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote']);
       renderReview(it);
       $('#v-save').textContent = 'Saving…';
       clearTimeout(reviewTimer);
-      reviewTimer = setTimeout(() => saveReview(it), 500);
+      reviewTimer = setTimeout(() => saveReview(it), wait);
     }
     async function saveReview(it) {
       reviewTimer = null;
       try {
-        await call('adminReview', { studentId: it.studentId, id: it.id, approved: !!it.approved, redo: !!it.redo, reasons: it.reasons || [] });
+        await call('adminReview', { studentId: it.studentId, id: it.id, approved: !!it.approved, redo: !!it.redo, reasons: it.reasons || [], note: it.redoNote || '' });
         if (item() === it) $('#v-save').textContent = 'Saved ✓';
       } catch (err) {
         if (item() === it) $('#v-save').textContent = 'Not saved';
@@ -440,6 +442,9 @@
         i.reasons = data.reasons.filter(x => set.has(x));
       });
     });
+
+    // Typed reasons save a moment after the ES stops typing.
+    $('#redo-note').addEventListener('input', (e) => changeReview(i => { i.redoNote = e.target.value; }, 1200));
 
     // ----- Annotating -----
 
