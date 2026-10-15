@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 7;
+const WORKIT_VERSION = 8;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -119,7 +119,9 @@ function moveOldFolders_(root) {
 function doGet() {
   if (isMain_()) return json_({ ok: true, app: 'workit', version: WORKIT_VERSION });
   // In an ES's copy, opening its web app link (from Google's Deploy box) finishes setup.
-  const url = ScriptApp.getService().getUrl();
+  const url = String(ScriptApp.getService().getUrl() || '');
+  // Only a real visit to the live link proves the copy is on (Google's own check can't tell).
+  if (/\/exec$/.test(url)) PropertiesService.getScriptProperties().setProperty('WEBAPP_URL', url);
   return HtmlService.createHtmlOutput(
     '<div style="font-family:Arial,sans-serif;font-size:17px;line-height:1.5;color:#121a2e;max-width:520px;margin:60px auto;text-align:center">' +
     '<h1 style="color:#13204a">Workit is on ✓</h1><p>Your copy of Workit is working. Click the button to finish setting up.</p>' +
@@ -163,15 +165,12 @@ function setupFromMenu() {
   }
 }
 
-/** This copy's web app link once it has been deployed, else ''. */
+/**
+ * This copy's web app link once its live link has been opened, else ''.
+ * (ScriptApp.getService() reports a link even before the ES deploys, so it can't be trusted here.)
+ */
 function webAppUrl_() {
-  try {
-    const service = ScriptApp.getService();
-    const url = service.isEnabled() ? String(service.getUrl() || '') : '';
-    return /\/exec$/.test(url) ? url : '';
-  } catch (ignored) {
-    return '';
-  }
+  return PropertiesService.getScriptProperties().getProperty('WEBAPP_URL') || '';
 }
 
 function dialog_(title, body, height) {
