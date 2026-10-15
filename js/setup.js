@@ -179,7 +179,7 @@ function AdminSetup(ctx) {
     },
 
     7: () => `
-      <p>This is the link your students use. Send it to them, or show them the QR code to scan with their phone camera.</p>
+      <p>This is the link your students use. Send it to students and families, show the QR code in class, or print the flyer. You can always find it again with <b>Share link &amp; QR</b> at the top of your dashboard.</p>
       ${linkBox(ctx.creds().user)}
       <p class="hint">On their phone, students can add Workit to the home screen: in Safari, tap Share, then <b>Add to Home Screen</b>; in Chrome, tap ⋮, then <b>Add to Home screen</b>.</p>
       ${nextBtn('Finish and open my dashboard')}`,
@@ -286,6 +286,7 @@ function AdminSetup(ctx) {
           <div class="link-actions">
             <button class="btn" type="button" data-copy="${esc(link)}">Copy link</button>
             <button class="btn" type="button" data-png="${esc(link)}">Download QR code</button>
+            <button class="btn primary" type="button" data-flyer="${esc(link)}">Print a flyer</button>
           </div>
         </div>
       </div>`;
@@ -294,6 +295,7 @@ function AdminSetup(ctx) {
     root.querySelectorAll('[data-qr]').forEach(el => { el.innerHTML = qrSvg(el.dataset.qr); });
     root.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => copy(b.dataset.copy, 'Link copied.')));
     root.querySelectorAll('[data-png]').forEach(b => b.addEventListener('click', () => downloadQr(b.dataset.png)));
+    root.querySelectorAll('[data-flyer]').forEach(b => b.addEventListener('click', () => printFlyer(b.dataset.flyer)));
   }
   function qrMatrix(text) {
     const q = qrcode(0, 'M');
@@ -323,6 +325,41 @@ function AdminSetup(ctx) {
     a.download = 'Workit-student-QR.png';
     a.click();
   }
+  // A one-page flyer for students and families: QR code, link, and how to sign in.
+  function printFlyer(link) {
+    const c = ctx.creds();
+    const who = c.role === 'es' && c.name ? c.name : '';
+    const w = window.open('', '_blank');
+    if (!w) return toast('Your browser blocked the flyer. Allow pop-ups for this page and try again.');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Workit flyer</title>
+      <style>
+        @page { size: letter; margin: 0.6in; }
+        body { font-family: Inter, Arial, sans-serif; color: #121a2e; text-align: center; margin: 0; }
+        h1 { font-size: 34px; margin: 10px 0 4px; color: #13204a; }
+        .sub { font-size: 18px; color: #3456d6; font-weight: 700; margin: 0 0 22px; }
+        .qr { width: 3.4in; height: 3.4in; margin: 0 auto 12px; }
+        .qr svg { width: 100%; height: 100%; }
+        .link { font-family: Menlo, monospace; font-size: 15px; margin: 0 0 26px; word-break: break-all; }
+        ol { text-align: left; max-width: 5.6in; margin: 0 auto; font-size: 17px; line-height: 1.5; padding-left: 1.3em; }
+        li { margin-bottom: 10px; }
+        .foot { margin-top: 26px; font-size: 13px; color: #5b6579; }
+      </style></head><body>
+      <h1>Turn in your work samples</h1>
+      <p class="sub">with Workit${who ? ` · ES: ${esc(who)}` : ''}</p>
+      <div class="qr">${qrSvg(link)}</div>
+      <p class="link">${esc(link)}</p>
+      <ol>
+        <li>Scan the QR code with your phone camera, or type the link.</li>
+        <li>Sign in with the <b>first 2 letters of your first name</b>, your <b>grade</b>, and the <b>first 2 letters of the city you live in</b>.</li>
+        <li>Pick the class, take a photo of each page (or choose a file), add the details, and tap <b>Submit</b>.</li>
+        <li>Tip: add Workit to your home screen. iPhone: tap Share, then <b>Add to Home Screen</b>. Android: tap ⋮, then <b>Add to Home screen</b>.</li>
+      </ol>
+      <p class="foot">Questions? Ask your ES.</p>
+      <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
+      </body></html>`);
+    w.document.close();
+  }
+
   async function copy(text, done) {
     try {
       await navigator.clipboard.writeText(text);
@@ -335,7 +372,7 @@ function AdminSetup(ctx) {
   const linkDialog = $('#link-dialog');
   $('#open-link').addEventListener('click', () => {
     const c = ctx.creds();
-    $('#link-box').innerHTML = `<p class="hint">Students open this link on their phone, or scan the QR code with the camera, and sign in.</p>${linkBox(c.role === 'es' ? c.user : '')}`;
+    $('#link-box').innerHTML = `<p class="hint">Students open this link on their phone, or scan the QR code with the camera, and sign in. Print the flyer to send home to families or post in class.</p>${linkBox(c.role === 'es' ? c.user : '')}`;
     bindLinkBox($('#link-box'));
     linkDialog.showModal();
   });
