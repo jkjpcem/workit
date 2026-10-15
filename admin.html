@@ -15,22 +15,20 @@
 </head>
 <body class="admin">
   <header class="topbar">
-    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> Workit <span class="pill">Admin</span></div>
-    <div class="admin-controls" id="admin-controls" hidden>
-      <label class="inline">Viewing
-        <select id="view-lp"></select>
-      </label>
-      <label class="inline">Current LP
-        <select id="current-lp"></select>
-      </label>
+    <a class="brand" href="#" id="brand-home" title="Dashboard home"><img src="icons/icon.svg" alt="" width="28" height="28"> Workit</a>
+    <nav class="admin-controls" id="admin-controls" hidden>
       <button class="btn small" id="open-roster">Students</button>
-      <button class="btn small" id="open-dates">LP dates</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
       <button class="btn small" id="open-accounts" hidden>ES accounts</button>
-      <button class="btn small" id="refresh" title="Refresh">⟳</button>
-      <button class="btn small" id="admin-signout">Sign out</button>
-    </div>
+      <div class="user-menu">
+        <button class="btn small user-btn" id="user-btn" aria-haspopup="menu" aria-expanded="false"><span id="user-name">Admin</span> <span aria-hidden="true">▾</span></button>
+        <div class="menu" id="user-menu" role="menu" hidden>
+          <button type="button" role="menuitem" id="open-dates">Settings</button>
+          <button type="button" role="menuitem" id="admin-signout">Sign out</button>
+        </div>
+      </div>
+    </nav>
   </header>
 
   <section class="desk-only card">
@@ -60,7 +58,10 @@
     <!-- Dashboard -->
     <section id="screen-dash" class="screen" hidden>
       <div class="dash-head">
-        <h1 id="dash-title">LP</h1>
+        <div class="lp-head">
+          <label class="inline lp-pick">Showing <select id="view-lp" aria-label="Learning period to show"></select></label>
+          <span id="dash-title" class="lp-range"></span>
+        </div>
         <input type="search" id="student-search" placeholder="Find a student" aria-label="Find a student">
       </div>
       <div class="tiles" id="tiles"></div>
@@ -146,6 +147,33 @@
       </div>
     </section>
 
+    <!-- Settings: current LP and LP dates -->
+    <section id="screen-settings" class="screen" hidden>
+      <button class="btn ghost back-link" id="settings-back">← Dashboard</button>
+      <div class="dash-head"><h1>Settings</h1></div>
+      <div class="card stack settings-card">
+        <h2>Current LP</h2>
+        <p class="hint">Students’ uploads go to this LP unless they choose another one.</p>
+        <select id="current-lp" aria-label="Current LP"></select>
+      </div>
+      <form class="card stack settings-card" id="dates-form">
+        <h2>LP dates</h2>
+        <p class="hint">Students can only enter a weekday inside the LP they upload to. Leave an LP blank for no date limit.</p>
+        <p class="note" id="dates-shared" hidden>These are the school’s LP dates. They’re the same for every ES and fill in by themselves, so there’s nothing to change.</p>
+        <div class="dates-grid" id="dates-grid"></div>
+        <div class="dialog-actions">
+          <button class="btn primary" type="submit" id="dates-save">Save dates</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- The link and QR code students use -->
+    <section id="screen-link" class="screen" hidden>
+      <button class="btn ghost back-link" id="link-back">← Dashboard</button>
+      <div class="dash-head"><h1>Share with students and families</h1></div>
+      <div class="card" id="link-box"></div>
+    </section>
+
     <!-- One student -->
     <section id="screen-student" class="screen" hidden>
       <button class="btn ghost back-link" id="back-to-dash">← All students</button>
@@ -220,20 +248,6 @@
     </div>
   </div>
 
-  <!-- Start and end dates for each LP -->
-  <dialog id="dates-dialog">
-    <form class="stack" id="dates-form">
-      <h2>LP dates</h2>
-      <p class="hint">Students can only enter a weekday inside the LP they upload to. Leave an LP blank for no date limit.</p>
-      <p class="note" id="dates-shared" hidden>These are the school’s LP dates. They’re the same for every ES and fill in by themselves, so there’s nothing to change.</p>
-      <div class="dates-grid" id="dates-grid"></div>
-      <div class="dialog-actions">
-        <button class="btn" type="button" id="dates-cancel">Cancel</button>
-        <button class="btn primary" type="submit" id="dates-save">Save dates</button>
-      </div>
-    </form>
-  </dialog>
-
   <!-- Welcome message to send a new ES -->
   <dialog id="welcome-dialog">
     <div class="stack">
@@ -243,17 +257,6 @@
       <div class="dialog-actions">
         <button class="btn" type="button" id="welcome-close">Close</button>
         <button class="btn primary" type="button" id="welcome-copy">Copy message</button>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- The link and QR code students use -->
-  <dialog id="link-dialog">
-    <div class="stack">
-      <h2>Share with students and families</h2>
-      <div id="link-box"></div>
-      <div class="dialog-actions">
-        <button class="btn" type="button" id="link-close">Close</button>
       </div>
     </div>
   </dialog>

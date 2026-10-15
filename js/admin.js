@@ -88,8 +88,34 @@
     const role = creds && creds.role;
     $('#open-accounts').hidden = role !== 'super';
     $('#open-setup').hidden = role !== 'es';
+    $('#user-name').textContent = role === 'es' ? (creds.name || creds.user || 'ES') : 'Admin';
+    closeUserMenu();
     window.scrollTo(0, 0);
   }
+
+  // The name in the top bar opens a small menu: Settings and Sign out.
+  function closeUserMenu() {
+    $('#user-menu').hidden = true;
+    $('#user-btn').setAttribute('aria-expanded', 'false');
+  }
+  $('#user-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = $('#user-menu').hidden;
+    $('#user-menu').hidden = !open;
+    $('#user-btn').setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.user-menu')) closeUserMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserMenu(); });
+
+  // Workit in the top bar always goes back to the dashboard home.
+  $('#brand-home').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!creds || !data || !$('#screen-setup').hidden || !$('#screen-login').hidden) return;
+    if (!$('#screen-roster').hidden && rosterDirty && !confirm('You have unsaved changes to the student list. Leave without saving?')) return;
+    currentStudent = null;
+    renderDash();
+    show('dash');
+  });
 
   // ---------- Loading ----------
 
@@ -142,19 +168,11 @@
     try {
       await call('adminSetLp', { lp });
       toast(`${lp} is now the current LP.`);
-      await loadOverview(lp);
+      await loadOverview(lp, { stay: true });
     } catch (err) {
       e.target.value = data.currentLp;
       toast(err.message);
     }
-  });
-  $('#refresh').addEventListener('click', async () => {
-    Object.keys(studentCache).forEach(k => delete studentCache[k]);
-    Core.reset();
-    try {
-      await loadOverview(viewLp);
-      if (currentStudent) await openStudent(currentStudent.id, studentLp);
-    } catch (err) { toast(err.message); }
   });
 
   // ---------- Status ----------
@@ -183,8 +201,7 @@
     Core.whenReady(() => { if (!$('#screen-dash').hidden) renderDash(); });
     Core.side(viewLp);
     const range = (data.lpDates || {})[viewLp];
-    $('#dash-title').innerHTML = `${esc(viewLp)}${viewLp === data.currentLp ? ' (current)' : ''}` +
-      (range ? ` <span class="lp-range">${esc(niceDate(range.start))} – ${esc(niceDate(range.end))}</span>` : '');
+    $('#dash-title').textContent = [range ? `${niceDate(range.start)} – ${niceDate(range.end)}` : '', viewLp === data.currentLp ? 'current LP' : ''].filter(Boolean).join(' · ');
     const items = data.items;
     const count = (st) => items.filter(i => status(i) === st).length;
     const submitted = new Set(items.map(i => i.studentId));
@@ -921,8 +938,12 @@
 
   // ---------- LP dates ----------
 
-  const datesDialog = $('#dates-dialog');
-  $('#open-dates').addEventListener('click', () => {
+  // Settings page: the current LP and the LP dates.
+  let settingsBack = 'dash';
+  function openSettings(from) {
+    if (!data) return;
+    settingsBack = from || 'dash';
+    $('#settings-back').textContent = settingsBack === 'setup' ? '← Back to setup' : '← Dashboard';
     const d = data.lpDates || {};
     // An ES follows the school's dates, so they only see them.
     const shared = creds.role === 'es' && Object.keys(d).length > 0;
@@ -933,10 +954,15 @@
       <input type="date" data-lp="${esc(lp)}" data-end="1" value="${esc((d[lp] || {}).end || '')}" aria-label="${esc(lp)} end date" ${off}>`).join('');
     $('#dates-shared').hidden = !shared;
     $('#dates-save').hidden = shared;
-    $('#dates-cancel').textContent = shared ? 'Close' : 'Cancel';
-    datesDialog.showModal();
+    currentStudent = null;
+    show('settings');
+  }
+  $('#open-dates').addEventListener('click', () => openSettings('dash'));
+  $('#settings-back').addEventListener('click', () => {
+    if (settingsBack === 'setup') return Setup.open();
+    renderDash();
+    show('dash');
   });
-  $('#dates-cancel').addEventListener('click', () => datesDialog.close());
   $('#dates-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const dates = {};
@@ -949,7 +975,6 @@
     try {
       const res = await call('adminSetLpDates', { dates });
       data.lpDates = res.lpDates;
-      datesDialog.close();
       renderDash();
       toast('LP dates saved.');
     } catch (err) {
@@ -1176,7 +1201,7 @@
     loadData: () => loadOverview(undefined, { stay: true }),
     openDash: () => loadOverview(),
     openRoster: () => { $('#open-roster').click(); rosterBack = 'setup'; $('#roster-back').textContent = '← Back to setup'; },
-    openDates: () => $('#open-dates').click(),
+    openDates: () => openSettings('setup'),
   });
 
   // ---------- Core subjects (js/core.js) ----------

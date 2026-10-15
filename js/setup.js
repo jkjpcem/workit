@@ -170,7 +170,7 @@ function AdminSetup(ctx) {
       const d = ctx.data();
       const lps = d ? d.lps : [];
       return `
-      <p><b>Current LP</b> is where students’ uploads go unless they choose another LP. Change it on your dashboard when a new Learning Period starts.</p>
+      <p><b>Current LP</b> is where students’ uploads go unless they choose another LP. Change it in <b>Settings</b> (click your name at the top right) when a new Learning Period starts.</p>
       <label class="inline-field">Current LP
         <select id="setup-lp">${lps.map(lp => `<option ${d && lp === d.currentLp ? 'selected' : ''}>${esc(lp)}</option>`).join('')}</select>
       </label>
@@ -377,14 +377,13 @@ function AdminSetup(ctx) {
     }
   }
 
-  const linkDialog = $('#link-dialog');
   $('#open-link').addEventListener('click', () => {
     const c = ctx.creds();
     $('#link-box').innerHTML = `<p class="hint">Students open this link on their phone, or scan the QR code with the camera, and sign in. Print the flyer to send home to families or post in class.</p>${linkBox(c.role === 'es' ? c.user : '')}`;
     bindLinkBox($('#link-box'));
-    linkDialog.showModal();
+    show('link');
   });
-  $('#link-close').addEventListener('click', () => linkDialog.close());
+  $('#link-back').addEventListener('click', () => show('dash'));
 
   // ---------- ES accounts (main account only) ----------
 

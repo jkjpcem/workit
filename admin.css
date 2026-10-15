@@ -499,3 +499,27 @@ label.inline.check input { width: auto; }
 .cc-list li.no .cc-mark, .cc-list li.short .cc-mark { color: var(--bad); }
 .cc-list li.no b { color: var(--muted); }
 .cc-count { font-size: 12px; font-weight: 700; color: var(--muted); }
+
+/* Top bar: Workit goes home; the signed-in name opens Settings and Sign out */
+a.brand { color: #fff; text-decoration: none; }
+a.brand:hover { opacity: .9; }
+.user-menu { position: relative; margin-left: 8px; }
+.topbar .btn.small.user-btn { background: rgba(255, 255, 255, .18); font-weight: 700; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 180px; padding: 6px; display: grid; gap: 2px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 20; }
+.menu[hidden] { display: none; }
+.menu button { border: 0; background: none; font: inherit; font-size: 15px; font-weight: 600; color: var(--text); text-align: left; padding: 9px 12px; border-radius: 8px; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--brand-soft); color: var(--brand); outline: none; }
+
+/* Dashboard: which LP is showing, as a filter rather than a title */
+.lp-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lp-pick { font-size: 15px; font-weight: 650; color: var(--text); }
+.lp-pick select { font-size: 15px; }
+.lp-head .lp-range { margin-left: 0; }
+
+/* Settings and Share pages */
+.settings-card { max-width: 620px; margin: 14px 0; padding: 18px 20px; }
+.settings-card h2 { margin: 0; font-size: 18px; }
+.settings-card > select { width: auto; min-width: 140px; max-width: 200px; justify-self: start; align-self: flex-start; }
+.settings-card .dialog-actions { justify-content: flex-start; }
+#screen-link .card { max-width: 720px; margin-top: 14px; padding: 18px 20px; }
