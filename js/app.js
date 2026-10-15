@@ -58,6 +58,13 @@
     }
   });
 
+  // On an ES's own student link, say whose Workit this is.
+  Api.ready.then(() => {
+    const name = Api.esName();
+    $('#es-name').textContent = name ? `ES: ${name}` : '';
+    $('#es-name').hidden = !name;
+  });
+
   // Pick up a new current LP or class list the ES set, without blocking the app.
   async function refreshSession() {
     if (!session || !Api.configured() || !navigator.onLine) return;

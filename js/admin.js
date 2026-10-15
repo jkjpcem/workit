@@ -7,6 +7,8 @@
   const KEY = 'workit.admin';
 
   // Kept for this browser tab only; the real check happens in Code.gs.
+  // { role: 'super' | 'es', user, key, url, name, step, mustChange }. 'super' is the main
+  // copy's own username and password; an ES signs in through it and gets a key for their copy.
   let creds = readCreds();
   let data = null;          // last overview: { lp, currentLp, lps, reasons, students, items }
   let viewLp = null;        // LP shown on the dashboard
@@ -14,47 +16,77 @@
   let currentStudent = null;
   let studentLp = null;     // LP chip on the student page ('all' or LPx)
 
+  // Dashboard requests go to this account's own copy; '' is the main copy.
   const call = (action, payload = {}) =>
-    Api.call(action, { adminUser: creds && creds.user, adminKey: creds && creds.key, ...payload });
+    Api.call(action, { adminUser: creds && creds.user, adminKey: creds && creds.key, ...payload }, { url: (creds && creds.url) || '' });
+  // Sign-in, ES accounts and setup progress live in the main copy.
+  const mainCall = (action, payload = {}) => Api.call(action, payload, { url: '' });
 
   // ---------- Sign in ----------
 
   $('#admin-login').addEventListener('submit', async (e) => {
     e.preventDefault();
-    creds = { user: e.target.username.value.trim(), key: e.target.password.value };
+    const user = e.target.username.value.trim(), pass = e.target.password.value;
+    busy('Signing in…');
     try {
-      await loadOverview();
+      let res;
+      try {
+        res = await mainCall('esLogin', { user, pass });
+      } catch (err) {
+        // A main copy from before ES accounts only knows its own username and password.
+        if (!/Unknown request/i.test(err.message)) throw err;
+        res = { role: 'super' };
+      }
+      creds = res.role === 'super'
+        ? { role: 'super', user, key: pass }
+        : { role: 'es', user: res.user, key: res.key, url: res.scriptUrl, name: res.name, step: res.step, mustChange: res.mustChange };
+      if (creds.role === 'super') await loadOverview();
       saveCreds(creds);
       e.target.reset();
       $('#toast').hidden = true;
+      if (creds.role === 'es') await startEs();
     } catch (err) {
       creds = null;
+      saveCreds(null);
       toast(err.message);
+    } finally {
+      busy(false);
     }
   });
-  $('#admin-signout').addEventListener('click', () => {
+  $('#admin-signout').addEventListener('click', signOut);
+  function signOut() {
     creds = null;
     saveCreds(null);
     data = null;
+    currentStudent = null;
     show('login');
-  });
+  }
+
+  // An ES goes through the setup steps until they're done, then gets the dashboard.
+  async function startEs() {
+    if (creds.mustChange || !creds.url || (creds.step || 0) < Setup.STEPS) return Setup.open();
+    await loadOverview();
+  }
 
   function show(name) {
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
-    $('#admin-controls').hidden = name === 'login';
+    $('#admin-controls').hidden = name === 'login' || name === 'setup';
+    const role = creds && creds.role;
+    $('#open-accounts').hidden = role !== 'super';
+    $('#open-setup').hidden = role !== 'es';
     window.scrollTo(0, 0);
   }
 
   // ---------- Loading ----------
 
-  async function loadOverview(lp) {
+  async function loadOverview(lp, { stay = false } = {}) {
     busy('Loading…');
     try {
       data = await call('adminOverview', { lp });
       viewLp = data.lp;
       renderControls();
       renderDash();
-      if (!currentStudent) show('dash');
+      if (!currentStudent && !stay) show('dash');
     } finally {
       busy(false);
     }
@@ -877,6 +909,9 @@
   };
   const isEmpty = (r) => COLS.every(k => !String(r[k] || '').trim());
 
+  // The setup steps open the Students page too, and come back to it.
+  let rosterBack = 'dash';
+  $('#open-roster').addEventListener('click', () => { rosterBack = 'dash'; $('#roster-back').textContent = '← Dashboard'; }, true);
   $('#open-roster').addEventListener('click', async () => {
     busy('Loading students…');
     try {
@@ -895,6 +930,7 @@
   });
   $('#roster-back').addEventListener('click', () => {
     if (rosterDirty && !confirm('You have unsaved changes to the student list. Leave without saving?')) return;
+    if (rosterBack === 'setup') return Setup.open();
     show('dash');
   });
   $('#roster-add').addEventListener('click', () => {
@@ -1056,10 +1092,25 @@
 
   // ---------- Start ----------
 
+  // ---------- Setup steps, student link and ES accounts (js/setup.js) ----------
+
+  const Setup = AdminSetup({
+    $, $$, esc, toast, busy, show, call, mainCall, signOut,
+    creds: () => creds,
+    setCreds: (patch) => { creds = { ...creds, ...patch }; saveCreds(creds); },
+    data: () => data,
+    loadData: () => loadOverview(undefined, { stay: true }),
+    openDash: () => loadOverview(),
+    openRoster: () => { $('#open-roster').click(); rosterBack = 'setup'; $('#roster-back').textContent = '← Back to setup'; },
+    openDates: () => $('#open-dates').click(),
+  });
+
+  // ---------- Start ----------
+
   if (creds) {
-    loadOverview().catch(err => {
+    (creds.role === 'es' ? startEs() : loadOverview()).catch(err => {
       toast(err.message);
-      if (/password/i.test(err.message)) { creds = null; saveCreds(null); }
+      if (/password|sign in again/i.test(err.message)) { creds = null; saveCreds(null); }
       show('login');
     });
   } else {

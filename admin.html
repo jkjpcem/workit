@@ -25,6 +25,9 @@
       </label>
       <button class="btn small" id="open-roster">Students</button>
       <button class="btn small" id="open-dates">LP dates</button>
+      <button class="btn small" id="open-link">Student link</button>
+      <button class="btn small" id="open-setup" hidden>Setup steps</button>
+      <button class="btn small" id="open-accounts" hidden>ES accounts</button>
       <button class="btn small" id="refresh" title="Refresh">⟳</button>
       <button class="btn small" id="admin-signout">Sign out</button>
     </div>
@@ -70,6 +73,48 @@
         <span><i class="sw missing"></i>No upload yet for that class</span>
       </div>
       <div class="student-grid" id="student-grid"></div>
+    </section>
+
+    <!-- First sign-in for an ES: step-by-step setup -->
+    <section id="screen-setup" class="screen" hidden>
+      <div class="setup-head">
+        <div>
+          <h1 id="setup-title">Welcome</h1>
+          <p class="hint">Follow the steps in order. Workit remembers where you are, so you can stop and come back any time.</p>
+        </div>
+        <div class="setup-head-actions">
+          <button class="btn" id="setup-later" hidden>Go to my dashboard</button>
+          <button class="btn ghost" id="setup-signout">Sign out</button>
+        </div>
+      </div>
+      <div class="setup">
+        <ol class="setup-steps" id="setup-steps"></ol>
+        <div class="card setup-panel" id="setup-panel"></div>
+      </div>
+    </section>
+
+    <!-- ES accounts (main account only) -->
+    <section id="screen-accounts" class="screen" hidden>
+      <button class="btn ghost back-link" id="accounts-back">← Dashboard</button>
+      <div class="dash-head">
+        <h1>ES accounts <span class="pill" id="accounts-count"></span></h1>
+      </div>
+      <p class="hint">Only you can see this page. Create an account for each ES, then send them the welcome message. They choose their own password and set up their own copy of Workit, so their students and work stay in their own Google Drive.</p>
+      <form class="card add-es" id="add-es">
+        <label>Their name, as students know it
+          <input name="name" required maxlength="60" placeholder="For example: Ms. Rivera">
+        </label>
+        <label>Username
+          <input name="user" required maxlength="30" pattern="[A-Za-z0-9._\-]{3,30}" autocapitalize="none" spellcheck="false" placeholder="For example: rivera">
+        </label>
+        <button class="btn primary" type="submit">Create account</button>
+      </form>
+      <div class="roster-wrap">
+        <table class="roster accounts">
+          <thead><tr><th>Name</th><th>Username</th><th>Setup</th><th>Last sign-in</th><th>Student link</th><th></th></tr></thead>
+          <tbody id="accounts-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Student list, edited like a spreadsheet -->
@@ -172,6 +217,30 @@
     </form>
   </dialog>
 
+  <!-- Welcome message to send a new ES -->
+  <dialog id="welcome-dialog">
+    <div class="stack">
+      <h2 id="welcome-title">Account created</h2>
+      <p class="hint">Send this to them by email or text. The temporary password is shown only now; if it gets lost, click New password.</p>
+      <textarea id="welcome-text" rows="13" readonly></textarea>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="welcome-close">Close</button>
+        <button class="btn primary" type="button" id="welcome-copy">Copy message</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- The link and QR code students use -->
+  <dialog id="link-dialog">
+    <div class="stack">
+      <h2>Your student link</h2>
+      <div id="link-box"></div>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="link-close">Close</button>
+      </div>
+    </div>
+  </dialog>
+
   <div id="busy" class="busy" hidden><div class="spinner"></div><p id="busy-text">Loading…</p></div>
   <div id="toast" class="toast" hidden></div>
 
@@ -180,6 +249,8 @@
   <script src="js/pdfview.js"></script>
   <script src="js/api.js"></script>
   <script src="js/classes.js"></script>
+  <script src="js/qrcode.js"></script>
+  <script src="js/setup.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>
