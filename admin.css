@@ -480,12 +480,22 @@ label.inline.check input { width: auto; }
 .core-boxes.labels i { height: auto; background: none; font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; text-transform: uppercase; }
 .side-head { display: flex; justify-content: space-between; padding: 0 8px 2px; }
 .side-name { align-items: center; }
-.student-core { margin: 12px 0 16px; padding: 14px 18px; }
-.student-core-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.student-core-head h2 { margin: 0; font-size: 18px; }
-.student-core-head .chips { display: flex; gap: 6px; }
-.student-core-head .chip small { font-weight: 500; opacity: .75; margin-left: 4px; }
-.student-core .side-detail { border-left: 0; margin: 10px 0 0; padding: 0; }
-.student-core .side-detail ul { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.student-core .rp-chips { display: flex; gap: 6px; margin: 10px 0 12px; }
+.student-core .side-head.mine { margin-top: 4px; font-weight: 650; font-size: 14px; }
+.student-core .side-detail { border-left: 0; margin: 12px 0 0; padding: 0; }
+.student-core .side-detail ul { grid-template-columns: 1fr; }
 .side-detail li.needed small, .side-detail li.missed small { color: var(--bad); }
 .side-detail li.needed .core-dot, .side-detail li.missed .core-dot { border-color: var(--bad); }
+
+/* One student's page: each class and whether it has a sample in this LP */
+.class-check { margin: 12px 0 16px; padding: 14px 18px; }
+.class-check h2 { margin: 0 0 10px; font-size: 18px; }
+.class-check h2 .meta { font-size: 13px; font-weight: 600; margin-left: 8px; }
+.cc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cc-list li { display: grid; grid-template-columns: 22px auto auto 1fr; align-items: baseline; gap: 8px; font-size: 15px; }
+.cc-list small { color: var(--muted); text-align: right; }
+.cc-mark { font-weight: 800; }
+.cc-list li.ok .cc-mark { color: var(--good); }
+.cc-list li.no .cc-mark, .cc-list li.short .cc-mark { color: var(--bad); }
+.cc-list li.no b { color: var(--muted); }
+.cc-count { font-size: 12px; font-weight: 700; color: var(--muted); }

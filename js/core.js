@@ -273,13 +273,17 @@ function AdminCore(ctx) {
       return;
     }
     if (!pageRp) pageRp = rpOf(core.currentLp);
+    const lps = RPS[pageRp], list = slots(st, pageRp);
+    const range = [(core.lpDates || {})[lps[0]], (core.lpDates || {})[lps[lps.length - 1]]];
+    const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const left = list.filter(x => !done(x)).length;
     box.innerHTML = `
-      <div class="student-core-head">
-        <h2>Core subjects</h2>
-        <span class="chips">${Object.keys(RPS).map(r => `<button type="button" class="chip ${r === pageRp ? 'active' : ''}" data-rp="${r}">${r} <small>${RPS[r][0]}–${RPS[r][RPS[r].length - 1]}</small></button>`).join('')}</span>
-        ${boxes(slots(st, pageRp))}
-      </div>
-      ${detail(st, pageRp, slots(st, pageRp), true)}`;
+      <h2>${pageRp} core subjects</h2>
+      <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
+      <div class="chips rp-chips">${Object.keys(RPS).map(r => `<button type="button" class="chip ${r === pageRp ? 'active' : ''}" data-rp="${r}">${r}</button>`).join('')}</div>
+      <div class="side-head"><span></span>${boxes(null)}</div>
+      <div class="side-head mine"><span>${left ? `${left} of 4 missing` : 'All 4 done'}</span>${boxes(list)}</div>
+      ${detail(st, pageRp, list, true)}`;
     box.hidden = false;
   }
 

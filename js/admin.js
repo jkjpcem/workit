@@ -288,6 +288,7 @@
     Core.studentPage(s, studentLp);
     $('#student-lps').innerHTML = ['all', ...data.lps].map(lp => `
       <button class="chip ${studentLp === lp ? 'active' : ''}" data-lp="${lp}">${lp === 'all' ? 'All' : lp}${lp === data.currentLp ? ' •' : ''}</button>`).join('');
+    renderClassCheck(s);
     const items = studentItems();
     const grid = $('#upload-grid');
     if (!items.length) {
@@ -304,6 +305,28 @@
         </span>
       </button>`).join('');
   }
+  // For the LP being viewed: every class this student takes then, and whether it has a sample.
+  function renderClassCheck(s) {
+    const box = $('#student-classes');
+    if (studentLp === 'all') { box.hidden = true; return; }
+    const classes = Classes.forLp(s, studentLp);
+    const all = studentCache[s.id] || data.items.filter(i => i.studentId === s.id);
+    const mine = all.filter(i => i.lp === studentLp && !(i.redo && !i.resubmitted));
+    let short = 0;
+    const rows = classes.map(c => {
+      const got = mine.filter(i => i.subject === c.name).sort((a, b) => b.receivedAt - a.receivedAt);
+      const ok = got.length >= c.need;
+      if (!ok) short++;
+      const count = c.need > 1 ? ` <span class="cc-count">${Math.min(got.length, c.need)} of ${c.need}</span>` : '';
+      const redo = !got.length && all.some(i => i.lp === studentLp && i.subject === c.name && i.redo && !i.resubmitted);
+      const when = got.length ? `Turned in ${got.map(i => esc(niceDate(i.dateCompleted))).join(', ')}` : redo ? 'Waiting on a redo' : 'No sample yet';
+      return `<li class="${ok ? 'ok' : got.length ? 'short' : 'no'}"><span class="cc-mark">${ok ? '✓' : '✗'}</span><b>${esc(c.name)}</b>${count}<small>${when}</small></li>`;
+    });
+    box.innerHTML = `<h2>${esc(studentLp)} work samples <span class="meta">${classes.length ? (short ? `${short} of ${classes.length} classes missing` : 'every class has a sample') : ''}</span></h2>
+      ${classes.length ? `<ul class="cc-list">${rows.join('')}</ul>` : '<p class="meta">No classes set for this semester.</p>'}`;
+    box.hidden = false;
+  }
+
   $('#student-lps').addEventListener('click', (e) => {
     const b = e.target.closest('.chip');
     if (!b) return;
