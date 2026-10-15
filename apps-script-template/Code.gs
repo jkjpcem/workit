@@ -199,6 +199,7 @@ function doPost(e) {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
       adminReview: adminReview_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
+      adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
     };
     const es = {
       esLogin: esLogin_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
@@ -419,9 +420,9 @@ function isMain_() {
 // ---------- ES accounts (kept in your copy only) ----------
 
 const ES_SHEET_NAME = 'ES accounts';
-const ES = { USER: 1, NAME: 2, STATUS: 3, STEP: 4, SCRIPT_URL: 5, CREATED: 6, LAST_SIGNIN: 7, HASH: 8, SALT: 9, MUST_CHANGE: 10, KEY: 11, VERSION: 12 };
+const ES = { USER: 1, NAME: 2, STATUS: 3, STEP: 4, SCRIPT_URL: 5, CREATED: 6, LAST_SIGNIN: 7, HASH: 8, SALT: 9, MUST_CHANGE: 10, KEY: 11, VERSION: 12, EMAIL: 13 };
 const ES_HEADERS = ['Username', 'Name', 'Status', 'Setup step', 'Their Workit link', 'Created', 'Last sign-in',
-  'Password hash', 'Salt', 'Must change password', 'Key', 'Script version'];
+  'Password hash', 'Salt', 'Must change password', 'Key', 'Script version', 'Email'];
 // 1 password, 2 copy, 3 set up, 4 turn on, 5 students, 6 LP dates, 7 student link.
 const SETUP_STEPS = 7;
 const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^\/]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec$/;
@@ -436,6 +437,8 @@ function esSheet_() {
     sheet.getRange(1, 1, 1, ES_HEADERS.length).setValues([ES_HEADERS]).setFontWeight('bold');
     sheet.setFrozenRows(1);
     sheet.hideColumns(ES.HASH, 4);
+  } else if (sheet.getRange(1, ES.EMAIL).getValue() !== 'Email') {
+    sheet.getRange(1, ES.EMAIL).setValue('Email').setFontWeight('bold');
   }
   return sheet;
 }
@@ -456,6 +459,7 @@ function readEs_() {
     mustChange: bool_(r[ES.MUST_CHANGE - 1]),
     key: String(r[ES.KEY - 1] || ''),
     version: Number(r[ES.VERSION - 1]) || 0,
+    email: String(r[ES.EMAIL - 1] || '').trim(),
   })).filter(e => e.user);
   return { sheet: sheet, list: list };
 }
@@ -469,7 +473,7 @@ function findEs_(user) {
 function esPublic_(es) {
   return {
     user: es.user, name: es.name, active: es.active, step: es.step, scriptUrl: es.scriptUrl,
-    created: es.created, lastSignIn: es.lastSignIn, mustChange: es.mustChange, version: es.version,
+    created: es.created, lastSignIn: es.lastSignIn, mustChange: es.mustChange, version: es.version, email: es.email,
   };
 }
 
@@ -594,15 +598,31 @@ function superEsList_() {
   return { ok: true, latestVersion: WORKIT_VERSION, accounts: readEs_().list.map(esPublic_) };
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * New ES account from their first name, last name and email. The username is the part of
+ * their email before the @. With a link (the dashboard address), Workit emails them the
+ * welcome message from your account.
+ */
 function superEsAdd_(body) {
-  const user = String(body.user || '').trim().toLowerCase();
-  const name = clean_(body.name, 60);
-  if (!name) return { ok: false, error: 'Type their name.' };
-  if (!/^[a-z0-9._-]{3,30}$/.test(user)) return { ok: false, error: 'Usernames are 3 to 30 letters or numbers, with no spaces.' };
-  if (user === ADMIN_USERNAME.toLowerCase()) return { ok: false, error: 'That username is taken.' };
+  const first = clean_(body.first, 40), last = clean_(body.last, 40);
+  const email = clean_(body.email, 100).toLowerCase();
+  const name = body.first !== undefined ? (first + ' ' + last).trim() : clean_(body.name, 60);
+  if (!name || (body.first !== undefined && (!first || !last))) return { ok: false, error: 'Type their first and last name.' };
+  if (body.email !== undefined && !EMAIL_RE.test(email)) return { ok: false, error: 'That email address doesn’t look right.' };
   return withLock_(() => {
+    let user = String(body.user || '').trim().toLowerCase();
+    if (!user && email) {
+      const base = email.split('@')[0].replace(/[^a-z0-9._-]/g, '').slice(0, 26) || 'es';
+      user = base.length < 3 ? base + 'es' : base;
+      for (let n = 2; findEs_(user).es || user === ADMIN_USERNAME.toLowerCase(); n++) user = base + n;
+    }
+    if (!/^[a-z0-9._-]{3,30}$/.test(user)) return { ok: false, error: 'Usernames are 3 to 30 letters or numbers, with no spaces.' };
+    if (user === ADMIN_USERNAME.toLowerCase()) return { ok: false, error: 'That username is taken.' };
     const found = findEs_(user);
     if (found.es) return { ok: false, error: 'That username is taken.' };
+    if (email && readEs_().list.some(e => e.email.toLowerCase() === email)) return { ok: false, error: 'There is already an account for ' + email + '.' };
     const pass = tempPassword_();
     const salt = randomHex_(32);
     const row = [];
@@ -618,9 +638,37 @@ function superEsAdd_(body) {
     row[ES.MUST_CHANGE - 1] = true;
     row[ES.KEY - 1] = randomHex_(48);
     row[ES.VERSION - 1] = '';
+    row[ES.EMAIL - 1] = email;
     found.sheet.appendRow(row);
-    return { ok: true, user: user, name: name, tempPass: pass };
+    const res = { ok: true, user: user, name: name, email: email, tempPass: pass };
+    return sendWelcome_(res, body.link, false);
   });
+}
+
+/** Emails the welcome message when there's an address and a dashboard link. Never fails the request. */
+function sendWelcome_(res, link, reset) {
+  link = String(link || '');
+  if (!res.email || !/^https:\/\/[^\s]+$/.test(link)) return res;
+  const first = res.name.split(' ')[0];
+  const text = [
+    'Hi ' + first + ',',
+    '',
+    reset ? 'Here is a new temporary password for Workit.' : 'You now have a Workit account. Workit is where your students turn in their work samples, and where you review and annotate them.',
+    '',
+    '1. On a computer, open: ' + link,
+    '2. Username: ' + res.user,
+    '   Temporary password: ' + res.tempPass,
+    '3. Choose your own password. Workit then walks you through setup step by step. It takes about 10 minutes.',
+    '',
+    'Have your school Google account ready (the one ending in suncoastcharter.org). Student work is saved there.',
+  ].join('\n');
+  try {
+    MailApp.sendEmail({ to: res.email, subject: reset ? 'Your new Workit password' : 'Your Workit account', body: text, name: 'Workit' });
+    res.emailed = true;
+  } catch (err) {
+    res.emailError = 'The account is ready, but the email didn’t send (' + err.message + '). Copy the message below and send it yourself.';
+  }
+  return res;
 }
 
 /** A new temporary password; they choose their own again at the next sign-in. */
@@ -631,7 +679,7 @@ function superEsReset_(body) {
     const pass = tempPassword_();
     const salt = randomHex_(32);
     found.sheet.getRange(found.es.row, ES.HASH, 1, 3).setValues([[hash_(salt, pass), salt, true]]);
-    return { ok: true, user: found.es.user, name: found.es.name, tempPass: pass };
+    return sendWelcome_({ ok: true, user: found.es.user, name: found.es.name, email: found.es.email, tempPass: pass }, body.link, !body.invite);
   });
 }
 
@@ -924,6 +972,87 @@ function adminItem_(i) {
 function fileData_(item) {
   const file = DriveApp.getFileById(item.fileId);
   return { ok: true, name: file.getName(), data: Utilities.base64Encode(file.getBlob().getBytes()) };
+}
+
+// ---------- Core subjects ----------
+// Each reporting period, every student needs one annotated sample in English, Math,
+// Social Studies and Science. A student with no class in one of those areas fills that
+// slot with an annotated elective instead. The dashboard works out who has what
+// (js/core.js); this part only keeps the ES's own marks and class sorting.
+
+const CORE_AREAS = ['English', 'Math', 'Social Studies', 'Science'];
+const CORE_RPS = ['RP1', 'RP2', 'RP3'];
+const CORE_SHEET = 'Core checks';
+const CORE_HEADERS = ['Student ID', 'Student', 'Reporting period', 'Area', 'Note', 'Marked on'];
+const SORT_SHEET = 'Class sorting';
+const SORT_HEADERS = ['Class', 'Core area'];
+
+function namedSheet_(name, headers) {
+  const ss = getAdmin_();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function sheetRows_(sheet, width) {
+  return sheet.getLastRow() < 2 ? [] : sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
+}
+
+/** Students, annotated samples, the ES's "done" marks and class sorting, for the Core subjects page. */
+function adminCore_() {
+  const marks = sheetRows_(namedSheet_(CORE_SHEET, CORE_HEADERS), 5)
+    .filter(r => r[0])
+    .map(r => ({ studentId: String(r[0]).toUpperCase(), rp: String(r[2]), area: String(r[3]), note: text_(r[4]) }));
+  const sorting = {};
+  sheetRows_(namedSheet_(SORT_SHEET, SORT_HEADERS), 2).forEach(r => {
+    const name = String(r[0]).trim(), area = String(r[1]).trim();
+    if (name && (CORE_AREAS.indexOf(area) !== -1 || area === 'None')) sorting[name.toLowerCase()] = area;
+  });
+  const items = readSubs_().items
+    .filter(i => i.finalizedAt && i.filedAs === 'Annotated' && !i.redo)
+    .map(i => ({ id: i.id, studentId: i.studentId, lp: i.lp, subject: i.subject, finalUrl: i.finalUrl, finalizedAt: i.finalizedAt }));
+  return {
+    ok: true, students: getStudents_(), items: items, marks: marks, sorting: sorting,
+    currentLp: getCurrentLp_(), lpDates: getLpDates_(),
+  };
+}
+
+/** Marks one student's core area done for a reporting period (done: false takes the mark away). */
+function adminCoreMark_(body) {
+  const id = String(body.studentId || '').toUpperCase();
+  const rp = String(body.rp || ''), area = String(body.area || '');
+  const student = findStudent_(id);
+  if (!student || CORE_RPS.indexOf(rp) === -1 || CORE_AREAS.indexOf(area) === -1) {
+    return { ok: false, error: 'Workit couldn’t find that student or subject. Refresh and try again.' };
+  }
+  return withLock_(() => {
+    const sheet = namedSheet_(CORE_SHEET, CORE_HEADERS);
+    const rows = sheetRows_(sheet, 4);
+    for (let r = rows.length - 1; r >= 0; r--) {
+      if (String(rows[r][0]).toUpperCase() === id && String(rows[r][2]) === rp && String(rows[r][3]) === area) sheet.deleteRow(r + 2);
+    }
+    if (body.done) sheet.appendRow([id, student.name, rp, area, cell_(clean_(body.note, 300)), new Date()]);
+    return { ok: true };
+  });
+}
+
+/** Puts a class in a core area by hand ('None' = not core, '' = let Workit decide from its name). */
+function adminCoreSort_(body) {
+  const name = clean_(body.name, 100), area = String(body.area || '');
+  if (!name || (area && area !== 'None' && CORE_AREAS.indexOf(area) === -1)) return { ok: false, error: 'Something was missing. Please try again.' };
+  return withLock_(() => {
+    const sheet = namedSheet_(SORT_SHEET, SORT_HEADERS);
+    const rows = sheetRows_(sheet, 1);
+    for (let r = rows.length - 1; r >= 0; r--) {
+      if (String(rows[r][0]).trim().toLowerCase() === name.toLowerCase()) sheet.deleteRow(r + 2);
+    }
+    if (area) sheet.appendRow([cell_(name), area]);
+    return { ok: true };
+  });
 }
 
 // ---------- Students & settings ----------

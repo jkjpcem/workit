@@ -67,6 +67,7 @@
     saveCreds(null);
     data = null;
     currentStudent = null;
+    Core.reset();
     show('login');
   }
 
@@ -149,6 +150,7 @@
   });
   $('#refresh').addEventListener('click', async () => {
     Object.keys(studentCache).forEach(k => delete studentCache[k]);
+    Core.reset();
     try {
       await loadOverview(viewLp);
       if (currentStudent) await openStudent(currentStudent.id, studentLp);
@@ -465,6 +467,7 @@
           (!finalized ? `Annotate and Finalize to save it to Approved › ${esc(it.lp)} Annotated, or File as Extra to save it as is to ${esc(it.lp)} Extra.`
           : `${it.finalStale ? 'You changed the annotations after finalizing. Click Update annotated copy to save them.' : `✓ Filed in ${esc(it.lp)} ${asExtra ? 'Extra' : 'Annotated'} ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
            ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}`);
+      Core.panel(it);
     }
 
     // ----- Approve / redo (saved a moment after the last click) -----
@@ -795,6 +798,7 @@
     function filed(it, res) {
       Object.assign(it, { finalizedAt: res.finalizedAt, finalUrl: res.finalUrl, filedAs: res.filedAs || 'Annotated', finalStale: false, approved: true });
       syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'finalStale', 'approved']);
+      Core.filed(it);
       setAnnotating(false);
       renderReview(it);
       toast(`✓ Saved to ${it.lp} ${it.filedAs} as ${res.name}`);
@@ -884,7 +888,7 @@
       if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
     });
 
-    return { open };
+    return { open, close };
   })();
 
   // ---------- Helpers ----------
@@ -1147,6 +1151,14 @@
     openDash: () => loadOverview(),
     openRoster: () => { $('#open-roster').click(); rosterBack = 'setup'; $('#roster-back').textContent = '← Back to setup'; },
     openDates: () => $('#open-dates').click(),
+  });
+
+  // ---------- Core subjects (js/core.js) ----------
+
+  const Core = AdminCore({
+    $, esc, toast, busy, show, call,
+    openDash: () => show('dash'),
+    closeViewer: () => Viewer.close(),
   });
 
   // Another tab (the one "Finish in Workit" opened) connected the copy: move on here too.

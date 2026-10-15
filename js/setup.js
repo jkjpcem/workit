@@ -418,13 +418,13 @@ function AdminSetup(ctx) {
     $('#accounts-count').textContent = accounts.length;
     $('#accounts-body').innerHTML = accounts.length ? accounts.map(a => `
       <tr data-user="${esc(a.user)}" class="${a.active ? '' : 'is-off'}">
-        <td><b>${esc(a.name)}</b></td>
+        <td><b>${esc(a.name)}</b>${a.email ? `<small class="meta block">${esc(a.email)}</small>` : ''}</td>
         <td>${esc(a.user)}</td>
         <td>${setupText(a)}</td>
         <td>${esc(niceDay(a.lastSignIn)) || '<span class="meta">Never</span>'}</td>
         <td>${a.scriptUrl ? `<button class="btn small" type="button" data-act="copy-link">Copy link</button>` : '<span class="meta">After setup</span>'}</td>
         <td class="acts">
-          <button class="btn small" type="button" data-act="reset">New password</button>
+          <button class="btn small" type="button" data-act="reset">${a.lastSignIn ? 'New password' : 'Resend invite'}</button>
           <button class="btn small ${a.active ? 'danger' : ''}" type="button" data-act="toggle">${a.active ? 'Turn off' : 'Turn on'}</button>
         </td>
       </tr>`).join('') : '<tr><td colspan="6" class="meta empty-row">No ES accounts yet. Create the first one above.</td></tr>';
@@ -436,10 +436,11 @@ function AdminSetup(ctx) {
 
   $('#add-es').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = e.target.name.value.trim(), user = e.target.user.value.trim().toLowerCase();
-    busy('Creating the account…');
+    const f = e.target;
+    const first = f.first.value.trim(), last = f.last.value.trim(), email = f.email.value.trim();
+    busy('Creating the account and emailing them…');
     try {
-      const res = await call('superEsAdd', { name, user });
+      const res = await call('superEsAdd', { first, last, email, link: adminUrl() });
       e.target.reset();
       showWelcome(res, false);
       const list = await call('superEsList');
@@ -459,10 +460,13 @@ function AdminSetup(ctx) {
     if (!a) return;
     if (b.dataset.act === 'copy-link') return copy(studentLink(a.user), `${a.name}’s student link copied.`);
     if (b.dataset.act === 'reset') {
-      if (!confirm(`Give ${a.name} a new temporary password? Their old password stops working. Their students and work aren’t affected.`)) return;
-      busy('Making a new password…');
+      const invite = !a.lastSignIn;
+      if (!confirm(invite
+        ? `Send ${a.name} their welcome email again${a.email ? ` at ${a.email}` : ''}? It has a new temporary password, so the old one stops working.`
+        : `Give ${a.name} a new temporary password${a.email ? ` and email it to ${a.email}` : ''}? Their old password stops working. Their students and work aren’t affected.`)) return;
+      busy(invite ? 'Sending the invite…' : 'Making a new password…');
       try {
-        showWelcome(await call('superEsReset', { user: a.user }), true);
+        showWelcome(await call('superEsReset', { user: a.user, link: adminUrl(), invite }), !invite);
         const list = await call('superEsList');
         accounts = list.accounts;
         renderAccounts();
@@ -484,9 +488,14 @@ function AdminSetup(ctx) {
 
   const welcome = $('#welcome-dialog');
   function showWelcome(res, reset) {
-    $('#welcome-title').textContent = reset ? `New password for ${res.name}` : `Account created for ${res.name}`;
+    const first = String(res.name || '').split(' ')[0];
+    $('#welcome-title').textContent = reset ? `New password for ${res.name}` : `Account ready for ${res.name}`;
+    const hint = $('#welcome-hint');
+    hint.className = `hint${res.emailed ? ' sent' : ''}${res.emailError ? ' bad' : ''}`;
+    hint.textContent = res.emailed ? `✓ Emailed to ${res.email}. Here is the same message, in case you want to send it another way.`
+      : res.emailError || 'Send this to them by email or text. The temporary password is shown only now; if it gets lost, click New password.';
     $('#welcome-text').value = reset
-      ? `Hi ${res.name},
+      ? `Hi ${first},
 
 Your Workit password was reset.
 
@@ -494,7 +503,7 @@ Your Workit password was reset.
 2. Username: ${res.user}
    Temporary password: ${res.tempPass}
 3. Workit asks you to choose a new password. Your students and their work are just as you left them.`
-      : `Hi ${res.name},
+      : `Hi ${first},
 
 Here is your Workit ES account. Workit lets your students turn in work samples from their phones, and saves them in your own Google Drive.
 

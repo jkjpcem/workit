@@ -24,6 +24,7 @@
         <select id="current-lp"></select>
       </label>
       <button class="btn small" id="open-roster">Students</button>
+      <button class="btn small" id="open-core">Core subjects</button>
       <button class="btn small" id="open-dates">LP dates</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
@@ -99,15 +100,18 @@
       <div class="dash-head">
         <h1>ES accounts <span class="pill" id="accounts-count"></span></h1>
       </div>
-      <p class="hint">Only you can see this page. Create an account for each ES, then send them the welcome message. They choose their own password and set up their own copy of Workit, so their students and work stay in their own Google Drive.</p>
+      <p class="hint">Only you can see this page. Create an account for each ES, and Workit emails them a welcome message from your account with the link, their username and a temporary password. They choose their own password and set up their own copy of Workit, so their students and work stay in their own Google Drive.</p>
       <form class="card add-es" id="add-es">
-        <label>Their name, as students know it
-          <input name="name" required maxlength="60" placeholder="For example: Ms. Rivera">
+        <label>First name
+          <input name="first" required maxlength="40" autocomplete="off">
         </label>
-        <label>Username
-          <input name="user" required maxlength="30" pattern="[A-Za-z0-9._\-]{3,30}" autocapitalize="none" spellcheck="false" placeholder="For example: rivera">
+        <label>Last name
+          <input name="last" required maxlength="40" autocomplete="off">
         </label>
-        <button class="btn primary" type="submit">Create account</button>
+        <label>Email
+          <input name="email" type="email" required maxlength="100" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="name@suncoastcharter.org">
+        </label>
+        <button class="btn primary" type="submit">Create and email</button>
       </form>
       <div class="roster-wrap">
         <table class="roster accounts">
@@ -135,6 +139,31 @@
           <tbody id="roster-body"></tbody>
         </table>
       </div>
+    </section>
+
+    <!-- Core subjects: one annotated sample per core area each reporting period -->
+    <section id="screen-core" class="screen" hidden>
+      <button class="btn ghost back-link" id="core-back">← Dashboard</button>
+      <div class="dash-head">
+        <h1>Core subjects</h1>
+        <div class="core-controls">
+          <label class="inline">Reporting period <select id="core-rp"></select></label>
+          <label class="inline check"><input type="checkbox" id="core-missing"> Only students missing something</label>
+        </div>
+      </div>
+      <p class="hint">Each reporting period, every student needs one annotated sample in English, Math, Social Studies and Science. If a student has no class in one of those, an annotated elective counts instead (a different one for each). A sample counts once you click <b>Finalize as Annotated</b>. For work annotated outside Workit, click <b>Mark done</b>.</p>
+      <p class="core-summary" id="core-summary"></p>
+      <div class="roster-wrap">
+        <table class="core-table">
+          <thead><tr><th>Student</th><th>English</th><th>Math</th><th>Social Studies</th><th>Science</th></tr></thead>
+          <tbody id="core-body"></tbody>
+        </table>
+      </div>
+      <details class="card core-sorting">
+        <summary>Which classes count for which subject</summary>
+        <p class="hint">Workit sorts classes by their names. If it gets one wrong, change it here. It applies to every student with that class.</p>
+        <div id="core-sorting"></div>
+      </details>
     </section>
 
     <!-- One student -->
@@ -200,6 +229,7 @@
             </label>
           </div>
         </div>
+        <div class="card core-card" id="v-core" hidden></div>
       </div>
     </div>
   </div>
@@ -222,7 +252,7 @@
   <dialog id="welcome-dialog">
     <div class="stack">
       <h2 id="welcome-title">Account created</h2>
-      <p class="hint">Send this to them by email or text. The temporary password is shown only now; if it gets lost, click New password.</p>
+      <p class="hint" id="welcome-hint">Send this to them by email or text. The temporary password is shown only now; if it gets lost, click New password.</p>
       <textarea id="welcome-text" rows="13" readonly></textarea>
       <div class="dialog-actions">
         <button class="btn" type="button" id="welcome-close">Close</button>
@@ -252,6 +282,7 @@
   <script src="js/classes.js"></script>
   <script src="js/qrcode.js"></script>
   <script src="js/setup.js"></script>
+  <script src="js/core.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>
