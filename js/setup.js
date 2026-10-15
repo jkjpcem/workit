@@ -105,12 +105,12 @@ function AdminSetup(ctx) {
       const url = (window.WORKIT_CONFIG || {}).TEMPLATE_COPY_URL;
       return `
       <p>Workit keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the Workit sheet.</p>
-      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in. A personal Gmail works best: many school accounts don’t allow step 4.</div>
+      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. A personal Gmail works best: some school accounts block Workit.</div>
       <ol class="how">
         <li>Click <b>Make my copy</b> below. A Google page opens in a new tab.</li>
         <li>If Google asks you to sign in, sign in with that account. If you’re signed in to more than one Google account, click the round picture at the top right and check it’s the right one.</li>
         <li>Click the blue <b>Make a copy</b> button. If Google mentions that an Apps Script file is copied too, that’s fine: that file is Workit.</li>
-        <li>Your copy opens. It’s called <i>Copy of Workit</i>. Keep that tab open and come back to this tab.</li>
+        <li>Your copy opens. Keep that tab open and come back to this tab.</li>
       </ol>
       ${url ? `<p><a class="btn big" href="${esc(url)}" target="_blank" rel="noopener">Make my copy ↗</a></p>`
         : '<p class="note bad">The copy link isn’t ready yet. Ask the person who made your Workit account.</p>'}
@@ -118,7 +118,7 @@ function AdminSetup(ctx) {
     },
 
     3: () => `
-      <p>Now let your copy create your folders. Google asks you to approve this once.</p>
+      <p>Now your copy sets up your folders. Google asks you to approve this once.</p>
       <ol class="how">
         <li>Go to the tab with your copy. Wait a few seconds until <b>Workit</b> shows up in the menu bar, to the right of <b>Help</b>. If it doesn’t show up, reload the page.</li>
         <li>Click <b>Workit</b>, then <b>Set up Workit</b>.</li>
@@ -126,32 +126,33 @@ function AdminSetup(ctx) {
         <li>Choose your Google account.</li>
         <li>Google says <i>Google hasn’t verified this app</i>. That’s normal for your own copy. Click <b>Advanced</b> at the bottom left, then <b>Go to Workit (unsafe)</b>.</li>
         <li>If you see checkboxes, tick <b>Select all</b>. Then click <b>Allow</b> (or <b>Continue</b>).</li>
-        <li>Wait for a box that says <b>Workit is set up</b>, and click <b>OK</b>. If nothing shows up after about 30 seconds, click <b>Workit</b>, then <b>Set up Workit</b> once more.</li>
+        <li>Back in your copy, a small <i>Running script</i> bar shows for about 30 seconds. If nothing happens after that, click <b>Workit</b>, then <b>Set up Workit</b> once more.</li>
+        <li>A box says <b>Your folders are ready. One last step</b>. Leave it open and click <b>Next</b> here.</li>
       </ol>
-      <p class="hint">Your Google Drive now has a <b>Workit Homework</b> folder. Inside are <b>Uploads</b> (LP1 to LP8), <b>Approved</b>, and your copy, now named <b>Workit Admin</b>.</p>
-      ${nextBtn('I saw “Workit is set up”')}`,
+      ${nextBtn('I see “One last step”')}`,
 
     4: () => {
       const c = ctx.creds();
       return `
-      <p>This gives your copy a web link so your students’ phones can send work to it.</p>
+      <p>The last step turns your copy on, so your students’ phones can send work to it. Google only lets you do this yourself, in its Deploy box. It’s 5 clicks.</p>
       <ol class="how">
-        <li>In your Workit Admin sheet, click <b>Extensions</b>, then <b>Apps Script</b>. A new tab opens with code in it. Don’t change anything there.</li>
+        <li>In the box in your copy, click <b>Open the Deploy page</b>. If a box says <i>You’re signed in as…</i>, click <b>OK</b>.</li>
         <li>At the top right, click the blue <b>Deploy</b> button, then <b>New deployment</b>.</li>
         <li>Next to <i>Select type</i>, click the gear ⚙ and choose <b>Web app</b>.</li>
-        <li>Description: type <b>Workit</b>.</li>
-        <li>Execute as: choose <b>Me</b> (your email).</li>
-        <li>Who has access: choose <b>Anyone</b>. Not <i>Anyone with Google account</i>: students don’t sign in to Google. If <b>Anyone</b> isn’t in the list, your account doesn’t allow it. Go back to step 2 and use a personal Gmail.</li>
-        <li>Click <b>Deploy</b>. If Google asks you to <i>Authorize access</i>, approve it the same way as in step 3.</li>
-        <li>Under <i>Web app</i>, click <b>Copy</b> to copy the link. It ends in <b>/exec</b>. Then click <b>Done</b>.</li>
-        <li>Paste the link below and click <b>Connect</b>.</li>
+        <li>Who has access: choose <b>Anyone</b> (not <i>Anyone with Google account</i>: students don’t sign in to Google). Click <b>Deploy</b>. If Google asks you to <i>Authorize access</i>, allow it the same way as in step 3.</li>
+        <li>Under <i>Web app</i>, click the link. A page says <b>Workit is on ✓</b>: click <b>Finish in Workit</b>. Workit connects and takes you to the next step.</li>
       </ol>
-      <form class="connect-row" id="connect-form">
-        <input name="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || '')}" spellcheck="false" autocomplete="off" aria-label="Web app link">
-        <button class="btn primary" type="submit">Connect</button>
-      </form>
-      <p class="connect-state" id="connect-state">${c.url ? '✓ Connected' : ''}</p>
-      ${c.url ? nextBtn() : ''}`;
+      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow Workit. Start again from step 2 with a personal Gmail.</div>
+      <p class="connect-state ${c.url ? '' : 'waiting'}" id="connect-state">${c.url ? '✓ Your copy is connected.' : 'Waiting for you to click Finish in Workit…'}</p>
+      ${c.url ? nextBtn() : ''}
+      <details class="by-hand">
+        <summary>The Workit page didn’t open? Paste the link instead</summary>
+        <p class="hint">In the Deploy box, under <i>Web app</i>, click <b>Copy</b>. Paste it here and click <b>Connect</b>.</p>
+        <form class="connect-row" id="connect-form">
+          <input name="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || '')}" spellcheck="false" autocomplete="off" aria-label="Web app link">
+          <button class="btn primary" type="submit">Connect</button>
+        </form>
+      </details>`;
     },
 
     5: () => {
@@ -212,37 +213,9 @@ function AdminSetup(ctx) {
     3: bindNext,
     4: (panel) => {
       bindNext(panel);
-      $('#connect-form', panel).addEventListener('submit', async (e) => {
+      $('#connect-form', panel).addEventListener('submit', (e) => {
         e.preventDefault();
-        const url = e.target.url.value.trim();
-        const state = $('#connect-state', panel);
-        if (!SCRIPT_URL_RE.test(url)) {
-          state.textContent = 'That isn’t the Web app link. It starts with https://script.google.com/ and ends in /exec. Copy it again from the Deploy box.';
-          state.className = 'connect-state bad';
-          return;
-        }
-        busy('Connecting to your copy…');
-        try {
-          const c = ctx.creds();
-          let res;
-          try {
-            res = await Api.call('esClaim', { esKey: c.key }, { url });
-          } catch (err) {
-            if (err.offline) throw new Error('Couldn’t reach your copy. Check that “Who has access” says Anyone (Deploy, then Manage deployments, then the pencil), then try again.');
-            throw err;
-          }
-          await mainCall('esSaveSetup', { esUser: c.user, esKey: c.key, scriptUrl: url, version: res.version, step: 4 });
-          ctx.setCreds({ url, step: Math.max(c.step || 0, 4) });
-          await ctx.loadData();
-          toast('Connected. Your copy is working.');
-          at = 5;
-          render();
-        } catch (err) {
-          state.textContent = err.message;
-          state.className = 'connect-state bad';
-        } finally {
-          busy(false);
-        }
+        connect(e.target.url.value.trim());
       });
     },
     5: (panel) => {
@@ -267,6 +240,41 @@ function AdminSetup(ctx) {
     },
     7: (panel) => { bindNext(panel); bindLinkBox(panel); },
   };
+
+  // Links this ES account to their copy: from the copy's "Finish in Workit" button
+  // (admin.html#connect=...), or a link pasted by hand.
+  async function connect(url) {
+    open(4);
+    const state = () => $('#connect-state');
+    const fail = (msg) => {
+      state().textContent = msg;
+      state().className = 'connect-state bad';
+    };
+    if (!SCRIPT_URL_RE.test(url)) {
+      return fail('That isn’t a Workit link. It starts with https://script.google.com/ and ends in /exec.');
+    }
+    busy('Connecting to your copy…');
+    try {
+      const c = ctx.creds();
+      let res;
+      try {
+        res = await Api.call('esClaim', { esKey: c.key }, { url });
+      } catch (err) {
+        if (err.offline) throw new Error('Couldn’t reach your copy. In your copy, click Workit, then Set up Workit again, and click Finish in Workit.');
+        throw err;
+      }
+      await mainCall('esSaveSetup', { esUser: c.user, esKey: c.key, scriptUrl: url, version: res.version, step: 4 });
+      ctx.setCreds({ url, step: Math.max(c.step || 0, 4) });
+      await ctx.loadData();
+      toast('Connected. Your copy is set up and working.');
+      at = 5;
+      render();
+    } catch (err) {
+      fail(err.message);
+    } finally {
+      busy(false);
+    }
+  }
 
   // Steps 5 and 6 need the student list and LPs from the ES's copy.
   async function ensureData() {
@@ -501,5 +509,5 @@ Have your Google account ready (the one you want student work saved in). A perso
   $('#welcome-close').addEventListener('click', () => welcome.close());
   $('#welcome-copy').addEventListener('click', () => copy($('#welcome-text').value, 'Message copied. Paste it into an email or text.'));
 
-  return { open, STEPS: STEPS.length };
+  return { open, connect, STEPS: STEPS.length };
 }

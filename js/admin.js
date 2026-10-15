@@ -5,6 +5,14 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   const KEY = 'workit.admin';
+  const CONNECT_KEY = 'workit.connect';
+
+  // The copy's "Finish in Workit" button opens admin.html#connect=<its web app link>.
+  const connectTo = /#connect=([^&]+)/.exec(location.hash);
+  if (connectTo) {
+    try { localStorage.setItem(CONNECT_KEY, decodeURIComponent(connectTo[1])); } catch { /* ignore */ }
+    history.replaceState(null, '', location.pathname);
+  }
 
   // Kept for this browser tab only; the real check happens in Code.gs.
   // { role: 'super' | 'es', user, key, url, name, step, mustChange }. 'super' is the main
@@ -64,6 +72,11 @@
 
   // An ES goes through the setup steps until they're done, then gets the dashboard.
   async function startEs() {
+    const pending = localStorage.getItem(CONNECT_KEY);
+    if (pending && !creds.mustChange) {
+      localStorage.removeItem(CONNECT_KEY);
+      return Setup.connect(pending);
+    }
     if (creds.mustChange || !creds.url || (creds.step || 0) < Setup.STEPS) return Setup.open();
     await loadOverview();
   }
@@ -1051,11 +1064,17 @@
   });
   window.addEventListener('beforeunload', (e) => { if (rosterDirty) { e.preventDefault(); e.returnValue = ''; } });
 
+  // Your password stays in this tab only. An ES's key is kept across tabs, so the
+  // "Finish in Workit" button in their copy can open a new tab that's already signed in.
   function readCreds() {
-    try { return JSON.parse(sessionStorage.getItem(KEY)) || null; } catch { return null; }
+    try { return JSON.parse(sessionStorage.getItem(KEY) || localStorage.getItem(KEY)) || null; } catch { return null; }
   }
   function saveCreds(c) {
-    try { c ? sessionStorage.setItem(KEY, JSON.stringify(c)) : sessionStorage.removeItem(KEY); } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(KEY);
+      localStorage.removeItem(KEY);
+      if (c) (c.role === 'es' ? localStorage : sessionStorage).setItem(KEY, JSON.stringify(c));
+    } catch { /* ignore */ }
   }
   function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
@@ -1090,8 +1109,6 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 4500);
   }
 
-  // ---------- Start ----------
-
   // ---------- Setup steps, student link and ES accounts (js/setup.js) ----------
 
   const Setup = AdminSetup({
@@ -1103,6 +1120,17 @@
     openDash: () => loadOverview(),
     openRoster: () => { $('#open-roster').click(); rosterBack = 'setup'; $('#roster-back').textContent = '← Back to setup'; },
     openDates: () => $('#open-dates').click(),
+  });
+
+  // Another tab (the one "Finish in Workit" opened) connected the copy: move on here too.
+  window.addEventListener('storage', (e) => {
+    if (e.key !== KEY || !creds || creds.role !== 'es' || creds.url) return;
+    const c = readCreds();
+    if (c && c.url) {
+      creds = c;
+      data = null;
+      Setup.open();
+    }
   });
 
   // ---------- Start ----------
