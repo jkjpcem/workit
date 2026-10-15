@@ -5,9 +5,9 @@ function AdminSetup(ctx) {
   const { $, esc, toast, busy, show, call, mainCall } = ctx;
   const STEPS = [
     { title: 'Choose your password' },
-    { title: 'Turn on a Google setting' },
     { title: 'Make your own copy' },
     { title: 'Set up your copy' },
+    { title: 'Turn it on for students' },
     { title: 'Add your students' },
     { title: 'Set the LP dates' },
     { title: 'Share with students' },
@@ -101,38 +101,24 @@ function AdminSetup(ctx) {
         <button class="btn primary big" type="submit">Save my password</button>
       </form>`,
 
-    2: () => `
-      <p>Workit keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, turn on one Google setting so Workit can set itself up for you.</p>
-      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. A personal Gmail works best: some school accounts block Workit.</div>
-      <ol class="how">
-        <li>Click <b>Open the Google setting</b> below. A Google page opens in a new tab.</li>
-        <li>If Google asks you to sign in, sign in with that account. If you’re signed in to more than one Google account, click the round picture at the top right and check it’s the right one.</li>
-        <li>Click <b>Google Apps Script API</b>.</li>
-        <li>Click the switch so it turns blue and says <b>On</b>.</li>
-        <li>Come back to this tab.</li>
-      </ol>
-      <p><a class="btn big" href="https://script.google.com/home/usersettings" target="_blank" rel="noopener">Open the Google setting ↗</a></p>
-      ${nextBtn('I turned it on')}`,
-
-    3: () => {
+    2: () => {
       const url = (window.WORKIT_CONFIG || {}).TEMPLATE_COPY_URL;
       return `
-      <p>Now make your own copy of the Workit sheet. It becomes your Workit Admin sheet.</p>
+      <p>Workit keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the Workit sheet.</p>
+      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. A personal Gmail works best: some school accounts block Workit.</div>
       <ol class="how">
         <li>Click <b>Make my copy</b> below. A Google page opens in a new tab.</li>
-        <li>Check the round picture at the top right is the same Google account as in step 2.</li>
+        <li>If Google asks you to sign in, sign in with that account. If you’re signed in to more than one Google account, click the round picture at the top right and check it’s the right one.</li>
         <li>Click the blue <b>Make a copy</b> button. If Google mentions that an Apps Script file is copied too, that’s fine: that file is Workit.</li>
-        <li>Your copy opens. It’s called <i>Copy of Workit</i>. Keep that tab open and come back to this tab.</li>
+        <li>Your copy opens. Keep that tab open and come back to this tab.</li>
       </ol>
       ${url ? `<p><a class="btn big" href="${esc(url)}" target="_blank" rel="noopener">Make my copy ↗</a></p>`
         : '<p class="note bad">The copy link isn’t ready yet. Ask the person who made your Workit account.</p>'}
       ${nextBtn('I made my copy')}`;
     },
 
-    4: () => {
-      const c = ctx.creds();
-      return `
-      <p>Your copy now sets itself up: it makes your folders and turns itself on for your students. Google asks you to approve this once.</p>
+    3: () => `
+      <p>Now your copy sets up your folders. Google asks you to approve this once.</p>
       <ol class="how">
         <li>Go to the tab with your copy. Wait a few seconds until <b>Workit</b> shows up in the menu bar, to the right of <b>Help</b>. If it doesn’t show up, reload the page.</li>
         <li>Click <b>Workit</b>, then <b>Set up Workit</b>.</li>
@@ -140,20 +126,28 @@ function AdminSetup(ctx) {
         <li>Choose your Google account.</li>
         <li>Google says <i>Google hasn’t verified this app</i>. That’s normal for your own copy. Click <b>Advanced</b> at the bottom left, then <b>Go to Workit (unsafe)</b>.</li>
         <li>If you see checkboxes, tick <b>Select all</b>. Then click <b>Allow</b> (or <b>Continue</b>).</li>
-        <li>Back in your copy, if nothing happens after about 20 seconds, click <b>Workit</b>, then <b>Set up Workit</b> once more.</li>
-        <li>A box says <b>Workit is set up</b>. Click <b>Finish in Workit</b>. That’s it: Workit connects and takes you to the next step.</li>
+        <li>Back in your copy, a small <i>Running script</i> bar shows for about 30 seconds. If nothing happens after that, click <b>Workit</b>, then <b>Set up Workit</b> once more.</li>
+        <li>A box says <b>Your folders are ready. One last step</b>. Leave it open and click <b>Next</b> here.</li>
       </ol>
+      ${nextBtn('I see “One last step”')}`,
+
+    4: () => {
+      const c = ctx.creds();
+      return `
+      <p>The last step turns your copy on, so your students’ phones can send work to it. Google only lets you do this yourself, in its Deploy box. It’s 5 clicks.</p>
+      <ol class="how">
+        <li>In the box in your copy, click <b>Open the Deploy page</b>. If a box says <i>You’re signed in as…</i>, click <b>OK</b>.</li>
+        <li>At the top right, click the blue <b>Deploy</b> button, then <b>New deployment</b>.</li>
+        <li>Next to <i>Select type</i>, click the gear ⚙ and choose <b>Web app</b>.</li>
+        <li>Who has access: choose <b>Anyone</b> (not <i>Anyone with Google account</i>: students don’t sign in to Google). Click <b>Deploy</b>. If Google asks you to <i>Authorize access</i>, allow it the same way as in step 3.</li>
+        <li>Under <i>Web app</i>, click the link. A page says <b>Workit is on ✓</b>: click <b>Finish in Workit</b>. Workit connects and takes you to the next step.</li>
+      </ol>
+      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow Workit. Start again from step 2 with a personal Gmail.</div>
       <p class="connect-state ${c.url ? '' : 'waiting'}" id="connect-state">${c.url ? '✓ Your copy is connected.' : 'Waiting for you to click Finish in Workit…'}</p>
       ${c.url ? nextBtn() : ''}
       <details class="by-hand">
-        <summary>Turn it on by hand (only if the box said something went wrong)</summary>
-        <ol class="how">
-          <li>In your copy, click <b>Extensions</b>, then <b>Apps Script</b>. Don’t change anything there.</li>
-          <li>Click the blue <b>Deploy</b> button, then <b>New deployment</b>.</li>
-          <li>Next to <i>Select type</i>, click the gear ⚙ and choose <b>Web app</b>.</li>
-          <li>Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. If <b>Anyone</b> isn’t in the list, your account doesn’t allow Workit; start again from step 2 with a personal Gmail.</li>
-          <li>Click <b>Deploy</b>, then <b>Copy</b> under <i>Web app</i>. Paste it here and click <b>Connect</b>.</li>
-        </ol>
+        <summary>The Workit page didn’t open? Paste the link instead</summary>
+        <p class="hint">In the Deploy box, under <i>Web app</i>, click <b>Copy</b>. Paste it here and click <b>Connect</b>.</p>
         <form class="connect-row" id="connect-form">
           <input name="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || '')}" spellcheck="false" autocomplete="off" aria-label="Web app link">
           <button class="btn primary" type="submit">Connect</button>
