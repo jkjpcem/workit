@@ -93,10 +93,21 @@ function AdminCore(ctx) {
   }
 
   const done = (s) => s.state === 'annotated' || s.state === 'manual';
-  const PER_LP = 2;   // annotated samples each student needs in every LP
   const SHORT = { English: 'Eng', Math: 'Math', 'Social Studies': 'SS', Science: 'Sci' };
-  const lpCount = (studentId, lp) => core.items.filter(i => i.studentId === studentId && i.lp === lp).length;
-  const dots = (n) => Array.from({ length: PER_LP }, (_, k) => `<i class="${k < n ? 'on' : ''}"></i>`).join('');
+  // What was annotated in one LP, as subjects: "Eng, Math, Piano" (electives by class name).
+  function lpAreas(studentId, lp) {
+    const names = [];
+    core.items.filter(i => i.studentId === studentId && i.lp === lp).forEach(i => {
+      const a = areaOf(i.subject);
+      const label = a ? SHORT[a] : i.subject;
+      if (!names.includes(label)) names.push(label);
+    });
+    return names;
+  }
+  const lpLine = (studentId, lp) => {
+    const names = lpAreas(studentId, lp);
+    return `<span class="${names.length ? '' : 'none'}"><b>${lp}</b> ${names.length ? esc(names.join(', ')) : '—'}</span>`;
+  };
   const hintText = (s) => s.elective
     ? (s.hint.length ? `Elective: ${s.hint.join(' or ')}` : 'Any elective')
     : s.hint.join(' or ');
@@ -152,10 +163,7 @@ function AdminCore(ctx) {
     $('#core-body').innerHTML = shown.length ? shown.map(r => `
       <tr>
         <th scope="row">${esc(r.st.name)}<small>${r.slots.filter(done).length} of 4 core</small></th>
-        <td class="core-lps">${RPS[rp].map(lp => {
-          const n = lpCount(r.st.id, lp);
-          return `<span class="${n >= PER_LP ? 'met' : ''}">${lp} <b>${Math.min(n, 9)}/${PER_LP}</b></span>`;
-        }).join('')}</td>
+        <td class="core-lps">${RPS[rp].map(lp => lpLine(r.st.id, lp)).join('')}</td>
         ${r.slots.map(s => cell(r.st, rp, s)).join('')}
       </tr>`).join('')
       : `<tr><td colspan="6" class="empty">${rows.length ? 'Every student is complete. 🎉' : 'No students yet.'}</td></tr>`;
@@ -260,17 +268,10 @@ function AdminCore(ctx) {
       if (fills) gains.push(`fills ${esc(fills.area)}${fills.elective ? ' (elective)' : ''} for ${forRp}`);
       else if (area && list.find(s => s.area === area && done(s))) tag = `<p class="core-tag">${esc(area)} is already covered for ${forRp}.</p>`;
     }
-    const n = lpCount(student.id, it.lp);
-    if (!counted && !it.finalizedAt && n < PER_LP) gains.push(`makes ${esc(it.lp)} ${n + 1} of ${PER_LP}`);
     if (gains.length) tag = `<p class="core-tag fill">★ Annotating this ${gains.join(' and ')}.</p>` + tag;
     box.innerHTML = `
       <h2>${esc(student.firstName)} · ${forRp} (${RPS[forRp][0]}–${RPS[forRp][RPS[forRp].length - 1]})</h2>
       ${tag}
-      <h3 class="core-sub">Annotated per LP (goal ${PER_LP})</h3>
-      <ul class="lp-dots">${RPS[forRp].map(lp => {
-        const c = lpCount(student.id, lp);
-        return `<li class="${c >= PER_LP ? 'met' : ''} ${lp === it.lp ? 'here' : ''}"><span>${lp}</span><span class="dots">${dots(c)}</span><b>${c}/${PER_LP}${c >= PER_LP ? ' ✓' : ''}</b></li>`;
-      }).join('')}</ul>
       <h3 class="core-sub">Core subjects: ${list.filter(done).length} of 4</h3>
       <ul class="core-mini">${list.map(s => `
         <li class="${s.state}">
@@ -280,6 +281,8 @@ function AdminCore(ctx) {
               : s.state === 'manual' ? `✓ Marked done${s.note ? `: ${esc(s.note)}` : ''}`
               : `${s.state === 'missed' ? 'Missed. ' : ''}${esc(hintText(s))}`}</small></span>
         </li>`).join('')}</ul>
+      <h3 class="core-sub">Annotated so far</h3>
+      <div class="core-lps">${RPS[forRp].map(lp => lpLine(student.id, lp)).join('')}</div>
       <p class="hint"><button type="button" class="linkish" id="v-core-open">Open Core subjects</button></p>`;
     box.hidden = false;
     $('#v-core-open').addEventListener('click', () => { ctx.closeViewer(); rp = forRp; open(); });
@@ -317,11 +320,6 @@ function AdminCore(ctx) {
     box.innerHTML = `
       <h2>${forRp} progress</h2>
       <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
-      <h3 class="core-sub">${PER_LP} annotated per LP</h3>
-      <ul class="side-list">${lps.map(lp => {
-        const n = rows.filter(r => lpCount(r.st.id, lp) >= PER_LP).length;
-        return `<li class="${lp === viewLp ? 'here' : ''}"><span>${lp}</span>${bar(n)}<b>${n}/${rows.length}</b></li>`;
-      }).join('')}</ul>
       <h3 class="core-sub">Core subjects, 1 each</h3>
       <ul class="side-list">${AREAS.map((a, k) => {
         const n = rows.filter(r => done(r.slots[k])).length;
