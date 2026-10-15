@@ -2,9 +2,9 @@
 // English, Math, Social Studies and Science. A student with no class in one of those
 // areas that period fills that slot with an annotated elective instead (a different
 // elective sample for each such slot). The ES can also mark a slot done by hand, for
-// work annotated outside Workit. Used by the Core subjects page and the viewer panel.
+// work annotated outside Workit. Shown beside the dashboard and beside a sample in the viewer.
 function AdminCore(ctx) {
-  const { $, esc, toast, busy, call, show } = ctx;
+  const { $, esc, toast, busy, call } = ctx;
 
   const AREAS = ['English', 'Math', 'Social Studies', 'Science'];
   const RPS = { RP1: ['LP1', 'LP2', 'LP3'], RP2: ['LP4', 'LP5', 'LP6'], RP3: ['LP7', 'LP8'] };
@@ -112,95 +112,6 @@ function AdminCore(ctx) {
     ? (s.hint.length ? `Elective: ${s.hint.join(' or ')}` : 'Any elective')
     : s.hint.join(' or ');
 
-  function cell(student, rp, s) {
-    const label = s.elective ? `<span class="core-elective">elective</span>` : '';
-    if (s.state === 'annotated') {
-      const what = esc(s.item.subject) + ' · ' + esc(s.item.lp);
-      return `<td class="core-cell annotated">${s.item.finalUrl
-        ? `<a href="${esc(s.item.finalUrl)}" target="_blank" rel="noopener" title="Open the annotated copy">✓ ${what}</a>`
-        : `✓ ${what}`}${label}</td>`;
-    }
-    const btn = (cls, text, title) => `<button type="button" class="core-mark ${cls}" data-student="${esc(student.id)}" data-area="${esc(s.area)}" title="${esc(title)}">${text}</button>`;
-    if (s.state === 'manual') {
-      return `<td class="core-cell manual">${btn('undo', `✓ Marked done${s.note ? `<small>${esc(s.note)}</small>` : ''}`, 'Click to undo')}${label}</td>`;
-    }
-    return `<td class="core-cell ${s.state}">
-      <span class="core-need">${s.state === 'missed' ? 'Missed' : 'Needed'}</span>
-      <small>${esc(hintText(s))}</small>
-      ${btn('', 'Mark done', 'Mark done by hand, for work annotated outside Workit')}</td>`;
-  }
-
-  // ---------- Core subjects page ----------
-
-  let rp = null;
-
-  async function open() {
-    busy('Loading core subjects…');
-    try {
-      await load(true);
-      if (!rp) rp = rpOf(core.currentLp);
-      render();
-      show('core');
-    } catch (err) {
-      toast(/Unknown request/i.test(err.message) ? 'Your Workit script needs updating before Core subjects works.' : err.message);
-    } finally {
-      busy(false);
-    }
-  }
-
-  function render() {
-    $('#core-rp').innerHTML = Object.keys(RPS).map(r =>
-      `<option value="${r}" ${r === rp ? 'selected' : ''}>${r} (${RPS[r][0]}–${RPS[r][RPS[r].length - 1]})</option>`).join('');
-    const onlyMissing = $('#core-missing').checked;
-    const rows = core.students.map(st => ({ st, slots: slots(st, rp) }))
-      .sort((a, b) => a.st.lastName.localeCompare(b.st.lastName) || a.st.firstName.localeCompare(b.st.firstName));
-    const complete = rows.filter(r => r.slots.every(done)).length;
-    const filled = rows.reduce((n, r) => n + r.slots.filter(done).length, 0);
-    $('#core-summary').innerHTML = rows.length
-      ? `<b>${complete} of ${rows.length}</b> students complete for ${rp} · ${filled} of ${rows.length * 4} subjects covered${ended(rp) ? ' · this reporting period has ended' : ''}`
-      : 'No students yet.';
-    const shown = onlyMissing ? rows.filter(r => !r.slots.every(done)) : rows;
-    $('#core-body').innerHTML = shown.length ? shown.map(r => `
-      <tr>
-        <th scope="row">${esc(r.st.name)}<small>${r.slots.filter(done).length} of 4 core</small></th>
-        <td class="core-lps">${RPS[rp].map(lp => lpLine(r.st.id, lp)).join('')}</td>
-        ${r.slots.map(s => cell(r.st, rp, s)).join('')}
-      </tr>`).join('')
-      : `<tr><td colspan="6" class="empty">${rows.length ? 'Every student is complete. 🎉' : 'No students yet.'}</td></tr>`;
-    renderSorting();
-  }
-
-  function renderSorting() {
-    const names = {};
-    core.students.forEach(st => [...(st.sem1 || []), ...(st.sem2 || [])].forEach(c => { names[c.name.toLowerCase()] = c.name; }));
-    const list = Object.values(names).sort((a, b) => a.localeCompare(b));
-    const opt = (v, label, sel) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
-    $('#core-sorting').innerHTML = list.length ? `<div class="core-sort-grid">${list.map(name => {
-      const set = core.sorting[name.toLowerCase()] || '';
-      const auto = autoArea(name);
-      return `<label><span>${esc(name)}</span>
-        <select data-class="${esc(name)}">
-          ${opt('', `Automatic: ${auto || 'Elective'}`, set)}
-          ${AREAS.map(a => opt(a, a, set)).join('')}
-          ${opt('None', 'Elective (not core)', set)}
-        </select></label>`;
-    }).join('')}</div>` : '<p class="hint">No classes yet.</p>';
-  }
-
-  $('#open-core').addEventListener('click', open);
-  $('#core-back').addEventListener('click', () => ctx.openDash());
-  $('#core-rp').addEventListener('change', (e) => { rp = e.target.value; render(); });
-  $('#core-missing').addEventListener('change', render);
-
-  $('#core-body').addEventListener('click', async (e) => {
-    const b = e.target.closest('.core-mark');
-    if (!b) return;
-    const student = core.students.find(s => s.id === b.dataset.student);
-    const area = b.dataset.area;
-    await mark(student, rp, area, b.classList.contains('undo'));
-    render();
-  });
-
   async function mark(student, forRp, area, undo) {
     let note = '';
     if (undo) {
@@ -223,20 +134,6 @@ function AdminCore(ctx) {
       busy(false);
     }
   }
-
-  $('#core-sorting').addEventListener('change', async (e) => {
-    const sel = e.target.closest('select[data-class]');
-    if (!sel) return;
-    const name = sel.dataset.class;
-    try {
-      await call('adminCoreSort', { name, area: sel.value });
-      if (sel.value) core.sorting[name.toLowerCase()] = sel.value; else delete core.sorting[name.toLowerCase()];
-      render();
-      toast(`${name}: ${sel.value === 'None' ? 'elective' : sel.value || `automatic (${autoArea(name) || 'elective'})`}.`);
-    } catch (err) {
-      toast(err.message);
-    }
-  });
 
   // ---------- Panel beside a sample in the viewer ----------
 
@@ -282,10 +179,8 @@ function AdminCore(ctx) {
               : `${s.state === 'missed' ? 'Missed. ' : ''}${esc(hintText(s))}`}</small></span>
         </li>`).join('')}</ul>
       <h3 class="core-sub">Annotated so far</h3>
-      <div class="core-lps">${RPS[forRp].map(lp => lpLine(student.id, lp)).join('')}</div>
-      <p class="hint"><button type="button" class="linkish" id="v-core-open">Open Core subjects</button></p>`;
+      <div class="core-lps">${RPS[forRp].map(lp => lpLine(student.id, lp)).join('')}</div>`;
     box.hidden = false;
-    $('#v-core-open').addEventListener('click', () => { ctx.closeViewer(); rp = forRp; open(); });
   }
 
   // ---------- Dashboard: running totals beside the student cards ----------
@@ -306,36 +201,76 @@ function AdminCore(ctx) {
       `<span class="${s.state}">${done(s) ? '✓ ' : ''}${SHORT[s.area]}${s.elective ? '*' : ''}</span>`).join('')}</div>`;
   }
 
+  // Each student and how many core subjects they're missing for the reporting period.
+  // Click a name to see what was annotated when, what's missing, and to mark one done.
+  let sideLp = null, expanded = null;
+  const niceDay = (ms) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
   function side(viewLp) {
     const box = $('#rp-side');
     if (!core) { box.hidden = true; return; }
+    sideLp = viewLp;
     const forRp = rpOf(viewLp);
     const lps = RPS[forRp];
-    const rows = core.students.map(st => ({ st, slots: slots(st, forRp) }));
-    const total = rows.length || 1;
-    const bar = (n) => `<span class="mini-bar"><i style="width:${Math.round((n / total) * 100)}%"></i></span>`;
+    const late = ended(forRp);
+    const rows = core.students.map(st => {
+      const list = slots(st, forRp);
+      return { st, list, missing: list.filter(x => !done(x)).length };
+    }).sort((a, b) => b.missing - a.missing || a.st.lastName.localeCompare(b.st.lastName) || a.st.firstName.localeCompare(b.st.firstName));
+    const complete = rows.filter(r => !r.missing).length;
     const range = [(core.lpDates || {})[lps[0]], (core.lpDates || {})[lps[lps.length - 1]]];
     const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
-    const behind = rows.filter(r => !r.slots.every(done));
     box.innerHTML = `
-      <h2>${forRp} progress</h2>
+      <h2>${forRp} core subjects</h2>
       <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
-      <h3 class="core-sub">Core subjects, 1 each</h3>
-      <ul class="side-list">${AREAS.map((a, k) => {
-        const n = rows.filter(r => done(r.slots[k])).length;
-        return `<li><span>${a}</span>${bar(n)}<b>${n}/${rows.length}</b></li>`;
-      }).join('')}
-        <li class="all"><span>All 4</span>${bar(rows.length - behind.length)}<b>${rows.length - behind.length}/${rows.length}</b></li></ul>
-      ${behind.length ? `<h3 class="core-sub">Still missing a core subject</h3>
-      <ul class="behind">${behind.slice(0, 8).map(r => `<li><button type="button" class="linkish" data-student="${esc(r.st.id)}">${esc(r.st.name)}</button>
-        <small>${r.slots.filter(s => !done(s)).map(s => SHORT[s.area] + (s.elective ? '*' : '')).join(', ')}</small></li>`).join('')}</ul>
-      ${behind.length > 8 ? `<p class="meta">and ${behind.length - 8} more</p>` : ''}` : '<p class="core-tag ok">Every student has all 4 core subjects. 🎉</p>'}
-      <p class="meta">* elective counts for that subject</p>
-      <button type="button" class="btn small" id="side-open-core">Open Core subjects</button>`;
+      <p class="side-sum"><b>${complete} of ${rows.length}</b> students have all 4</p>
+      <ul class="side-students">${rows.map(r => `
+        <li class="${r.missing ? (late ? 'late' : 'open') : 'done'} ${expanded === r.st.id ? 'expanded' : ''}">
+          <button type="button" class="side-name" data-act="toggle" data-student="${esc(r.st.id)}" aria-expanded="${expanded === r.st.id}">
+            <span>${esc(r.st.name)}</span>
+            <b>${r.missing ? `missing ${r.missing} of 4` : '✓ done'}</b>
+          </button>
+          ${expanded === r.st.id ? detail(r.st, forRp, r.list) : ''}
+        </li>`).join('')}</ul>`;
     box.hidden = false;
-    $('#side-open-core').addEventListener('click', () => { rp = forRp; open(); });
-    box.querySelectorAll('[data-student]').forEach(b => b.addEventListener('click', () => ctx.openStudent(b.dataset.student)));
   }
+
+  function detail(st, forRp, list) {
+    const btn = (act, area, text) => `<button type="button" class="core-mark ${act === 'undo' ? 'undo' : ''}" data-act="${act}" data-student="${esc(st.id)}" data-area="${esc(area)}">${text}</button>`;
+    return `<div class="side-detail">
+      <ul>${list.map(x => {
+        const name = `<b>${esc(x.area)}</b>${x.elective ? ' <span class="core-elective">elective</span>' : ''}`;
+        if (x.state === 'annotated') {
+          const what = `${esc(x.item.subject)} · ${esc(x.item.lp)}${x.item.finalizedAt ? `, ${esc(niceDay(x.item.finalizedAt))}` : ''}`;
+          return `<li class="annotated"><span class="core-dot"></span><span>${name}
+            <small>✓ ${x.item.finalUrl ? `<a href="${esc(x.item.finalUrl)}" target="_blank" rel="noopener">${what}</a>` : what}</small></span></li>`;
+        }
+        if (x.state === 'manual') {
+          return `<li class="manual"><span class="core-dot"></span><span>${name}
+            <small>✓ Marked done${x.note ? `: ${esc(x.note)}` : ''} ${btn('undo', x.area, 'Undo')}</small></span></li>`;
+        }
+        return `<li class="${x.state}"><span class="core-dot"></span><span>${name}
+          <small>${x.state === 'missed' ? 'Missed. ' : 'Missing. '}${esc(hintText(x))}</small>
+          ${btn('mark', x.area, 'Mark done')}</span></li>`;
+      }).join('')}</ul>
+      <button type="button" class="btn small" data-act="samples" data-student="${esc(st.id)}">Open ${esc(st.firstName)}’s samples</button>
+    </div>`;
+  }
+
+  $('#rp-side').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b || !core) return;
+    const st = core.students.find(x => x.id === b.dataset.student);
+    if (!st) return;
+    const act = b.dataset.act;
+    if (act === 'toggle') expanded = expanded === st.id ? null : st.id;
+    if (act === 'samples') return ctx.openStudent(st.id);
+    if (act === 'mark' || act === 'undo') {
+      if (!(await mark(st, rpOf(sideLp), b.dataset.area, act === 'undo'))) return;
+      return ctx.redraw();
+    }
+    side(sideLp);
+  });
 
   /** The viewer just filed a sample: count it (or stop counting it) right away. */
   function filed(it) {
@@ -346,5 +281,5 @@ function AdminCore(ctx) {
     }
   }
 
-  return { open, panel, filed, whenReady, strip, side, reset: () => { core = null; failed = false; } };
+  return { panel, filed, whenReady, strip, side, reset: () => { core = null; failed = false; } };
 }

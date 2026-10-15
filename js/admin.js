@@ -1160,9 +1160,8 @@
 
   const Core = AdminCore({
     $, esc, toast, busy, show, call,
-    openDash: () => show('dash'),
-    closeViewer: () => Viewer.close(),
     openStudent: (id) => openStudent(id, viewLp).catch(err => toast(err.message)),
+    redraw: () => renderDash(),
   });
 
   // Another tab (the one "Finish in Workit" opened) connected the copy: move on here too.

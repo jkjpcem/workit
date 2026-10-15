@@ -24,7 +24,6 @@
         <select id="current-lp"></select>
       </label>
       <button class="btn small" id="open-roster">Students</button>
-      <button class="btn small" id="open-core">Core subjects</button>
       <button class="btn small" id="open-dates">LP dates</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
@@ -145,31 +144,6 @@
           <tbody id="roster-body"></tbody>
         </table>
       </div>
-    </section>
-
-    <!-- Core subjects: one annotated sample per core area each reporting period -->
-    <section id="screen-core" class="screen" hidden>
-      <button class="btn ghost back-link" id="core-back">← Dashboard</button>
-      <div class="dash-head">
-        <h1>Core subjects</h1>
-        <div class="core-controls">
-          <label class="inline">Reporting period <select id="core-rp"></select></label>
-          <label class="inline check"><input type="checkbox" id="core-missing"> Only students missing something</label>
-        </div>
-      </div>
-      <p class="hint">Each reporting period, every student needs one annotated sample in English, Math, Social Studies and Science. If a student has no class in one of those, an annotated elective counts instead (a different one for each). A sample counts once you click <b>Finalize as Annotated</b>. For work annotated outside Workit, click <b>Mark done</b>.</p>
-      <p class="core-summary" id="core-summary"></p>
-      <div class="roster-wrap">
-        <table class="core-table">
-          <thead><tr><th>Student</th><th>Annotated in</th><th>English</th><th>Math</th><th>Social Studies</th><th>Science</th></tr></thead>
-          <tbody id="core-body"></tbody>
-        </table>
-      </div>
-      <details class="card core-sorting">
-        <summary>Which classes count for which subject</summary>
-        <p class="hint">Workit sorts classes by their names. If it gets one wrong, change it here. It applies to every student with that class.</p>
-        <div id="core-sorting"></div>
-      </details>
     </section>
 
     <!-- One student -->

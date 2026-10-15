@@ -456,3 +456,21 @@ label.inline.check input { width: auto; }
   .v-panel .finish-row { display: grid; grid-template-columns: 1fr; }
   .v-panel .finish-row .btn { width: 100%; }
 }
+.side-sum { margin: 8px 0 10px; font-size: 14px; }
+.side-students { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: calc(100vh - 260px); overflow-y: auto; }
+.side-name { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 8px; border: 0; border-radius: 8px;
+  background: transparent; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; text-align: left; }
+.side-name:hover, .expanded > .side-name { background: var(--raised); }
+.side-name b { font-size: 12px; white-space: nowrap; }
+.side-students li.open .side-name b { color: var(--warn); }
+.side-students li.late .side-name b { color: var(--bad); }
+.side-students li.done .side-name b { color: var(--good); }
+.side-detail { padding: 6px 8px 12px 10px; border-left: 3px solid var(--line); margin: 2px 0 8px 8px; }
+.side-detail ul { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.side-detail li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.side-detail small { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.side-detail .core-mark { margin-top: 4px; }
+.side-detail .core-mark.undo { font-size: 12px; margin-left: 4px; }
+.side-detail li.annotated .core-dot { background: var(--good); border-color: var(--good); }
+.side-detail li.manual .core-dot { background: var(--brand); border-color: var(--brand); }
+.side-detail li.missed .core-dot { border-color: var(--bad); }
