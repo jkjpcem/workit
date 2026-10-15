@@ -96,12 +96,33 @@
     busy('Loading…');
     try {
       data = await call('adminOverview', { lp });
+      if (creds && creds.role === 'es') await followSchoolDates();
       viewLp = data.lp;
       renderControls();
       renderDash();
       if (!currentStudent && !stay) show('dash');
     } finally {
       busy(false);
+    }
+  }
+
+  // LP dates are the same for every ES, so an ES copy takes the main copy's dates each time
+  // its dashboard loads. A new ES also starts on the main copy's current LP.
+  async function followSchoolDates() {
+    let school;
+    try {
+      school = await mainCall('schoolDates');
+    } catch (err) {
+      return;  // a main copy from before shared dates
+    }
+    const dates = school.lpDates || {};
+    if (!Object.keys(dates).length) return;
+    const have = data.lpDates || {};
+    const same = data.lps.every(lp => JSON.stringify(dates[lp] || null) === JSON.stringify(have[lp] || null));
+    if (!same) data.lpDates = (await call('adminSetLpDates', { dates })).lpDates;
+    if ((creds.step || 0) < 6 && school.currentLp && school.currentLp !== data.currentLp) {
+      await call('adminSetLp', { lp: school.currentLp });
+      data.currentLp = school.currentLp;
     }
   }
 
@@ -873,10 +894,16 @@
   const datesDialog = $('#dates-dialog');
   $('#open-dates').addEventListener('click', () => {
     const d = data.lpDates || {};
+    // An ES follows the school's dates, so they only see them.
+    const shared = creds.role === 'es' && Object.keys(d).length > 0;
+    const off = shared ? 'disabled' : '';
     $('#dates-grid').innerHTML = '<span></span><b>Start</b><b>End</b>' + data.lps.map(lp => `
       <span class="lp-name">${esc(lp)}</span>
-      <input type="date" data-lp="${esc(lp)}" data-end="0" value="${esc((d[lp] || {}).start || '')}" aria-label="${esc(lp)} start date">
-      <input type="date" data-lp="${esc(lp)}" data-end="1" value="${esc((d[lp] || {}).end || '')}" aria-label="${esc(lp)} end date">`).join('');
+      <input type="date" data-lp="${esc(lp)}" data-end="0" value="${esc((d[lp] || {}).start || '')}" aria-label="${esc(lp)} start date" ${off}>
+      <input type="date" data-lp="${esc(lp)}" data-end="1" value="${esc((d[lp] || {}).end || '')}" aria-label="${esc(lp)} end date" ${off}>`).join('');
+    $('#dates-shared').hidden = !shared;
+    $('#dates-save').hidden = shared;
+    $('#dates-cancel').textContent = shared ? 'Close' : 'Cancel';
     datesDialog.showModal();
   });
   $('#dates-cancel').addEventListener('click', () => datesDialog.close());

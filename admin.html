@@ -209,10 +209,11 @@
     <form class="stack" id="dates-form">
       <h2>LP dates</h2>
       <p class="hint">Students can only enter a weekday inside the LP they upload to. Leave an LP blank for no date limit.</p>
+      <p class="note" id="dates-shared" hidden>These are the school’s LP dates. They’re the same for every ES and fill in by themselves, so there’s nothing to change.</p>
       <div class="dates-grid" id="dates-grid"></div>
       <div class="dialog-actions">
         <button class="btn" type="button" id="dates-cancel">Cancel</button>
-        <button class="btn primary" type="submit">Save dates</button>
+        <button class="btn primary" type="submit" id="dates-save">Save dates</button>
       </div>
     </form>
   </dialog>

@@ -201,7 +201,7 @@ function doPost(e) {
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
     };
     const es = {
-      esLogin: esLogin_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_,
+      esLogin: esLogin_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
     };
     const superAdmin = {
       superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_,
@@ -643,6 +643,12 @@ function superEsSetActive_(body) {
     found.sheet.getRange(found.es.row, ES.STATUS).setValue(body.active ? 'Active' : 'Off');
     return { ok: true };
   });
+}
+
+/** Your LP dates and current LP. Every ES copy follows the dates (they're the same for everyone). */
+function schoolDates_() {
+  if (!isMain_()) return { ok: false, error: 'Unknown request' };
+  return { ok: true, lpDates: getLpDates_(), currentLp: getCurrentLp_() };
 }
 
 /** Every student, plus every upload in one LP, for the dashboard grid. */

@@ -9,7 +9,7 @@ function AdminSetup(ctx) {
     { title: 'Set up your copy' },
     { title: 'Turn it on for students' },
     { title: 'Add your students' },
-    { title: 'Set the LP dates' },
+    { title: 'Check the LP' },
     { title: 'Share with students' },
   ];
   const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec$/;
@@ -105,7 +105,7 @@ function AdminSetup(ctx) {
       const url = (window.WORKIT_CONFIG || {}).TEMPLATE_COPY_URL;
       return `
       <p>Workit keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the Workit sheet.</p>
-      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. A personal Gmail works best: some school accounts block Workit.</div>
+      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. Use your school Google account (the one ending in suncoastcharter.org).</div>
       <ol class="how">
         <li>Click <b>Make my copy</b> below. A Google page opens in a new tab.</li>
         <li>If Google asks you to sign in, sign in with that account. If you’re signed in to more than one Google account, click the round picture at the top right and check it’s the right one.</li>
@@ -142,7 +142,7 @@ function AdminSetup(ctx) {
         <li>Who has access: choose <b>Anyone</b> (not <i>Anyone with Google account</i>: students don’t sign in to Google). Click <b>Deploy</b>. If Google asks you to <i>Authorize access</i>, allow it the same way as in step 3.</li>
         <li>Under <i>Web app</i>, click the link. A page says <b>Workit is on ✓</b>: click <b>Finish in Workit</b>. Workit connects and takes you to the next step.</li>
       </ol>
-      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow Workit. Start again from step 2 with a personal Gmail.</div>
+      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow Workit. Ask the person who made your Workit account for help.</div>
       <p class="connect-state ${c.url ? '' : 'waiting'}" id="connect-state">${c.url ? '✓ Your copy is connected.' : 'Waiting for you to click Finish in Workit…'}</p>
       ${c.url ? nextBtn() : ''}
       <details class="by-hand">
@@ -174,8 +174,8 @@ function AdminSetup(ctx) {
       <label class="inline-field">Current LP
         <select id="setup-lp">${lps.map(lp => `<option ${d && lp === d.currentLp ? 'selected' : ''}>${esc(lp)}</option>`).join('')}</select>
       </label>
-      <p><b>LP dates</b>: students can only enter a date completed that is a weekday inside the LP. Leave an LP blank for no limit.</p>
-      <p><button class="btn big" type="button" id="go-dates">Set LP dates</button></p>
+      <p><b>LP dates</b> are the same for every ES, so they’re already filled in for you. Students can only enter a date completed that is a weekday inside the LP.</p>
+      <p><button class="btn" type="button" id="go-dates">See the LP dates</button></p>
       ${nextBtn()}`;
     },
 
@@ -503,7 +503,7 @@ Here is your Workit ES account. Workit lets your students turn in work samples f
    Temporary password: ${res.tempPass}
 3. Choose your own password. Workit then walks you through setup step by step. It takes about 10 minutes.
 
-Have your Google account ready (the one you want student work saved in). A personal Gmail works best.`;
+Have your school Google account ready (the one ending in suncoastcharter.org). Student work is saved there.`;
     welcome.showModal();
   }
   $('#welcome-close').addEventListener('click', () => welcome.close());
