@@ -18,7 +18,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> <span class="wm" aria-label="WiSH">W<span class="wm-i">i</span>SH</span></div>
+    <div class="brand"><img class="brand-logo" src="icons/logo-dark.svg" alt="WiSH, Work Sample Herder" height="38"></div>
     <!-- Bottom bar on phones, part of the top bar on wider screens. -->
     <nav class="tabs" aria-label="Main menu" hidden>
       <button data-screen="upload" class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>Turn in</button>
@@ -42,9 +42,8 @@
     <!-- Sign in -->
     <section id="screen-login" class="screen" hidden>
       <div class="login-hero">
-        <div class="hero-mark" role="img" aria-label="WiSH, Work Sample Herder">
-          <span class="wm big" aria-hidden="true">W<span class="wm-star"><svg viewBox="0 0 40 112" width="40" height="112"><rect x="12" y="44" width="14" height="66" rx="4" fill="#ffd166" transform="rotate(14 19 77)"/><path d="M24 4l6 13 14 2-10 9 3 14-13-7-13 7 3-14-10-9 14-2z" fill="#f5a623" transform="translate(-4 0) scale(.95)"/></svg></span>SH</span>
-          <span class="wm-tag" aria-hidden="true">Work Sample Herder</span>
+        <div class="hero-mark">
+          <picture><source srcset="icons/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="icons/logo.svg" alt="WiSH, Work Sample Herder" width="260"></picture>
         </div>
         <h1>Sign in</h1>
         <p class="lead">And get your Work Samples Turned in</p>
