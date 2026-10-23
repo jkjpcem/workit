@@ -50,7 +50,18 @@ const Pdf = (() => {
     return new Blob(chunks, { type: 'application/pdf' });
   }
 
-  async function canvasToJpeg(canvas, quality = 0.82) {
+  // maxSide shrinks big scans first so uploads stay quick; sharp enough to read.
+  async function canvasToJpeg(canvas, quality = 0.82, maxSide = 0) {
+    const scale = maxSide ? Math.min(1, maxSide / Math.max(canvas.width, canvas.height)) : 1;
+    if (scale < 1) {
+      const small = document.createElement('canvas');
+      small.width = Math.round(canvas.width * scale);
+      small.height = Math.round(canvas.height * scale);
+      const ctx = small.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(canvas, 0, 0, small.width, small.height);
+      canvas = small;
+    }
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
     return { jpeg: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
   }

@@ -42,6 +42,7 @@
     if (!id) return toast('Answer every question.');
     busy('Signing in…');
     try {
+      const asked = Date.now();
       const res = await Api.call('login', { studentId: id });
       saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {} });
       showAlerts(res.alerts);
@@ -49,7 +50,7 @@
       resetWizard();
       show('upload');
       toast(`Welcome, ${res.student.firstName || res.student.id}!`);
-      syncHistory();
+      if (res.items) applyItems(res.items, asked); else syncHistory(true);
     } catch (err) {
       toast(/not find|not found/i.test(err.message)
         ? "We couldn't find you. Did you enter all the letters correctly?" : err.message);
@@ -69,12 +70,14 @@
   async function refreshSession() {
     if (!session || !Api.configured() || !navigator.onLine) return;
     try {
+      const asked = Date.now();
       const res = await Api.call('login', { studentId: session.student.id });
       // Follow the new current LP unless the student deliberately picked another one.
       if (wiz.lp === session.currentLp) wiz.lp = res.currentLp;
       saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {} });
       showAlerts(res.alerts);
       renderAll();
+      if (res.items) applyItems(res.items, asked); else syncHistory(true);
     } catch (err) {
       if (!err.offline && /not find|not found/i.test(err.message)) {
         saveSession(null);
@@ -535,7 +538,7 @@
     await tick();
     try {
       const pdfPages = [];
-      if (!wiz.doc) for (const p of wiz.pages) pdfPages.push(await Pdf.canvasToJpeg(p.result));
+      if (!wiz.doc) for (const p of wiz.pages) pdfPages.push(await Pdf.canvasToJpeg(p.result, 0.78, 1700));
       const now = Date.now();
       const item = {
         id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
@@ -858,7 +861,7 @@
         thumb: item.thumb,
         ...(item.source === 'gdoc' ? { link: item.link } : { data: await blobToBase64(item.pdf) }),
       });
-      await Store.update(item.id, { status: 'sent', error: '' });
+      await Store.update(item.id, { status: 'sent', error: '', sentAt: Date.now() });
       if (item.resubmitOf) await Store.update(item.resubmitOf, { resubmitted: true });
       return { ok: true };
     } catch (err) {
@@ -887,33 +890,45 @@
   window.addEventListener('online', () => { retryPending(); refreshSession(); });
 
   // Bring in uploads from Drive (including ones made on another device).
+  // Sign-in already sends the list, so opening My uploads only asks again after a minute.
   let syncing = false;
-  async function syncHistory() {
+  let lastSync = 0;
+  async function syncHistory(force) {
     if (syncing || !session || !Api.configured() || !navigator.onLine) return;
+    if (!force && Date.now() - lastSync < 60000) return;
     syncing = true;
     try {
+      const asked = Date.now();
       const res = await Api.call('list', { studentId: session.student.id });
-      // Drop uploads deleted on another device.
-      const ids = new Set(res.items.map(s => s.id));
-      for (const l of await Store.all()) {
-        if (l.studentId === session.student.id && l.status === 'sent' && !ids.has(l.id)) await Store.remove(l.id);
-      }
-      for (const s of res.items) {
-        const local = await Store.get(s.id);
-        await Store.put({
-          ...(local || {}),
-          ...s,
-          studentId: session.student.id,
-          createdAt: (local && local.createdAt) || s.receivedAt,
-          thumb: s.thumb || (local && local.thumb) || '',
-          status: 'sent',
-          error: '',
-        });
-      }
-      if (current === 'history') renderHistory();
+      await applyItems(res.items, asked);
     } catch { /* show what we have */ } finally {
       syncing = false;
     }
+  }
+
+  // asked = when the list was requested; uploads sent after that aren't in it yet.
+  async function applyItems(items, asked) {
+    if (!session) return;
+    lastSync = Date.now();
+    // Drop uploads deleted on another device.
+    const ids = new Set(items.map(s => s.id));
+    for (const l of await Store.all()) {
+      if (l.studentId === session.student.id && l.status === 'sent' && !ids.has(l.id)
+        && !(l.sentAt > asked)) await Store.remove(l.id);
+    }
+    for (const s of items) {
+      const local = await Store.get(s.id);
+      await Store.put({
+        ...(local || {}),
+        ...s,
+        studentId: session.student.id,
+        createdAt: (local && local.createdAt) || s.receivedAt,
+        thumb: s.thumb || (local && local.thumb) || '',
+        status: 'sent',
+        error: '',
+      });
+    }
+    if (current === 'history') renderHistory();
   }
 
   // ---------- My uploads ----------
@@ -1255,9 +1270,8 @@
   resetWizard();
   show(session ? 'upload' : 'login');
   if (session) {
-    refreshSession();
+    refreshSession(); // also brings in My uploads
     retryPending();
-    syncHistory();
   }
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

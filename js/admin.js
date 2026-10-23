@@ -64,6 +64,7 @@
   $('#admin-signout').addEventListener('click', signOut);
   function signOut() {
     creds = null;
+    datesFollowed = false;
     saveCreds(null);
     data = null;
     currentStudent = null;
@@ -123,7 +124,6 @@
     busy('Loading…');
     try {
       data = await call('adminOverview', { lp });
-      if (creds && creds.role === 'es') await followSchoolDates();
       viewLp = data.lp;
       renderControls();
       renderDash();
@@ -131,7 +131,13 @@
     } finally {
       busy(false);
     }
+    // Checked once per visit, after the dashboard is already showing.
+    if (creds && creds.role === 'es' && !datesFollowed) {
+      datesFollowed = true;
+      followSchoolDates().then(() => { renderControls(); renderDash(); }).catch(() => { datesFollowed = false; });
+    }
   }
+  let datesFollowed = false;
 
   // LP dates are the same for every ES, so an ES copy takes the main copy's dates each time
   // its dashboard loads. A new ES also starts on the main copy's current LP.
@@ -278,16 +284,21 @@
     studentLp = lp || viewLp;
     show('student');
     renderStudent();
-    if (!studentCache[id]) {
-      busy('Loading uploads…');
+    // The page shows right away from the dashboard's list; the rest fills in when it arrives.
+    if (!studentCache[id] && loadingStudent !== id) {
+      loadingStudent = id;
+      renderStudent();
       try {
         studentCache[id] = (await call('adminStudent', { studentId: id })).items;
+      } catch (err) {
+        toast(err.message);
       } finally {
-        busy(false);
+        if (loadingStudent === id) loadingStudent = null;
       }
-      renderStudent();
+      if (currentStudent && currentStudent.id === id) renderStudent();
     }
   }
+  let loadingStudent = null;
 
   function studentItems() {
     const all = studentCache[currentStudent.id] || data.items.filter(i => i.studentId === currentStudent.id);
@@ -309,7 +320,9 @@
     const items = studentItems();
     const grid = $('#upload-grid');
     if (!items.length) {
-      grid.innerHTML = `<div class="empty">No uploads ${studentLp === 'all' ? 'yet' : `in ${studentLp}`}.</div>`;
+      grid.innerHTML = loadingStudent === s.id && studentLp !== viewLp
+        ? '<div class="empty">Loading uploads…</div>'
+        : `<div class="empty">No uploads ${studentLp === 'all' ? 'yet' : `in ${studentLp}`}.</div>`;
       return;
     }
     grid.innerHTML = items.map((i, idx) => `
@@ -325,7 +338,7 @@
   // For the LP being viewed: every class this student takes then, and whether it has a sample.
   function renderClassCheck(s) {
     const box = $('#student-classes');
-    if (studentLp === 'all') { box.hidden = true; return; }
+    if (studentLp === 'all' || (loadingStudent === s.id && studentLp !== viewLp)) { box.hidden = true; return; }
     const classes = Classes.forLp(s, studentLp);
     const all = studentCache[s.id] || data.items.filter(i => i.studentId === s.id);
     const mine = all.filter(i => i.lp === studentLp && !(i.redo && !i.resubmitted));

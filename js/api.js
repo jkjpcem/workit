@@ -41,20 +41,43 @@ const Api = (() => {
     }
   })();
 
+  // Requests that only read. A stuck one is safe to send again; saves never are.
+  const READS = ['login', 'list', 'file', 'checkLink', 'esLookup', 'esLogin', 'schoolDates',
+    'adminOverview', 'adminStudent', 'adminFile', 'adminRoster', 'adminCore', 'superEsList', 'ping'];
+  const READ_WAIT = 60000;   // Google sometimes takes a while to wake up; past this, try once more.
+  const SAVE_WAIT = 180000;  // uploads can be large, so saves get longer before giving up.
+
   async function send(target, body) {
     if (!target) throw new Error('Your ES has not finished setting up WiSH yet.');
+    const isRead = READS.includes(body.action);
     let res;
-    try {
-      // text/plain keeps this a "simple" request, which Apps Script accepts from any site.
-      res = await fetch(target, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body),
-      });
-    } catch {
-      const err = new Error(navigator.onLine ? 'Could not reach WiSH. Try again in a minute.' : 'You are offline.');
-      err.offline = true;
-      throw err;
+    for (let attempt = 0; ; attempt++) {
+      const stop = new AbortController();
+      const timer = setTimeout(() => stop.abort(), isRead ? READ_WAIT : SAVE_WAIT);
+      try {
+        // text/plain keeps this a "simple" request, which Apps Script accepts from any site.
+        res = await fetch(target, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(body),
+          signal: stop.signal,
+        });
+        break;
+      } catch {
+        if (!navigator.onLine) {
+          const err = new Error('You are offline.');
+          err.offline = true;
+          throw err;
+        }
+        if (isRead && attempt === 0) continue;
+        const err = new Error(stop.signal.aborted
+          ? 'WiSH is slow to answer right now. Try again in a minute.'
+          : 'Could not reach WiSH. Try again in a minute.');
+        err.offline = true;
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
     }
     let json;
     try { json = await res.json(); } catch { throw new Error('WiSH sent back something unexpected. Try again.'); }

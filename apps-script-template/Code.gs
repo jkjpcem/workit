@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 10;
+const WORKIT_VERSION = 11;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -76,6 +76,7 @@ function setup() {
   const ss = getAdmin_();
   getSubs_();
   studentHeaders_();
+  memoClear_();
   Logger.log('Ready.' + (moved ? '\n' + moved : '') + '\nFolder: ' + root.getUrl() + '\nAdmin sheet: ' + ss.getUrl());
 }
 
@@ -210,17 +211,17 @@ function doPost(e) {
     const superAdmin = {
       superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_,
     };
-    if (student[body.action]) return json_(student[body.action](body));
-    if (es[body.action]) return json_(es[body.action](body));
-    if (superAdmin[body.action]) {
-      const denied = checkSuper_(body);
-      return json_(denied || superAdmin[body.action](body));
-    }
-    if (admin[body.action]) {
-      const denied = checkAdmin_(body);
-      return json_(denied || admin[body.action](body));
-    }
-    return json_({ ok: false, error: 'Unknown request.' });
+    // Requests that only read use the remembered copy of the sheet; anything else reads the
+    // sheet itself and makes the next request read it fresh too.
+    FRESH_ = READ_ONLY_ACTIONS.indexOf(body.action) === -1;
+    let out;
+    if (student[body.action]) out = student[body.action](body);
+    else if (es[body.action]) out = es[body.action](body);
+    else if (superAdmin[body.action]) out = checkSuper_(body) || superAdmin[body.action](body);
+    else if (admin[body.action]) out = checkAdmin_(body) || admin[body.action](body);
+    else out = { ok: false, error: 'Unknown request.' };
+    if (FRESH_) memoClear_();
+    return json_(out);
   } catch (err) {
     return json_({ ok: false, error: 'Server error: ' + err.message });
   }
@@ -232,10 +233,12 @@ function login_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: "We couldn't find you. Did you enter all the letters correctly?" };
   // Redo requests the student hasn't seen yet are shown once, right after sign-in.
-  const alerts = readSubs_().items.filter(i =>
-    i.studentId === student.id && i.redo && !i.notified && !i.replacedBy
-  ).map(i => ({ id: i.id, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted, reasons: i.reasons, redoNote: i.redoNote }));
-  return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), alerts: alerts };
+  const mine = readSubs_().items.filter(i => i.studentId === student.id);
+  const alerts = mine.filter(i => i.redo && !i.notified && !i.replacedBy)
+    .map(i => ({ id: i.id, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted, reasons: i.reasons, redoNote: i.redoNote }));
+  // The student's uploads come along, so the app doesn't have to ask a second time.
+  return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), alerts: alerts,
+    items: mine.map(publicItem_) };
 }
 
 function ackAlerts_(body) {
@@ -924,6 +927,10 @@ function adminSetLp_(body) {
 
 /** Reads the Submissions tab once and turns each row into an object. */
 function readSubs_() {
+  if (!FRESH_) {
+    const remembered = memoGet_('subs');
+    if (remembered) return { get sheet() { return getSubs_(); }, items: remembered };
+  }
   const sheet = getSubs_();
   const values = sheet.getDataRange().getValues();
   const items = [];
@@ -964,6 +971,7 @@ function readSubs_() {
       filedAs: FILED_AS.indexOf(String(v[SUB.FILED_AS - 1])) !== -1 ? String(v[SUB.FILED_AS - 1]) : (v[SUB.FINALIZED - 1] ? 'Annotated' : ''),
     });
   }
+  memoPut_('subs', items);
   return { sheet: sheet, items: items };
 }
 
@@ -1096,6 +1104,10 @@ function makeId_(first, grade, city) {
 }
 
 function getStudents_() {
+  if (!FRESH_) {
+    const remembered = memoGet_('students');
+    if (remembered) return remembered;
+  }
   const values = getSheet_('Students').getDataRange().getValues();
   const out = [];
   for (let r = 1; r < values.length; r++) {
@@ -1115,6 +1127,7 @@ function getStudents_() {
     st.sem2 = st.sem2Typed ? parseClasses_(v[6]) : sem2From_(st.sem1);
     st.classes = st.sem1.map(c => c.name); // older app versions read this
   }
+  memoPut_('students', out);
   return out;
 }
 
@@ -1160,11 +1173,20 @@ function findStudent_(id) {
   if (!/^[A-Z]{2}(8|9|10|11|12)[A-Z]{2}$/.test(id)) return null;
   const all = getStudents_();
   for (let i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+  // Not in the remembered list: they may have just been added to the sheet by hand.
+  if (!FRESH_) {
+    FRESH_ = true;
+    try { return findStudent_(id); } finally { FRESH_ = false; }
+  }
   return null;
 }
 
 /** { LP1: { start: 'yyyy-mm-dd', end: 'yyyy-mm-dd' }, ... } for the LPs that have dates. */
 function getLpDates_() {
+  if (!FRESH_) {
+    const remembered = memoGet_('lpDates');
+    if (remembered) return remembered;
+  }
   const values = getSheet_('Settings').getRange(LP_DATES_ROW + 1, 1, LEARNING_PERIODS.length, 3).getValues();
   const out = {};
   values.forEach(v => {
@@ -1172,6 +1194,7 @@ function getLpDates_() {
     const start = dateText_(v[1]).trim(), end = dateText_(v[2]).trim();
     if (LEARNING_PERIODS.indexOf(lp) !== -1 && isYmd_(start) && isYmd_(end)) out[lp] = { start: start, end: end };
   });
+  memoPut_('lpDates', out);
   return out;
 }
 
@@ -1269,8 +1292,73 @@ function googleFilePdf_(info) {
 }
 
 function getCurrentLp_() {
+  const remembered = FRESH_ ? null : memoGet_('currentLp');
+  if (remembered) return remembered;
   const lp = String(getSheet_('Settings').getRange(1, 2).getValue()).trim().toUpperCase();
-  return LEARNING_PERIODS.indexOf(lp) !== -1 ? lp : LEARNING_PERIODS[0];
+  const out = LEARNING_PERIODS.indexOf(lp) !== -1 ? lp : LEARNING_PERIODS[0];
+  memoPut_('currentLp', out);
+  return out;
+}
+
+// ---------- Short-term memory ----------
+// Opening the admin sheet and reading whole tabs is most of the wait on every click. So the
+// Students list, the Submissions rows, the current LP and the LP dates are remembered for a few
+// minutes in Google's cache. Anything that changes them (and every request that isn't a plain
+// read) forgets them, and edits made by hand in the sheet show up within MEMO_SECONDS.
+
+const MEMO_SECONDS = 300;
+const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
+const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
+const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'adminOverview', 'adminStudent', 'adminFile',
+  'adminRoster', 'adminCore', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
+let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
+
+function memoGen_(cache) {
+  let gen = cache.get('memo-gen');
+  if (!gen) {
+    gen = String(Date.now());
+    cache.put('memo-gen', gen, 21600);
+  }
+  return gen;
+}
+
+function memoGet_(key) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const k = memoGen_(cache) + ':' + key;
+    const n = Number(cache.get(k + ':n'));
+    if (!n) return null;
+    const keys = [];
+    for (let i = 0; i < n; i++) keys.push(k + ':' + i);
+    const parts = cache.getAll(keys);
+    let text = '';
+    for (let i = 0; i < n; i++) {
+      if (parts[keys[i]] == null) return null;
+      text += parts[keys[i]];
+    }
+    return JSON.parse(text);
+  } catch (err) {
+    return null;
+  }
+}
+
+function memoPut_(key, value) {
+  try {
+    const text = JSON.stringify(value);
+    const n = Math.max(1, Math.ceil(text.length / MEMO_CHUNK));
+    if (n > MEMO_MAX_CHUNKS) return;
+    const cache = CacheService.getScriptCache();
+    const k = memoGen_(cache) + ':' + key;
+    const all = {};
+    for (let i = 0; i < n; i++) all[k + ':' + i] = text.slice(i * MEMO_CHUNK, (i + 1) * MEMO_CHUNK);
+    cache.putAll(all, MEMO_SECONDS);
+    cache.put(k + ':n', String(n), MEMO_SECONDS);  // last, so a half-written copy is never used
+  } catch (err) { /* too big or cache busy: the next request reads the sheet */ }
+}
+
+/** Forgets everything remembered, so the next request reads the sheet. */
+function memoClear_() {
+  try { CacheService.getScriptCache().put('memo-gen', String(Date.now()) + Math.random(), 21600); } catch (err) {}
 }
 
 // ---------- Drive & sheet plumbing ----------
