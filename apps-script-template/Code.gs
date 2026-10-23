@@ -1,33 +1,36 @@
 /**
- * Workit backend. Runs as you, in your personal Google account.
+ * WiSH backend. Runs as you, in your personal Google account.
  *
- *  - Homework PDFs go to:   My Drive / Workit Homework / Uploads / LP1 ... LP8
- *  - You manage everything in the "Workit Admin" spreadsheet in that folder:
+ *  - Homework PDFs go to:   My Drive / WiSH Homework / Uploads / LP1 ... LP8
+ *  - You manage everything in the "WiSH Admin" spreadsheet in that folder:
  *      Students     one row per student: name, grade, city, Sem 1 classes, Sem 2 classes
  *      Settings     the current Learning Period
  *      Submissions  every upload, with a link to the file and your review
- *  - Approved work goes to Workit Homework / Approved / LP# Annotated (your 2 annotated samples
+ *  - Approved work goes to WiSH Homework / Approved / LP# Annotated (your 2 annotated samples
  *    per LP) or LP# Extra (approved, not annotated).
  *  - The admin dashboard (admin.html in the app) signs in with ADMIN_USERNAME / ADMIN_PASSWORD below.
  *
  * Setup steps are in SETUP.md.
  *
- * The same code also runs in each other ES's own copy (made from the Workit template sheet).
+ * The same code also runs in each other ES's own copy (made from the WiSH template sheet).
  * In those copies ADMIN_USERNAME and ADMIN_PASSWORD are blank: the ES signs in through the main
  * copy (yours), which keeps the "ES accounts" tab and hands their dashboard a key for their copy.
  */
 
-// Blank in an ES's own copy: they sign in with their Workit ES account instead.
+// Blank in an ES's own copy: they sign in with their WiSH ES account instead.
 const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 9;
+const WORKIT_VERSION = 10;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
-const ROOT_FOLDER_NAME = 'Workit Homework';
-const ADMIN_SHEET_NAME = 'Workit Admin';
+const ROOT_FOLDER_NAME = 'WiSH Homework';
+const ADMIN_SHEET_NAME = 'WiSH Admin';
+// Names from before the app was renamed (Workit), still looked for by name.
+const OLD_ROOT_FOLDER_NAME = 'Workit Homework';
+const OLD_ADMIN_SHEET_NAME = 'Workit Admin';
 const UPLOADS_FOLDER_NAME = 'Uploads';
 const APPROVED_FOLDER_NAME = 'Approved';
 const OLD_FINAL_FOLDER_NAME = 'Approved and Annotated'; // used before 2026-10-04; setup() moves its files
@@ -77,7 +80,7 @@ function setup() {
 }
 
 /**
- * Older versions kept LP1..LP8 and "Approved and Annotated" right inside Workit Homework.
+ * Older versions kept LP1..LP8 and "Approved and Annotated" right inside WiSH Homework.
  * Moves them to Uploads / LP# and Approved / LP# Annotated. Links in the sheet keep working.
  */
 function moveOldFolders_(root) {
@@ -124,20 +127,20 @@ function doGet() {
   if (/\/exec$/.test(url)) PropertiesService.getScriptProperties().setProperty('WEBAPP_URL', url);
   return HtmlService.createHtmlOutput(
     '<div style="font-family:Arial,sans-serif;font-size:17px;line-height:1.5;color:#121a2e;max-width:520px;margin:60px auto;text-align:center">' +
-    '<h1 style="color:#13204a">Workit is on ✓</h1><p>Your copy of Workit is working. Click the button to finish setting up.</p>' +
-    '<p>' + button_(APP_URL + 'admin.html#connect=' + encodeURIComponent(url), 'Finish in Workit →', '_top') + '</p></div>')
-    .setTitle('Workit');
+    '<h1 style="color:#13204a">WiSH is on ✓</h1><p>Your copy of WiSH is working. Click the button to finish setting up.</p>' +
+    '<p>' + button_(APP_URL + 'admin.html#connect=' + encodeURIComponent(url), 'Finish in WiSH →', '_top') + '</p></div>')
+    .setTitle('WiSH');
 }
 
-/** In an ES's own copy of the template sheet, adds the Workit menu. */
+/** In an ES's own copy of the template sheet, adds the WiSH menu. */
 function onOpen() {
   try {
-    SpreadsheetApp.getUi().createMenu('Workit').addItem('Set up Workit', 'setupFromMenu').addToUi();
+    SpreadsheetApp.getUi().createMenu('WiSH').addItem('Set up WiSH', 'setupFromMenu').addToUi();
   } catch (ignored) {}
 }
 
 /**
- * Workit > Set up Workit (in an ES's copy): makes the folders and the admin sheet, then shows
+ * WiSH > Set up WiSH (in an ES's copy): makes the folders and the admin sheet, then shows
  * the one step Google only lets a person do: turning the copy on in the Deploy box.
  * (A copy can't deploy itself: Google keeps the Apps Script API off in every copy's own project.)
  */
@@ -148,18 +151,18 @@ function setupFromMenu() {
     setup();
     const url = webAppUrl_();
     if (url) {
-      return dialog_('Workit is set up',
-        '<p>Your <b>Workit Homework</b> folder is in Google Drive, and Workit is on for your students.</p>' +
-        '<p>' + button_(APP_URL + 'admin.html#connect=' + encodeURIComponent(url), 'Finish in Workit →') + '</p>');
+      return dialog_('WiSH is set up',
+        '<p>Your <b>WiSH Homework</b> folder is in Google Drive, and WiSH is on for your students.</p>' +
+        '<p>' + button_(APP_URL + 'admin.html#connect=' + encodeURIComponent(url), 'Finish in WiSH →') + '</p>');
     }
     dialog_('Your folders are ready. One last step',
-      '<p>Turn Workit on for your students:</p><ol style="padding-left:20px;margin:0 0 12px">' +
+      '<p>Turn WiSH on for your students:</p><ol style="padding-left:20px;margin:0 0 12px">' +
       '<li>Click ' + button_('https://script.google.com/d/' + ScriptApp.getScriptId() + '/edit', 'Open the Deploy page') +
       '<br><span style="font-size:13px;color:#5b6579">If a box says “You’re signed in as…”, click <b>OK</b>.</span></li>' +
       '<li>Click the blue <b>Deploy</b> button (top right), then <b>New deployment</b>.</li>' +
       '<li>Click the gear ⚙ next to <i>Select type</i>, then <b>Web app</b>.</li>' +
       '<li>Who has access: <b>Anyone</b>. Click <b>Deploy</b>. If Google asks, click <b>Authorize access</b> and allow it like before.</li>' +
-      '<li>Click the <b>Web app</b> link that appears. A Workit page opens: click <b>Finish in Workit</b>.</li></ol>', 470);
+      '<li>Click the <b>Web app</b> link that appears. A WiSH page opens: click <b>Finish in WiSH</b>.</li></ol>', 470);
   } finally {
     lock.releaseLock();
   }
@@ -446,7 +449,7 @@ function isMain_() {
 
 const ES_SHEET_NAME = 'ES accounts';
 const ES = { USER: 1, NAME: 2, STATUS: 3, STEP: 4, SCRIPT_URL: 5, CREATED: 6, LAST_SIGNIN: 7, HASH: 8, SALT: 9, MUST_CHANGE: 10, KEY: 11, VERSION: 12, EMAIL: 13 };
-const ES_HEADERS = ['Username', 'Name', 'Status', 'Setup step', 'Their Workit link', 'Created', 'Last sign-in',
+const ES_HEADERS = ['Username', 'Name', 'Status', 'Setup step', 'Their WiSH link', 'Created', 'Last sign-in',
   'Password hash', 'Salt', 'Must change password', 'Key', 'Script version', 'Email'];
 // 1 password, 2 copy, 3 set up, 4 turn on, 5 students, 6 LP dates, 7 student link.
 const SETUP_STEPS = 7;
@@ -537,7 +540,7 @@ function esLogin_(body) {
     Utilities.sleep(800); // slows down guessing
     return { ok: false, error: 'Wrong username or password.' };
   }
-  if (!es.active) return { ok: false, error: 'Your Workit account is turned off right now.' };
+  if (!es.active) return { ok: false, error: 'Your WiSH account is turned off right now.' };
   found.sheet.getRange(es.row, ES.LAST_SIGNIN).setValue(new Date());
   const out = esPublic_(es);
   out.ok = true;
@@ -593,9 +596,9 @@ function esSaveSetup_(body) {
 function esLookup_(body) {
   if (!isMain_()) return { ok: false, error: 'Unknown request.' };
   const es = findEs_(body.es).es;
-  if (!es) return { ok: false, error: 'This Workit link isn’t right. Ask your ES for the link again.' };
-  if (!es.active) return { ok: false, error: 'This Workit link is turned off right now. Ask your ES.' };
-  if (!es.scriptUrl) return { ok: false, error: 'Your ES hasn’t finished setting up Workit yet.' };
+  if (!es) return { ok: false, error: 'This WiSH link isn’t right. Ask your ES for the link again.' };
+  if (!es.active) return { ok: false, error: 'This WiSH link is turned off right now. Ask your ES.' };
+  if (!es.scriptUrl) return { ok: false, error: 'Your ES hasn’t finished setting up WiSH yet.' };
   return { ok: true, name: es.name, scriptUrl: es.scriptUrl };
 }
 
@@ -604,16 +607,16 @@ function esLookup_(body) {
  * dashboard can open it. The main copy (yours) never takes a key.
  */
 function esClaim_(body) {
-  if (isMain_()) return { ok: false, error: 'That is the main Workit link, not your own copy. Copy the Web app link from your own Apps Script.' };
+  if (isMain_()) return { ok: false, error: 'That is the main WiSH link, not your own copy. Copy the Web app link from your own Apps Script.' };
   const key = String(body.esKey || '');
   if (key.length < 32) return { ok: false, error: 'Please sign in again.' };
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('ADMIN_SHEET_ID')) {
-    return { ok: false, error: 'Workit isn’t set up in your copy yet. In your copy of the Workit sheet, click Workit, then Set up Workit.' };
+    return { ok: false, error: 'WiSH isn’t set up in your copy yet. In your copy of the WiSH sheet, click WiSH, then Set up WiSH.' };
   }
   return withLock_(() => {
     const have = props.getProperty('ES_KEY');
-    if (have && have !== key) return { ok: false, error: 'This copy of Workit is already connected to a different ES account.' };
+    if (have && have !== key) return { ok: false, error: 'This copy of WiSH is already connected to a different ES account.' };
     if (!have) props.setProperty('ES_KEY', key);
     return { ok: true, version: WORKIT_VERSION };
   });
@@ -627,7 +630,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * New ES account from their first name, last name and email. The username is the part of
- * their email before the @. With a link (the dashboard address), Workit emails them the
+ * their email before the @. With a link (the dashboard address), WiSH emails them the
  * welcome message from your account.
  */
 function superEsAdd_(body) {
@@ -678,17 +681,17 @@ function sendWelcome_(res, link, reset) {
   const text = [
     'Hi ' + first + ',',
     '',
-    reset ? 'Here is a new temporary password for Workit.' : 'You now have a Workit account. Workit is where your students turn in their work samples, and where you review and annotate them.',
+    reset ? 'Here is a new temporary password for WiSH.' : 'You now have a WiSH account. WiSH is where your students turn in their work samples, and where you review and annotate them.',
     '',
     '1. On a computer, open: ' + link,
     '2. Username: ' + res.user,
     '   Temporary password: ' + res.tempPass,
-    '3. Choose your own password. Workit then walks you through setup step by step. It takes about 10 minutes.',
+    '3. Choose your own password. WiSH then walks you through setup step by step. It takes about 10 minutes.',
     '',
     'Have your school Google account ready (the one ending in suncoastcharter.org). Student work is saved there.',
   ].join('\n');
   try {
-    MailApp.sendEmail({ to: res.email, subject: reset ? 'Your new Workit password' : 'Your Workit account', body: text, name: 'Workit' });
+    MailApp.sendEmail({ to: res.email, subject: reset ? 'Your new WiSH password' : 'Your WiSH account', body: text, name: 'WiSH' });
     res.emailed = true;
   } catch (err) {
     res.emailError = 'The account is ready, but the email didn’t send (' + err.message + '). Copy the message below and send it yourself.';
@@ -899,7 +902,7 @@ function adminSetLpDates_(body) {
     const lp = LEARNING_PERIODS[i];
     const d = dates[lp] || {};
     const start = clean_(d.start, 10), end = clean_(d.end, 10);
-    if ((start && !isYmd_(start)) || (end && !isYmd_(end))) return { ok: false, error: lp + ' has a date Workit can’t read.' };
+    if ((start && !isYmd_(start)) || (end && !isYmd_(end))) return { ok: false, error: lp + ' has a date WiSH can’t read.' };
     if (!start !== !end) return { ok: false, error: 'Give ' + lp + ' both a start and an end date, or leave both blank.' };
     if (start && start > end) return { ok: false, error: lp + ' ends before it starts.' };
     rows.push([lp, start, end]);
@@ -1053,7 +1056,7 @@ function adminCoreMark_(body) {
   const rp = String(body.rp || ''), area = String(body.area || '');
   const student = findStudent_(id);
   if (!student || CORE_RPS.indexOf(rp) === -1 || CORE_AREAS.indexOf(area) === -1) {
-    return { ok: false, error: 'Workit couldn’t find that student or subject. Refresh and try again.' };
+    return { ok: false, error: 'WiSH couldn’t find that student or subject. Refresh and try again.' };
   }
   return withLock_(() => {
     const sheet = namedSheet_(CORE_SHEET, CORE_HEADERS);
@@ -1066,7 +1069,7 @@ function adminCoreMark_(body) {
   });
 }
 
-/** Puts a class in a core area by hand ('None' = not core, '' = let Workit decide from its name). */
+/** Puts a class in a core area by hand ('None' = not core, '' = let WiSH decide from its name). */
 function adminCoreSort_(body) {
   const name = clean_(body.name, 100), area = String(body.area || '');
   if (!name || (area && area !== 'None' && CORE_AREAS.indexOf(area) === -1)) return { ok: false, error: 'Something was missing. Please try again.' };
@@ -1202,7 +1205,7 @@ function convertDocx_(bytes, name) {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
     muteHttpExceptions: true,
   });
-  if (res.getResponseCode() >= 300) throw new Error('Workit couldn’t read that Word file. Save it as a PDF and upload that instead.');
+  if (res.getResponseCode() >= 300) throw new Error('WiSH couldn’t read that Word file. Save it as a PDF and upload that instead.');
   const doc = DriveApp.getFileById(JSON.parse(res.getContentText()).id);
   try {
     return doc.getAs('application/pdf').getBytes();
@@ -1217,7 +1220,7 @@ const GOOGLE_KINDS = {
   'application/vnd.google-apps.document': 'Google Doc',
   'application/vnd.google-apps.presentation': 'Google Slides',
 };
-const NO_ACCESS = 'Workit can’t open that file. In Google Docs or Slides, tap Share, set General access to “Anyone with the link”, then copy the link again.';
+const NO_ACCESS = 'WiSH can’t open that file. In Google Docs or Slides, tap Share, set General access to “Anyone with the link”, then copy the link again.';
 
 // Looks a link up without saving anything, so the student knows right away if it will work.
 function checkLink_(body) {
@@ -1282,19 +1285,20 @@ function getRootFolder_() {
     } catch (ignored) {}
   }
   // Your copy reuses a folder by name; an ES's copy always starts its own, so trying it in an
-  // account that already has Workit can't mix with that account's real folder.
-  const found = isMain_() ? DriveApp.getRootFolder().getFoldersByName(ROOT_FOLDER_NAME) : null;
+  // account that already has WiSH can't mix with that account's real folder.
+  let found = isMain_() ? DriveApp.getRootFolder().getFoldersByName(ROOT_FOLDER_NAME) : null;
+  if (found && !found.hasNext()) found = DriveApp.getRootFolder().getFoldersByName(OLD_ROOT_FOLDER_NAME);
   const folder = found && found.hasNext() ? found.next() : DriveApp.getRootFolder().createFolder(ROOT_FOLDER_NAME);
   props.setProperty('ROOT_FOLDER_ID', folder.getId());
   return folder;
 }
 
-/** Workit Homework / Uploads / LP# */
+/** WiSH Homework / Uploads / LP# */
 function getUploadFolder_(lp) {
   return getChildFolder_(getChildFolder_(getRootFolder_(), UPLOADS_FOLDER_NAME), lp);
 }
 
-/** Workit Homework / Approved / LP# Annotated or LP# Extra */
+/** WiSH Homework / Approved / LP# Annotated or LP# Extra */
 function getApprovedFolder_(lp, filedAs) {
   return getChildFolder_(getChildFolder_(getRootFolder_(), APPROVED_FOLDER_NAME), lp + ' ' + filedAs);
 }
@@ -1312,7 +1316,7 @@ function getAdmin_() {
   if (id) {
     try { return (adminCache_ = SpreadsheetApp.openById(id)); } catch (ignored) {}
   }
-  // In an ES's own copy, the sheet the script came with becomes their Workit Admin sheet.
+  // In an ES's own copy, the sheet the script came with becomes their WiSH Admin sheet.
   const bound = boundSheet_();
   const ss = bound || SpreadsheetApp.create(ADMIN_SHEET_NAME);
   if (bound) ss.rename(ADMIN_SHEET_NAME);
@@ -1328,7 +1332,7 @@ function boundSheet_() {
 
 function getSheet_(name) {
   const sheet = getAdmin_().getSheetByName(name);
-  if (!sheet) throw new Error('The "' + name + '" tab is missing from the Workit Admin sheet.');
+  if (!sheet) throw new Error('The "' + name + '" tab is missing from the WiSH Admin sheet.');
   return sheet;
 }
 

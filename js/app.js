@@ -1,4 +1,4 @@
-// Workit app: sign in, the upload steps, the page editor, history, and sync with Drive.
+// WiSH app: sign in, the upload steps, the page editor, history, and sync with Drive.
 
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -58,7 +58,7 @@
     }
   });
 
-  // On an ES's own student link, say whose Workit this is.
+  // On an ES's own student link, say whose WiSH this is.
   Api.ready.then(() => {
     const name = Api.esName();
     $('#es-name').textContent = name ? `ES: ${name}` : '';
@@ -408,7 +408,7 @@
     };
     const kinds = files.map(type);
     if (kinds.includes('olddoc')) return toast('That is an old Word file (.doc). Save it as .docx or PDF, then add it.');
-    if (kinds.includes('other')) return toast('Workit takes PDF, Word (.docx), JPG and PNG files.');
+    if (kinds.includes('other')) return toast('WiSH takes PDF, Word (.docx), JPG and PNG files.');
     if (files.some(f => f.size > MAX_FILE_BYTES)) return toast('That file is too big. The most is 15 MB.');
     if (kinds.includes('docx')) {
       if (files.length > 1 || wiz.pages.length) {
@@ -1028,7 +1028,7 @@
   }
 
   // ---------- Viewer ----------
-  // Pages open in a window inside Workit, not a new tab (Joon's request).
+  // Pages open in a window inside WiSH, not a new tab (Joon's request).
 
   // With an upload (item), the family's own text boxes show on the pages, and until the ES
   // approves it, ✏️ Annotate lets them add or change them.
@@ -1092,7 +1092,7 @@
 
   async function viewPdf(blob, title, item, startEditing) {
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    // Workit's own PDFs are page photos, so they show at once. Others go through pdf.js.
+    // WiSH's own PDFs are page photos, so they show at once. Others go through pdf.js.
     let pages = Pdf.extractJpegs(bytes);
     if (!pages.length) {
       const canvases = await PdfView.render(bytes, { width: 1100 });

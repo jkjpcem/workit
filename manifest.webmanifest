@@ -1,6 +1,6 @@
 {
-  "name": "Workit - Turn in homework",
-  "short_name": "Workit",
+  "name": "WiSH - Work Sample Herder",
+  "short_name": "WiSH",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

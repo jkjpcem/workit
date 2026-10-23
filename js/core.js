@@ -2,7 +2,7 @@
 // English, Math, Social Studies and Science. A student with no class in one of those
 // areas that period fills that slot with an annotated elective instead (a different
 // elective sample for each such slot). The ES can also mark a slot done by hand, for
-// work annotated outside Workit. Shown beside the dashboard and beside a sample in the viewer.
+// work annotated outside WiSH. Shown beside the dashboard and beside a sample in the viewer.
 function AdminCore(ctx) {
   const { $, esc, toast, busy, call } = ctx;
 

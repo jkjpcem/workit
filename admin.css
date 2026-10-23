@@ -500,7 +500,7 @@ label.inline.check input { width: auto; }
 .cc-list li.no b { color: var(--muted); }
 .cc-count { font-size: 12px; font-weight: 700; color: var(--muted); }
 
-/* Top bar: Workit goes home; the signed-in name opens Settings and Sign out */
+/* Top bar: WiSH goes home; the signed-in name opens Settings and Sign out */
 a.brand { color: #fff; text-decoration: none; }
 a.brand:hover { opacity: .9; }
 .user-menu { position: relative; margin-left: 8px; }

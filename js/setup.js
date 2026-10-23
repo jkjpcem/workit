@@ -104,29 +104,29 @@ function AdminSetup(ctx) {
     2: () => {
       const url = (window.WORKIT_CONFIG || {}).TEMPLATE_COPY_URL;
       return `
-      <p>Workit keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the Workit sheet.</p>
+      <p>WiSH keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the WiSH sheet.</p>
       <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. Use your school Google account (the one ending in suncoastcharter.org).</div>
       <ol class="how">
         <li>Click <b>Make my copy</b> below. A Google page opens in a new tab.</li>
         <li>If Google asks you to sign in, sign in with that account. If you’re signed in to more than one Google account, click the round picture at the top right and check it’s the right one.</li>
-        <li>Click the blue <b>Make a copy</b> button. If Google mentions that an Apps Script file is copied too, that’s fine: that file is Workit.</li>
+        <li>Click the blue <b>Make a copy</b> button. If Google mentions that an Apps Script file is copied too, that’s fine: that file is WiSH.</li>
         <li>Your copy opens. Keep that tab open and come back to this tab.</li>
       </ol>
       ${url ? `<p><a class="btn big" href="${esc(url)}" target="_blank" rel="noopener">Make my copy ↗</a></p>`
-        : '<p class="note bad">The copy link isn’t ready yet. Ask the person who made your Workit account.</p>'}
+        : '<p class="note bad">The copy link isn’t ready yet. Ask the person who made your WiSH account.</p>'}
       ${nextBtn('I made my copy')}`;
     },
 
     3: () => `
       <p>Now your copy sets up your folders. Google asks you to approve this once.</p>
       <ol class="how">
-        <li>Go to the tab with your copy. Wait a few seconds until <b>Workit</b> shows up in the menu bar, to the right of <b>Help</b>. If it doesn’t show up, reload the page.</li>
-        <li>Click <b>Workit</b>, then <b>Set up Workit</b>.</li>
+        <li>Go to the tab with your copy. Wait a few seconds until <b>WiSH</b> shows up in the menu bar, to the right of <b>Help</b>. If it doesn’t show up, reload the page.</li>
+        <li>Click <b>WiSH</b>, then <b>Set up WiSH</b>.</li>
         <li>A box says <i>Authorization required</i>. Click <b>OK</b> (or <b>Continue</b>).</li>
         <li>Choose your Google account.</li>
-        <li>Google says <i>Google hasn’t verified this app</i>. That’s normal for your own copy. Click <b>Advanced</b> at the bottom left, then <b>Go to Workit (unsafe)</b>.</li>
+        <li>Google says <i>Google hasn’t verified this app</i>. That’s normal for your own copy. Click <b>Advanced</b> at the bottom left, then <b>Go to WiSH (unsafe)</b>.</li>
         <li>If you see checkboxes, tick <b>Select all</b>. Then click <b>Allow</b> (or <b>Continue</b>).</li>
-        <li>Back in your copy, a small <i>Running script</i> bar shows for about 30 seconds. If nothing happens after that, click <b>Workit</b>, then <b>Set up Workit</b> once more.</li>
+        <li>Back in your copy, a small <i>Running script</i> bar shows for about 30 seconds. If nothing happens after that, click <b>WiSH</b>, then <b>Set up WiSH</b> once more.</li>
         <li>A box says <b>Your folders are ready. One last step</b>. Leave it open and click <b>Next</b> here.</li>
       </ol>
       ${nextBtn('I see “One last step”')}`,
@@ -140,13 +140,13 @@ function AdminSetup(ctx) {
         <li>At the top right, click the blue <b>Deploy</b> button, then <b>New deployment</b>.</li>
         <li>Next to <i>Select type</i>, click the gear ⚙ and choose <b>Web app</b>.</li>
         <li>Who has access: choose <b>Anyone</b> (not <i>Anyone with Google account</i>: students don’t sign in to Google). Click <b>Deploy</b>. If Google asks you to <i>Authorize access</i>, allow it the same way as in step 3.</li>
-        <li>Under <i>Web app</i>, click the link. A page says <b>Workit is on ✓</b>: click <b>Finish in Workit</b>. Workit connects and takes you to the next step.</li>
+        <li>Under <i>Web app</i>, click the link. A page says <b>WiSH is on ✓</b>: click <b>Finish in WiSH</b>. WiSH connects and takes you to the next step.</li>
       </ol>
-      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow Workit. Ask the person who made your Workit account for help.</div>
-      <p class="connect-state ${c.url ? '' : 'waiting'}" id="connect-state">${c.url ? '✓ Your copy is connected.' : 'Waiting for you to click Finish in Workit…'}</p>
+      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow WiSH. Ask the person who made your WiSH account for help.</div>
+      <p class="connect-state ${c.url ? '' : 'waiting'}" id="connect-state">${c.url ? '✓ Your copy is connected.' : 'Waiting for you to click Finish in WiSH…'}</p>
       ${c.url ? nextBtn() : ''}
       <details class="by-hand">
-        <summary>The Workit page didn’t open? Paste the link instead</summary>
+        <summary>The WiSH page didn’t open? Paste the link instead</summary>
         <p class="hint">In the Deploy box, under <i>Web app</i>, click <b>Copy</b>. Paste it here and click <b>Connect</b>.</p>
         <form class="connect-row" id="connect-form">
           <input name="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || '')}" spellcheck="false" autocomplete="off" aria-label="Web app link">
@@ -182,7 +182,7 @@ function AdminSetup(ctx) {
     7: () => `
       <p>This is the link your students use. Send it to students and families, show the QR code in class, or print the flyer. You can always find it again with <b>Share link &amp; QR</b> at the top of your dashboard.</p>
       ${linkBox(ctx.creds().user)}
-      <p class="hint">On their phone, students can add Workit to the home screen: in Safari, tap Share, then <b>Add to Home Screen</b>; in Chrome, tap ⋮, then <b>Add to Home screen</b>.</p>
+      <p class="hint">On their phone, students can add WiSH to the home screen: in Safari, tap Share, then <b>Add to Home Screen</b>; in Chrome, tap ⋮, then <b>Add to Home screen</b>.</p>
       ${nextBtn('Finish and open my dashboard')}`,
   };
 
@@ -241,7 +241,7 @@ function AdminSetup(ctx) {
     7: (panel) => { bindNext(panel); bindLinkBox(panel); },
   };
 
-  // Links this ES account to their copy: from the copy's "Finish in Workit" button
+  // Links this ES account to their copy: from the copy's "Finish in WiSH" button
   // (admin.html#connect=...), or a link pasted by hand.
   async function connect(url) {
     open(4);
@@ -251,7 +251,7 @@ function AdminSetup(ctx) {
       state().className = 'connect-state bad';
     };
     if (!SCRIPT_URL_RE.test(url)) {
-      return fail('That isn’t a Workit link. It starts with https://script.google.com/ and ends in /exec.');
+      return fail('That isn’t a WiSH link. It starts with https://script.google.com/ and ends in /exec.');
     }
     busy('Connecting to your copy…');
     try {
@@ -260,7 +260,7 @@ function AdminSetup(ctx) {
       try {
         res = await Api.call('esClaim', { esKey: c.key }, { url });
       } catch (err) {
-        if (err.offline) throw new Error('Couldn’t reach your copy. In your copy, click Workit, then Set up Workit again, and click Finish in Workit.');
+        if (err.offline) throw new Error('Couldn’t reach your copy. In your copy, click WiSH, then Set up WiSH again, and click Finish in WiSH.');
         throw err;
       }
       await mainCall('esSaveSetup', { esUser: c.user, esKey: c.key, scriptUrl: url, version: res.version, step: 4 });
@@ -330,7 +330,7 @@ function AdminSetup(ctx) {
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (dark(r, c)) g.fillRect((c + 4) * scale, (r + 4) * scale, scale, scale);
     const a = document.createElement('a');
     a.href = cv.toDataURL('image/png');
-    a.download = 'Workit-student-QR.png';
+    a.download = 'WiSH-student-QR.png';
     a.click();
   }
   // A one-page flyer for students and families: QR code, link, and how to sign in.
@@ -339,7 +339,7 @@ function AdminSetup(ctx) {
     const who = c.role === 'es' && c.name ? c.name : '';
     const w = window.open('', '_blank');
     if (!w) return toast('Your browser blocked the flyer. Allow pop-ups for this page and try again.');
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Workit flyer</title>
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>WiSH flyer</title>
       <style>
         @page { size: letter; margin: 0.6in; }
         body { font-family: Inter, Arial, sans-serif; color: #121a2e; text-align: center; margin: 0; }
@@ -353,14 +353,14 @@ function AdminSetup(ctx) {
         .foot { margin-top: 26px; font-size: 13px; color: #5b6579; }
       </style></head><body>
       <h1>Turn in your work samples</h1>
-      <p class="sub">with Workit${who ? ` · ES: ${esc(who)}` : ''}</p>
+      <p class="sub">with WiSH${who ? ` · ES: ${esc(who)}` : ''}</p>
       <div class="qr">${qrSvg(link)}</div>
       <p class="link">${esc(link)}</p>
       <ol>
         <li>Scan the QR code with your phone camera, or type the link.</li>
         <li>Sign in with the <b>first 2 letters of your first name</b>, your <b>grade</b>, and the <b>first 2 letters of the city you live in</b>.</li>
         <li>Pick the class, take a photo of each page (or choose a file), add the details, and tap <b>Submit</b>.</li>
-        <li>Tip: add Workit to your home screen. iPhone: tap Share, then <b>Add to Home Screen</b>. Android: tap ⋮, then <b>Add to Home screen</b>.</li>
+        <li>Tip: add WiSH to your home screen. iPhone: tap Share, then <b>Add to Home Screen</b>. Android: tap ⋮, then <b>Add to Home screen</b>.</li>
       </ol>
       <p class="foot">Questions? Ask your ES.</p>
       <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
@@ -399,7 +399,7 @@ function AdminSetup(ctx) {
       renderAccounts();
       show('accounts');
     } catch (err) {
-      toast(/Unknown request/i.test(err.message) ? 'Your Workit script needs updating before you can add ES accounts.' : err.message);
+      toast(/Unknown request/i.test(err.message) ? 'Your WiSH script needs updating before you can add ES accounts.' : err.message);
     } finally {
       busy(false);
     }
@@ -499,20 +499,20 @@ function AdminSetup(ctx) {
     $('#welcome-text').value = reset
       ? `Hi ${first},
 
-Your Workit password was reset.
+Your WiSH password was reset.
 
 1. On a computer, open: ${adminUrl()}
 2. Username: ${res.user}
    Temporary password: ${res.tempPass}
-3. Workit asks you to choose a new password. Your students and their work are just as you left them.`
+3. WiSH asks you to choose a new password. Your students and their work are just as you left them.`
       : `Hi ${first},
 
-Here is your Workit ES account. Workit lets your students turn in work samples from their phones, and saves them in your own Google Drive.
+Here is your WiSH ES account. WiSH lets your students turn in work samples from their phones, and saves them in your own Google Drive.
 
 1. On a computer, open: ${adminUrl()}
 2. Username: ${res.user}
    Temporary password: ${res.tempPass}
-3. Choose your own password. Workit then walks you through setup step by step. It takes about 10 minutes.
+3. Choose your own password. WiSH then walks you through setup step by step. It takes about 10 minutes.
 
 Have your school Google account ready (the one ending in suncoastcharter.org). Student work is saved there.`;
     welcome.showModal();

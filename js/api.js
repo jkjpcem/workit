@@ -42,7 +42,7 @@ const Api = (() => {
   })();
 
   async function send(target, body) {
-    if (!target) throw new Error('Your ES has not finished setting up Workit yet.');
+    if (!target) throw new Error('Your ES has not finished setting up WiSH yet.');
     let res;
     try {
       // text/plain keeps this a "simple" request, which Apps Script accepts from any site.
@@ -52,12 +52,12 @@ const Api = (() => {
         body: JSON.stringify(body),
       });
     } catch {
-      const err = new Error(navigator.onLine ? 'Could not reach Workit. Try again in a minute.' : 'You are offline.');
+      const err = new Error(navigator.onLine ? 'Could not reach WiSH. Try again in a minute.' : 'You are offline.');
       err.offline = true;
       throw err;
     }
     let json;
-    try { json = await res.json(); } catch { throw new Error('Workit sent back something unexpected. Try again.'); }
+    try { json = await res.json(); } catch { throw new Error('WiSH sent back something unexpected. Try again.'); }
     if (!json.ok) throw new Error(json.error || 'Something went wrong.');
     return json;
   }
@@ -67,7 +67,7 @@ const Api = (() => {
   async function call(action, payload = {}, opts = {}) {
     if (opts.url !== undefined) return send(opts.url || home(), { action, ...payload });
     await ready;
-    if (es && !es.url) throw lookupError || new Error('Your ES hasn’t finished setting up Workit yet.');
+    if (es && !es.url) throw lookupError || new Error('Your ES hasn’t finished setting up WiSH yet.');
     return send(es ? es.url : home(), { action, ...payload });
   }
 

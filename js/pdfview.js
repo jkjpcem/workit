@@ -1,5 +1,5 @@
 // Turns any PDF's pages into images, using Mozilla's pdf.js. It is only
-// downloaded the first time someone opens a PDF that Workit didn't make itself.
+// downloaded the first time someone opens a PDF that WiSH didn't make itself.
 
 const PdfView = (() => {
   const BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
@@ -36,7 +36,7 @@ const PdfView = (() => {
     } catch {
       throw new Error('That PDF could not be opened. It may be damaged or password-protected.');
     }
-    if (doc.numPages > maxPages) throw new Error(`That PDF has ${doc.numPages} pages. The most Workit takes is ${maxPages}.`);
+    if (doc.numPages > maxPages) throw new Error(`That PDF has ${doc.numPages} pages. The most WiSH takes is ${maxPages}.`);
     const out = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);

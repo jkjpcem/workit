@@ -1,4 +1,4 @@
-// Workit ES dashboard: student grid, one student's uploads, and the review viewer
+// WiSH ES dashboard: student grid, one student's uploads, and the review viewer
 // (approve or redo, annotate with text boxes, finalize into the Approved folder).
 
 (() => {
@@ -7,7 +7,7 @@
   const KEY = 'workit.admin';
   const CONNECT_KEY = 'workit.connect';
 
-  // The copy's "Finish in Workit" button opens admin.html#connect=<its web app link>.
+  // The copy's "Finish in WiSH" button opens admin.html#connect=<its web app link>.
   const connectTo = /#connect=([^&]+)/.exec(location.hash);
   if (connectTo) {
     try { localStorage.setItem(CONNECT_KEY, decodeURIComponent(connectTo[1])); } catch { /* ignore */ }
@@ -107,7 +107,7 @@
   document.addEventListener('click', (e) => { if (!e.target.closest('.user-menu')) closeUserMenu(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserMenu(); });
 
-  // Workit in the top bar always goes back to the dashboard home.
+  // WiSH in the top bar always goes back to the dashboard home.
   $('#brand-home').addEventListener('click', (e) => {
     e.preventDefault();
     if (!creds || !data || !$('#screen-setup').hidden || !$('#screen-login').hidden) return;
@@ -221,7 +221,7 @@
       .filter(s => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
       .sort((a, b) => (a.lastName || a.name).localeCompare(b.lastName || b.name) || a.name.localeCompare(b.name));
     if (!students.length) {
-      grid.innerHTML = `<div class="empty">${data.students.length ? 'No student matches that.' : 'No students yet. Add them in the Students tab of the Workit Admin sheet.'}</div>`;
+      grid.innerHTML = `<div class="empty">${data.students.length ? 'No student matches that.' : 'No students yet. Add them in the Students tab of the WiSH Admin sheet.'}</div>`;
       return;
     }
     for (const s of students) {
@@ -416,7 +416,7 @@
           const bytes = Uint8Array.from(atob(res.data), c => c.charCodeAt(0));
           const jpegs = Pdf.extractJpegs(bytes);
           if (jpegs.length) return { images: jpegs.map(b => URL.createObjectURL(b)) };
-          // A PDF Workit didn't make (a converted Word file): draw its pages so they can be annotated too.
+          // A PDF WiSH didn't make (a converted Word file): draw its pages so they can be annotated too.
           const toUrl = (c) => new Promise(r => c.toBlob(b => r(URL.createObjectURL(b)), 'image/jpeg', 0.9));
           return PdfView.render(bytes, { width: 1275, maxPages: 40 })
             .then(canvases => Promise.all(canvases.map(toUrl)))
@@ -1160,7 +1160,7 @@
   window.addEventListener('beforeunload', (e) => { if (rosterDirty) { e.preventDefault(); e.returnValue = ''; } });
 
   // Your password stays in this tab only. An ES's key is kept across tabs, so the
-  // "Finish in Workit" button in their copy can open a new tab that's already signed in.
+  // "Finish in WiSH" button in their copy can open a new tab that's already signed in.
   function readCreds() {
     try { return JSON.parse(sessionStorage.getItem(KEY) || localStorage.getItem(KEY)) || null; } catch { return null; }
   }
@@ -1225,7 +1225,7 @@
     redraw: () => renderDash(),
   });
 
-  // Another tab (the one "Finish in Workit" opened) connected the copy: move on here too.
+  // Another tab (the one "Finish in WiSH" opened) connected the copy: move on here too.
   window.addEventListener('storage', (e) => {
     if (e.key !== KEY || !creds || creds.role !== 'es' || creds.url) return;
     const c = readCreds();

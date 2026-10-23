@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Workit</title>
+  <title>WiSH · Work Sample Herder</title>
   <meta name="description" content="Turn in your homework with your camera.">
   <meta name="theme-color" content="#13204a">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Workit">
+  <meta name="apple-mobile-web-app-title" content="WiSH">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -18,7 +18,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> Workit</div>
+    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"> <span class="wm" aria-label="WiSH">W<span class="wm-i">i</span>SH</span></div>
     <!-- Bottom bar on phones, part of the top bar on wider screens. -->
     <nav class="tabs" aria-label="Main menu" hidden>
       <button data-screen="upload" class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>Turn in</button>
@@ -42,8 +42,11 @@
     <!-- Sign in -->
     <section id="screen-login" class="screen" hidden>
       <div class="login-hero">
-        <div class="logo"><img src="icons/icon.svg" alt=""></div>
-        <h1>Sign in to Workit</h1>
+        <div class="hero-mark" role="img" aria-label="WiSH, Work Sample Herder">
+          <span class="wm big" aria-hidden="true">W<span class="wm-star"><svg viewBox="0 0 40 112" width="40" height="112"><rect x="12" y="44" width="14" height="66" rx="4" fill="#ffd166" transform="rotate(14 19 77)"/><path d="M24 4l6 13 14 2-10 9 3 14-13-7-13 7 3-14-10-9 14-2z" fill="#f5a623" transform="translate(-4 0) scale(.95)"/></svg></span>SH</span>
+          <span class="wm-tag" aria-hidden="true">Work Sample Herder</span>
+        </div>
+        <h1>Sign in</h1>
         <p class="lead">And get your Work Samples Turned in</p>
         <p class="es-name" id="es-name" hidden></p>
       </div>
@@ -230,7 +233,7 @@
     </form>
   </dialog>
 
-  <!-- Shows an upload's pages inside Workit, instead of a new tab -->
+  <!-- Shows an upload's pages inside WiSH, instead of a new tab -->
   <dialog id="view-dialog" class="viewer">
     <div class="viewer-head">
       <strong id="view-title"></strong>
