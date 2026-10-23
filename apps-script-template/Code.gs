@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 8;
+const WORKIT_VERSION = 9;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -48,12 +48,12 @@ const SUB = {
   RECEIVED: 1, STUDENT_ID: 2, NAME: 3, LP: 4, SUBJECT: 5, DATE_DONE: 6, SCORE: 7,
   FEEDBACK: 8, COMMENTS: 9, PAGES: 10, FILE: 11, FAVORITE: 12, UPLOAD_ID: 13, FILE_ID: 14, THUMB: 15,
   APPROVED: 16, REDO: 17, REASONS: 18, NOTIFIED: 19, REPLACED_BY: 20, RESUBMIT_OF: 21,
-  ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29,
+  ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30,
 };
 const SUB_HEADERS = ['Received', 'Student ID', 'Student name', 'LP', 'Subject', 'Date completed',
   'Grade / score', 'Feedback', 'Comments', 'Pages', 'File', 'Favorite', 'Upload ID', 'File ID', 'Thumbnail',
   'Approved', 'Redo', 'Redo reasons', 'Student saw redo', 'Resubmitted as', 'Resubmission of',
-  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note'];
+  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes'];
 // Where each LP's start and end dates live on the Settings tab (header row, then LP1..LP8).
 const LP_DATES_ROW = 5;
 const SOURCES = ['scan', 'photo', 'pdf', 'docx', 'gdoc', 'mixed'];
@@ -193,7 +193,7 @@ function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const student = {
-      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, ackAlerts: ackAlerts_, checkLink: checkLink_,
+      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_,
     };
     const admin = {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
@@ -389,6 +389,31 @@ function remove_(body) {
       if (other.resubmitOf === item.id) subs.sheet.getRange(other.row, SUB.RESUBMIT_OF).setValue('');
     });
     subs.sheet.deleteRow(item.row);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * A student or family adds their own text boxes (score, feedback) on an upload. They're kept
+ * apart from the ES's annotations and can change until the ES approves or files the sample.
+ */
+function familyNotes_(body) {
+  const student = findStudent_(body.studentId);
+  if (!student) return { ok: false, error: 'Your account was not found.' };
+  const json = JSON.stringify((Array.isArray(body.notes) ? body.notes : []).slice(0, 60));
+  if (json.length > 45000) return { ok: false, error: 'Too many notes on one upload.' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const subs = readSubs_();
+    const item = findItem_(subs, student.id, clean_(body.id, 60));
+    if (!item) return { ok: false, error: 'Upload not found.' };
+    if (item.approved || item.finalizedAt) {
+      return { ok: false, error: 'Your ES already approved this sample, so the notes can\'t change now.' };
+    }
+    subs.sheet.getRange(item.row, SUB.FAMILY_NOTES).setValue(json);
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -929,6 +954,7 @@ function readSubs_() {
       replacedBy: String(v[SUB.REPLACED_BY - 1] || ''),
       resubmitOf: String(v[SUB.RESUBMIT_OF - 1] || ''),
       annotations: parseJson_(v[SUB.ANNOTATIONS - 1]),
+      familyNotes: parseJson_(v[SUB.FAMILY_NOTES - 1]),
       finalizedAt: v[SUB.FINALIZED - 1] instanceof Date ? v[SUB.FINALIZED - 1].getTime() : (Date.parse(v[SUB.FINALIZED - 1]) || 0),
       finalUrl: String(v[SUB.FINAL_FILE - 1] || ''),
       finalId: String(v[SUB.FINAL_ID - 1] || ''),
@@ -953,7 +979,7 @@ function publicItem_(i) {
     id: i.id, receivedAt: i.receivedAt, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted,
     score: i.score, minutes: i.minutes, source: i.source, feedback: i.feedback, comments: i.comments, pageCount: i.pageCount, favorite: i.favorite,
     thumb: i.thumb, approved: i.approved, finalized: !!i.finalizedAt, redo: i.redo, reasons: i.reasons, redoNote: i.redoNote,
-    resubmitted: !!i.replacedBy, resubmitOf: i.resubmitOf,
+    resubmitted: !!i.replacedBy, resubmitOf: i.resubmitOf, familyNotes: i.familyNotes || [],
   };
 }
 

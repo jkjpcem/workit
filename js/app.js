@@ -1012,9 +1012,11 @@
           ${needsRedo && item.redoNote ? `<div class="notes redo-note-text"><b>From your ES:</b> ${esc(item.redoNote)}</div>` : ''}
           ${item.feedback ? `<div class="notes"><b>Feedback:</b> ${esc(item.feedback)}</div>` : ''}
           ${item.comments ? `<div class="notes"><b>Comments:</b> ${esc(item.comments)}</div>` : ''}
+          ${item.familyNotes && item.familyNotes.length ? `<div class="notes-flag">✏️ ${item.familyNotes.length} note${item.familyNotes.length > 1 ? 's' : ''} on the pages</div>` : ''}
           ${item.status !== 'sent' && item.error ? `<div class="meta">${esc(item.error)}</div>` : ''}
           <div class="actions">
             <button class="btn" data-act="view">View</button>
+            ${canAnnotate(item) ? '<button class="btn" data-act="annotate">✏️ Annotate</button>' : ''}
             ${needsRedo ? '<button class="btn primary" data-act="resubmit">Resubmit</button>' : ''}
             ${item.status !== 'sent' ? '<button class="btn primary" data-act="retry">Send now</button><button class="btn" data-act="discard">Delete</button>' : ''}
             ${item.status === 'sent' && !item.approved && !item.finalized ? '<button class="btn danger" data-act="delete">Delete</button>' : ''}
@@ -1028,20 +1030,67 @@
   // ---------- Viewer ----------
   // Pages open in a window inside Workit, not a new tab (Joon's request).
 
-  function viewImages(srcs, title) {
+  // With an upload (item), the family's own text boxes show on the pages, and until the ES
+  // approves it, ✏️ Annotate lets them add or change them.
+  let notesItem = null, notesTimer = null, notesPending = null;
+  function viewImages(srcs, title, item = null, startEditing = false) {
     const urls = srcs.map(x => (typeof x === 'string' ? x : URL.createObjectURL(x)));
     $('#view-title').textContent = title;
-    $('#view-pages').innerHTML = urls.map((u, n) => `<img src="${u}" alt="Page ${n + 1}">`).join('');
+    $('#view-pages').innerHTML = urls.map((u, n) =>
+      `<div class="npage" data-page="${n}"><img src="${u}" alt="Page ${n + 1}"><div class="nlayer"></div></div>`).join('');
+    notesItem = item;
+    const canEdit = !!item && canAnnotate(item);
+    $('#view-annotate').hidden = !canEdit;
+    $('#view-save').textContent = '';
+    Notes.mount($('#view-pages'), $('#notes-bar'), item ? item.familyNotes : [], item ? saveNotesSoon : null);
+    setNotesEditing(canEdit && startEditing);
     const dlg = $('#view-dialog');
     dlg.onclose = () => {
+      const saving = flushNotes();
+      setNotesEditing(false);
+      notesItem = null;
       urls.forEach(u => u.startsWith('blob:') && URL.revokeObjectURL(u));
       $('#view-pages').innerHTML = '';
+      if (item) saving.then(() => { if (current === 'history') renderHistory(); });
     };
     dlg.showModal();
     $('#view-pages').scrollTop = 0;
   }
 
-  async function viewPdf(blob, title) {
+  const canAnnotate = (item) => item.status === 'sent' && !item.approved && !item.finalized;
+
+  function setNotesEditing(on) {
+    Notes.setEditing(on);
+    $('#notes-hint').hidden = !on;
+    const b = $('#view-annotate');
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? '✓ Done' : '✏️ Annotate';
+  }
+  $('#view-annotate').addEventListener('click', () => setNotesEditing(!Notes.isEditing()));
+
+  function saveNotesSoon(notes) {
+    notesPending = { item: notesItem, notes };
+    $('#view-save').textContent = 'Saving…';
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(flushNotes, 800);
+  }
+  async function flushNotes() {
+    clearTimeout(notesTimer);
+    const p = notesPending;
+    notesPending = null;
+    if (!p || !p.item) return;
+    p.item.familyNotes = p.notes;
+    try {
+      await Store.update(p.item.id, { familyNotes: p.notes });
+      await Api.call('familyNotes', { studentId: session.student.id, id: p.item.id, notes: p.notes });
+      if (notesItem === p.item) $('#view-save').textContent = 'Saved ✓';
+    } catch (err) {
+      if (notesItem === p.item) $('#view-save').textContent = 'Not saved';
+      toast(/unknown request/i.test(err.message) ? 'Annotating isn’t turned on yet. Ask your ES.' : `Couldn’t save: ${err.message}`);
+    }
+  }
+
+  async function viewPdf(blob, title, item, startEditing) {
     const bytes = new Uint8Array(await blob.arrayBuffer());
     // Workit's own PDFs are page photos, so they show at once. Others go through pdf.js.
     let pages = Pdf.extractJpegs(bytes);
@@ -1049,7 +1098,7 @@
       const canvases = await PdfView.render(bytes, { width: 1100 });
       pages = await Promise.all(canvases.map(c => new Promise(r => c.toBlob(r, 'image/jpeg', 0.85))));
     }
-    viewImages(pages, title);
+    viewImages(pages, title, item, startEditing);
   }
 
   async function onItem(e, item) {
@@ -1062,7 +1111,7 @@
       show('upload');
       return;
     }
-    if (act === 'view') {
+    if (act === 'view' || act === 'annotate') {
       try {
         // A Word file or Google Doc is only a PDF once the server has made it one.
         let blob = item.source === 'docx' || item.source === 'gdoc' ? item.serverPdf : item.pdf;
@@ -1073,7 +1122,7 @@
           await Store.update(item.id, item.source === 'docx' || item.source === 'gdoc' ? { serverPdf: blob } : { pdf: blob });
         }
         busy('Opening…');
-        await viewPdf(blob, `${item.subject} · ${item.lp}`);
+        await viewPdf(blob, `${item.subject} · ${item.lp}`, item, act === 'annotate');
       } catch (err) {
         toast(err.message);
       } finally {

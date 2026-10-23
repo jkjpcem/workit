@@ -470,3 +470,39 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 .notes.redo-note-text { white-space: pre-wrap; }
 
 .es-name { display: inline-block; margin: 6px 0 0; padding: 4px 12px; border-radius: 99px; font-size: 14px; font-weight: 650; color: var(--brand); background: var(--brand-soft); }
+
+/* Annotating an upload in the viewer: the same text boxes as the ES dashboard */
+.viewer-head .save-state { margin-left: auto; font-size: 13px; color: rgba(255, 255, 255, .75); white-space: nowrap; }
+.viewer-head .view-annotate { flex: none; background: #fff; color: var(--navy, #13204a); border: 0; font-weight: 700; }
+.viewer-head .view-annotate[aria-pressed="true"] { background: var(--good, #18864b); color: #fff; }
+.notes-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 8px 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg);
+}
+.notes-bar[hidden], .notes-hint[hidden] { display: none; }
+.notes-bar select { width: auto; padding: 6px 8px; font-size: 15px; }
+.notes-bar .swatches { display: flex; gap: 6px; }
+.notes-bar .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.notes-bar .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text); }
+.notes-bar .n-bold[aria-pressed="true"] { background: var(--text); color: var(--card); }
+.notes-hint { margin: 0 16px 8px; color: rgba(255, 255, 255, .8); font-size: 13px; }
+.npage { position: relative; width: 100%; container-type: inline-size; }
+.npage img { display: block; }
+.nlayer { position: absolute; inset: 0; }
+.editing .nlayer { cursor: text; }
+.npage .anno {
+  position: absolute; min-width: 20px; white-space: pre-wrap; overflow-wrap: break-word;
+  line-height: 1.25; padding: .15em .3em; border: 1px dashed transparent;
+}
+.editing .anno { border-color: rgba(52, 86, 214, .5); background: rgba(255, 255, 255, .3); }
+.npage .anno.selected { border: 1.5px dashed var(--brand) !important; }
+.npage .anno .txt { outline: none; min-height: 1.25em; }
+.npage .anno .txt:empty::before { content: 'Type here'; opacity: .45; }
+.npage .anno .grip, .npage .anno .resize { display: none; position: absolute; touch-action: none; user-select: none; }
+.editing .anno.selected .grip, .editing .anno.selected .resize { display: block; }
+.npage .anno .grip {
+  left: -18px; top: -18px; width: 32px; height: 32px; border-radius: 50%; cursor: move;
+  background: var(--brand); color: #fff; font: 16px/32px system-ui, sans-serif; text-align: center;
+}
+.npage .anno .resize { right: -9px; top: 15%; bottom: 15%; width: 14px; cursor: ew-resize; border-radius: 5px; background: var(--brand); opacity: .75; }
+.notes-flag { font-size: 13px; font-weight: 650; color: var(--brand); }

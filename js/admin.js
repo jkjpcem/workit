@@ -473,6 +473,7 @@
         </div>
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
         <div class="info-text"><span>Comments</span>${esc(it.comments || '—')}</div>
+        ${it.familyNotes && it.familyNotes.length ? `<p class="meta family-line">✏️ The student or family added ${it.familyNotes.length} text box${it.familyNotes.length > 1 ? 'es' : ''} on the pages (marked Family). They’re included when you finalize.</p>` : ''}
         ${it.resubmitOf ? `<p class="meta">↺ Resubmission${original ? ` of the ${esc(niceDate(original.dateCompleted))} upload` : ''}.</p>` : ''}
         ${it.resubmitted ? '<p class="meta">The student has resubmitted this. The new version is in their uploads.</p>' : ''}
         ${it.fileUrl ? `<p><a href="${esc(it.fileUrl)}" target="_blank" rel="noopener">Open the original in Google Drive ↗</a></p>` : ''}`;
@@ -609,6 +610,18 @@
       const it = item();
       if (!it.annotations) return;
       $$('#v-pages .anno-layer').forEach(l => { l.innerHTML = ''; });
+      // The family's own text boxes: shown as they placed them, not editable here.
+      (it.familyNotes || []).forEach(a => {
+        const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
+        if (!layer) return;
+        const box = document.createElement('div');
+        box.className = 'anno family';
+        box.title = 'Added by the student or family';
+        applyStyle(box, a);
+        box.innerHTML = '<span class="family-tag">Family</span><div class="txt"></div>';
+        $('.txt', box).textContent = a.text;
+        layer.appendChild(box);
+      });
       it.annotations.forEach((a, i) => {
         const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
         if (layer) layer.appendChild(makeBox(a, i));
@@ -804,7 +817,7 @@
         if (f.images) {
           const pages = [];
           for (let n = 0; n < f.images.length; n++) {
-            const canvas = await renderPage(f.images[n], cleanAnnotations(it).filter(a => a.page === n));
+            const canvas = await renderPage(f.images[n], [...(it.familyNotes || []), ...cleanAnnotations(it)].filter(a => a.page === n));
             pages.push(await Pdf.canvasToJpeg(canvas, 0.85));
           }
           blob = Pdf.build(pages);

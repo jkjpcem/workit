@@ -523,3 +523,7 @@ a.brand:hover { opacity: .9; }
 .settings-card > select { width: auto; min-width: 140px; max-width: 200px; justify-self: start; align-self: flex-start; }
 .settings-card .dialog-actions { justify-content: flex-start; }
 #screen-link .card { max-width: 720px; margin-top: 14px; padding: 18px 20px; }
+
+/* Text boxes the student or family added: shown in place, edited only by them */
+.anno.family { border: 1px dashed rgba(224, 122, 0, .7); pointer-events: auto; }
+.anno.family .family-tag { position: absolute; top: -1.3em; left: -1px; font: 700 10px/1.4 system-ui, sans-serif; color: #fff; background: #e07a00; padding: 0 5px; border-radius: 4px; letter-spacing: .02em; }
