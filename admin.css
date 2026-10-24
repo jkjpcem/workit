@@ -3,13 +3,13 @@
 :root {
   --st-new: #c3cad8;
   --st-approved: #6cc497;
-  --st-finalized: #14874f;
+  --st-finalized: #7b3fc4;
   --st-redo: #d0342c;
   --st-resubmitted: #3456d6;
   --st-missing: transparent;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --st-new: #4a556b; --st-approved: #3f8f62; --st-finalized: #2fae6a; --st-redo: #ff6b61; --st-resubmitted: #6b8cff; }
+  :root:not([data-theme="light"]) { --st-new: #4a556b; --st-approved: #3f8f62; --st-finalized: #a77bf0; --st-redo: #ff6b61; --st-resubmitted: #6b8cff; }
 }
 
 main.wide { max-width: 1240px; padding-top: 26px; }
@@ -45,7 +45,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .tile.finalized::before { background: var(--st-finalized); }
 .tile.finalized b { color: var(--st-finalized); }
 .tile.approved::before { background: var(--st-approved); }
-.tile.approved b { color: var(--st-finalized); }
+.tile.approved b { color: var(--good); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
