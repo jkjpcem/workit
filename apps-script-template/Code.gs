@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 11;
+const WORKIT_VERSION = 12;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -1396,13 +1396,28 @@ function getChildFolder_(parent, name) {
   return found.hasNext() ? found.next() : parent.createFolder(name);
 }
 
+/** Once: gives a sheet and folder made before the rename their WiSH names. Both are found by ID. */
+function useWishNames_(props, ss) {
+  if (props.getProperty('WISH_NAMES')) return;
+  props.setProperty('WISH_NAMES', '1');
+  try { if (ss.getName() === OLD_ADMIN_SHEET_NAME) ss.rename(ADMIN_SHEET_NAME); } catch (ignored) {}
+  try {
+    const folder = getRootFolder_();
+    if (folder.getName() === OLD_ROOT_FOLDER_NAME) folder.setName(ROOT_FOLDER_NAME);
+  } catch (ignored) {}
+}
+
 let adminCache_ = null;
 function getAdmin_() {
   if (adminCache_) return adminCache_;
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('ADMIN_SHEET_ID');
   if (id) {
-    try { return (adminCache_ = SpreadsheetApp.openById(id)); } catch (ignored) {}
+    try {
+      adminCache_ = SpreadsheetApp.openById(id);
+      useWishNames_(props, adminCache_);
+      return adminCache_;
+    } catch (ignored) {}
   }
   // In an ES's own copy, the sheet the script came with becomes their WiSH Admin sheet.
   const bound = boundSheet_();
