@@ -229,7 +229,7 @@ function AdminCore(ctx) {
     box.hidden = false;
   }
 
-  // Four small boxes: gold (the Filed color) when that core subject is covered, white when it's still missing.
+  // Four small boxes: navy (the Filed color) when that core subject is covered, white when it's still missing.
   // With no list, the column labels.
   function boxes(list) {
     if (!list) return `<span class="core-boxes labels">${AREAS.map(a => `<i>${SHORT[a]}</i>`).join('')}</span>`;

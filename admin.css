@@ -3,15 +3,16 @@
 :root {
   --st-new: #c3cad8;
   --st-approved: #6cc497;
-  --st-finalized: #e0a800;
-  --st-finalized-soft: #fdf3d0;
-  --st-finalized-text: #8f6b00;
+  --st-finalized: #1f2f6b;
+  --st-finalized-soft: #e3e8f6;
+  --st-finalized-text: #1f2f6b;
   --st-redo: #d0342c;
-  --st-resubmitted: #3456d6;
+  --st-resubmitted: #f2c200;
+  --st-resubmitted-text: #8a6d00;
   --st-missing: transparent;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --st-new: #4a556b; --st-approved: #3f8f62; --st-finalized: #f2b705; --st-finalized-soft: #3a3115; --st-finalized-text: #ffd166; --st-redo: #ff6b61; --st-resubmitted: #6b8cff; }
+  :root:not([data-theme="light"]) { --st-new: #4a556b; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffd84d; --st-resubmitted-text: #ffd84d; }
 }
 
 main.wide { max-width: 1240px; padding-top: 26px; }
@@ -115,7 +116,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .utile.st-approved .tag { color: var(--st-finalized); }
 .utile.st-finalized .tag { color: var(--st-finalized); }
 .utile.st-redo .tag { color: var(--st-redo); }
-.utile.st-resubmitted .tag { color: var(--st-resubmitted); }
+.utile.st-resubmitted .tag { color: var(--st-resubmitted-text); }
 
 /* Viewer */
 .viewer { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; flex-direction: column; animation: rise .25s var(--ease); }
