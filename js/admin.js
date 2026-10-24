@@ -376,6 +376,14 @@
     }
   }
 
+  // Forget a sample everywhere the dashboard keeps it.
+  function dropItem(it) {
+    const same = (i) => i.id === it.id && i.studentId === it.studentId;
+    data.items = data.items.filter(i => !same(i));
+    const cached = studentCache[it.studentId];
+    if (cached) studentCache[it.studentId] = cached.filter(i => !same(i));
+  }
+
   // ---------- Viewer ----------
 
   const FONTS = {
@@ -864,6 +872,30 @@
       }
     });
 
+    // Delete: the sample goes to WiSH's Trash, where it can be restored for 60 days.
+    $('#t-trash').addEventListener('click', async () => {
+      const it = item();
+      const who = (student && student.name) || it.name || it.studentId;
+      if (!confirm(`Delete ${who}’s ${it.subject} sample for ${it.lp}? It goes to the Trash, where you can restore it for 60 days.`)) return;
+      flushSaves();
+      setAnnotating(false);
+      busy('Moving to the Trash…');
+      try {
+        await call('adminTrash', { studentId: it.studentId, id: it.id });
+      } catch (err) {
+        return toast(err.message);
+      } finally {
+        busy(false);
+      }
+      dropItem(it);
+      Core.filed({ ...it, finalizedAt: 0 });
+      list.splice(idx, 1);
+      toast('Moved to the Trash.');
+      if (!list.length) return close();
+      idx = Math.min(idx, list.length - 1);
+      render();
+    });
+
     function filed(it, res) {
       Object.assign(it, { finalizedAt: res.finalizedAt, finalUrl: res.finalUrl, filedAs: res.filedAs || 'Annotated', finalStale: false, approved: true });
       syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'finalStale', 'approved']);
@@ -959,6 +991,78 @@
 
     return { open, close };
   })();
+
+  // ---------- Trash ----------
+
+  async function openTrash() {
+    if (!data) return;
+    closeUserMenu();
+    currentStudent = null;
+    show('trash');
+    const grid = $('#trash-grid');
+    grid.innerHTML = '<div class="empty">Loading…</div>';
+    let res;
+    try {
+      res = await call('adminTrashList');
+    } catch (err) {
+      grid.innerHTML = `<div class="empty">${esc(/unknown request/i.test(err.message) ? 'The Trash needs the newest WiSH update first.' : err.message)}</div>`;
+      return;
+    }
+    trashItems = res.items;
+    renderTrash();
+  }
+  let trashItems = [];
+  function renderTrash() {
+    const grid = $('#trash-grid');
+    if (!trashItems.length) { grid.innerHTML = '<div class="empty">The Trash is empty.</div>'; return; }
+    const day = (ms) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const nameOf = (i) => (data.students.find(s => s.id === i.studentId) || {}).name || i.name || i.studentId;
+    grid.innerHTML = trashItems.map((i, n) => `
+      <div class="card trash-item">
+        ${i.thumb ? `<img src="${i.thumb}" alt="">` : '<div class="noimg">📄</div>'}
+        <div class="trash-info">
+          <strong>${esc(nameOf(i))}</strong>
+          <span>${esc(i.subject)} · ${esc(i.lp)}${i.filedAs && i.finalizedAt ? ` · was filed as ${esc(i.filedAs)}` : ''}</span>
+          <span class="meta">Deleted by ${i.trashedBy === 'Student' ? 'the student' : 'an ES'} on ${esc(day(i.trashedAt))}</span>
+          <span class="meta">Deleted for good on <b>${esc(day(i.deletesOn))}</b></span>
+        </div>
+        <div class="trash-actions">
+          <button class="btn small primary" data-act="restore" data-n="${n}">Restore</button>
+          <button class="btn small ghost" data-act="now" data-n="${n}">Delete now</button>
+        </div>
+      </div>`).join('');
+  }
+  $('#trash-grid').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const it = trashItems[Number(b.dataset.n)];
+    if (!it) return;
+    if (b.dataset.act === 'now' && !confirm(`Delete this ${it.subject} sample for good? This can’t be undone.`)) return;
+    busy(b.dataset.act === 'now' ? 'Deleting…' : 'Restoring…');
+    try {
+      if (b.dataset.act === 'now') {
+        await call('adminDeleteNow', { studentId: it.studentId, id: it.id });
+        toast('Deleted for good.');
+      } else {
+        const res = await call('adminRestore', { studentId: it.studentId, id: it.id });
+        delete studentCache[it.studentId];
+        if (res.item.lp === viewLp) data.items.push(res.item);
+        Core.filed(res.item);
+        toast(`Restored to ${res.item.lp}.`);
+      }
+      trashItems = trashItems.filter(i => i !== it);
+      renderTrash();
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      busy(false);
+    }
+  });
+  $('#open-trash').addEventListener('click', openTrash);
+  $('#trash-back').addEventListener('click', () => {
+    renderDash();
+    show('dash');
+  });
 
   // ---------- Helpers ----------
 

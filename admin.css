@@ -527,3 +527,12 @@ a.brand:hover { opacity: .9; }
 /* Text boxes the student or family added: shown in place, edited only by them */
 .anno.family { border: 1px dashed rgba(224, 122, 0, .7); pointer-events: auto; }
 .anno.family .family-tag { position: absolute; top: -1.3em; left: -1px; font: 700 10px/1.4 system-ui, sans-serif; color: #fff; background: #e07a00; padding: 0 5px; border-radius: 4px; letter-spacing: .02em; }
+
+/* Delete button in the viewer and the Trash page */
+.trash-btn { margin-top: 12px; color: var(--muted); }
+.trash-btn:hover { color: #c0392b; }
+.trash-grid { display: grid; gap: 12px; margin-top: 16px; }
+.trash-item { display: grid; grid-template-columns: 64px 1fr auto; gap: 16px; align-items: center; padding: 12px 16px; }
+.trash-item img, .trash-item .noimg { width: 64px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; background: #fff; display: grid; place-items: center; }
+.trash-info { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.trash-actions { display: flex; gap: 8px; }

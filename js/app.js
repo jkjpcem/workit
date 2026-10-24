@@ -50,7 +50,7 @@
       resetWizard();
       show('upload');
       toast(`Welcome, ${res.student.firstName || res.student.id}!`);
-      if (res.items) applyItems(res.items, asked); else syncHistory(true);
+      if (res.items) applyItems(res.items, asked, res.trash); else syncHistory(true);
     } catch (err) {
       toast(/not find|not found/i.test(err.message)
         ? "We couldn't find you. Did you enter all the letters correctly?" : err.message);
@@ -77,7 +77,7 @@
       saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {} });
       showAlerts(res.alerts);
       renderAll();
-      if (res.items) applyItems(res.items, asked); else syncHistory(true);
+      if (res.items) applyItems(res.items, asked, res.trash); else syncHistory(true);
     } catch (err) {
       if (!err.offline && /not find|not found/i.test(err.message)) {
         saveSession(null);
@@ -900,16 +900,20 @@
     try {
       const asked = Date.now();
       const res = await Api.call('list', { studentId: session.student.id });
-      await applyItems(res.items, asked);
+      await applyItems(res.items, asked, res.trash);
     } catch { /* show what we have */ } finally {
       syncing = false;
     }
   }
 
   // asked = when the list was requested; uploads sent after that aren't in it yet.
-  async function applyItems(items, asked) {
+  // Samples this student moved to WiSH's Trash (they can restore them until they're deleted for good).
+  let studentTrash = [];
+
+  async function applyItems(items, asked, trash) {
     if (!session) return;
     lastSync = Date.now();
+    studentTrash = trash || [];
     // Drop uploads deleted on another device.
     const ids = new Set(items.map(s => s.id));
     for (const l of await Store.all()) {
@@ -932,6 +936,37 @@
   }
 
   // ---------- My uploads ----------
+
+  function renderTrash() {
+    const box = $('#trash-list');
+    if (!studentTrash.length) { box.innerHTML = ''; return; }
+    const day = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    box.innerHTML = `
+      <details class="card trash-box">
+        <summary>🗑 Trash (${studentTrash.length})</summary>
+        <p class="hint">Samples you deleted. Tap Restore to bring one back. Each is deleted for good on the date shown.</p>
+        ${studentTrash.map(t => `
+          <div class="trash-row">
+            <div><strong>${esc(t.subject)}</strong> <span class="meta">${esc(t.lp)} · Deletes on ${esc(day(t.deletesOn))}</span></div>
+            <button class="btn small" data-restore="${esc(t.id)}">Restore</button>
+          </div>`).join('')}
+      </details>`;
+  }
+  $('#trash-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-restore]');
+    if (!b) return;
+    busy('Restoring…');
+    try {
+      await Api.call('restore', { studentId: session.student.id, id: b.dataset.restore });
+      await syncHistory(true);
+      toast('Restored.');
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      busy(false);
+    }
+    renderHistory();
+  });
 
   // My uploads opens on the current LP each time.
   const historyFilter = { lp: null };
@@ -986,6 +1021,7 @@
     const list = $('#history-list');
     const mine = (await Store.all()).filter(i => i.studentId === session.student.id);
     renderMissing(mine);
+    renderTrash();
     const items = historyFilter.lp === 'all' ? mine : mine.filter(i => i.lp === historyFilter.lp);
     if (!items.length) {
       list.innerHTML = `<div class="empty">${historyFilter.lp === 'all' ? 'Nothing uploaded yet.' : `Nothing uploaded to ${esc(historyFilter.lp)} yet.`}</div>`;
@@ -1151,13 +1187,14 @@
       renderHistory();
     } else if (act === 'delete') {
       // Students may take back an upload until the ES approves it.
-      if (!confirm(`Delete your ${item.subject} sample for ${item.lp}? Your ES will no longer see it.`)) return;
+      if (!confirm(`Delete your ${item.subject} sample for ${item.lp}? It goes to the Trash at the bottom of My uploads, where you can restore it for 60 days.`)) return;
       busy('Deleting…');
       try {
         await Api.call('remove', { studentId: session.student.id, id: item.id });
         await Store.remove(item.id);
         if (item.resubmitOf) await Store.update(item.resubmitOf, { resubmitted: false });
-        toast('Deleted.');
+        await syncHistory(true);
+        toast('Moved to the Trash.');
       } catch (err) {
         toast(/unknown request/i.test(err.message) ? 'Deleting isn\u2019t turned on yet. Ask your ES.' : err.message);
       } finally {

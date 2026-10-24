@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 12;
+const WORKIT_VERSION = 13;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -33,6 +33,8 @@ const OLD_ROOT_FOLDER_NAME = 'Workit Homework';
 const OLD_ADMIN_SHEET_NAME = 'Workit Admin';
 const UPLOADS_FOLDER_NAME = 'Uploads';
 const APPROVED_FOLDER_NAME = 'Approved';
+const TRASH_FOLDER_NAME = 'Trash';
+const TRASH_DAYS = 60;  // a sample in WiSH's Trash is deleted for good this many days after it was trashed
 const OLD_FINAL_FOLDER_NAME = 'Approved and Annotated'; // used before 2026-10-04; setup() moves its files
 const FILED_AS = ['Annotated', 'Extra'];
 const ANNOTATED_NEEDED = 2;
@@ -51,12 +53,12 @@ const SUB = {
   RECEIVED: 1, STUDENT_ID: 2, NAME: 3, LP: 4, SUBJECT: 5, DATE_DONE: 6, SCORE: 7,
   FEEDBACK: 8, COMMENTS: 9, PAGES: 10, FILE: 11, FAVORITE: 12, UPLOAD_ID: 13, FILE_ID: 14, THUMB: 15,
   APPROVED: 16, REDO: 17, REASONS: 18, NOTIFIED: 19, REPLACED_BY: 20, RESUBMIT_OF: 21,
-  ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30,
+  ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30, TRASHED: 31, TRASHED_BY: 32,
 };
 const SUB_HEADERS = ['Received', 'Student ID', 'Student name', 'LP', 'Subject', 'Date completed',
   'Grade / score', 'Feedback', 'Comments', 'Pages', 'File', 'Favorite', 'Upload ID', 'File ID', 'Thumbnail',
   'Approved', 'Redo', 'Redo reasons', 'Student saw redo', 'Resubmitted as', 'Resubmission of',
-  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes'];
+  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by'];
 // Where each LP's start and end dates live on the Settings tab (header row, then LP1..LP8).
 const LP_DATES_ROW = 5;
 const SOURCES = ['scan', 'photo', 'pdf', 'docx', 'gdoc', 'mixed'];
@@ -197,13 +199,14 @@ function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const student = {
-      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_,
+      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_,
     };
     const admin = {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
       adminReview: adminReview_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
+      adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
     };
     const es = {
       esLogin: esLogin_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
@@ -214,6 +217,8 @@ function doPost(e) {
     // Requests that only read use the remembered copy of the sheet; anything else reads the
     // sheet itself and makes the next request read it fresh too.
     FRESH_ = READ_ONLY_ACTIONS.indexOf(body.action) === -1;
+    // Once a day, the first request empties samples that have been in the Trash for 60 days.
+    if (emptyTrashDaily_()) { memoClear_(); FRESH_ = true; }
     let out;
     if (student[body.action]) out = student[body.action](body);
     else if (es[body.action]) out = es[body.action](body);
@@ -233,12 +238,13 @@ function login_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: "We couldn't find you. Did you enter all the letters correctly?" };
   // Redo requests the student hasn't seen yet are shown once, right after sign-in.
-  const mine = readSubs_().items.filter(i => i.studentId === student.id);
+  const all = readSubs_().items.filter(i => i.studentId === student.id);
+  const mine = all.filter(i => !i.trashedAt);
   const alerts = mine.filter(i => i.redo && !i.notified && !i.replacedBy)
     .map(i => ({ id: i.id, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted, reasons: i.reasons, redoNote: i.redoNote }));
   // The student's uploads come along, so the app doesn't have to ask a second time.
   return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), alerts: alerts,
-    items: mine.map(publicItem_) };
+    items: mine.map(publicItem_), trash: studentTrash_(all) };
 }
 
 function ackAlerts_(body) {
@@ -280,7 +286,7 @@ function upload_(body) {
   try {
     const subs = readSubs_();
     // A retry of an upload that already arrived: don't save it twice.
-    const existing = uploadId && findItem_(subs, student.id, uploadId);
+    const existing = uploadId && findItem_(subs, student.id, uploadId, true);
     if (existing) return { ok: true, fileUrl: existing.fileUrl, duplicate: true };
 
     const folder = getUploadFolder_(body.lp);
@@ -346,7 +352,8 @@ function upload_(body) {
 function list_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: 'Your account was not found. Ask your ES.' };
-  return { ok: true, items: readSubs_().items.filter(i => i.studentId === student.id).map(publicItem_) };
+  const all = readSubs_().items.filter(i => i.studentId === student.id);
+  return { ok: true, items: all.filter(i => !i.trashedAt).map(publicItem_), trash: studentTrash_(all) };
 }
 
 function favorite_(body) {
@@ -369,7 +376,7 @@ function file_(body) {
 
 /**
  * A student deletes one of their own uploads. Once the ES has approved or filed it, it stays.
- * The PDF goes to the Drive trash (recoverable for 30 days) and its Submissions row is removed.
+ * It goes to WiSH's Trash, where it can be restored for TRASH_DAYS days.
  */
 function remove_(body) {
   const student = findStudent_(body.studentId);
@@ -383,18 +390,7 @@ function remove_(body) {
     if (item.approved || item.finalizedAt) {
       return { ok: false, error: 'Your ES already approved this sample, so it can\'t be deleted. Ask your ES if it needs to change.' };
     }
-    if (item.fileId) {
-      try { DriveApp.getFileById(item.fileId).setTrashed(true); } catch (err) { /* already gone */ }
-    }
-    // Undo the links between a redo and its resubmission, so the redo can be resubmitted again.
-    subs.items.forEach(other => {
-      if (other.studentId !== student.id) return;
-      if (item.resubmitOf && other.id === item.resubmitOf && other.replacedBy === item.id) {
-        subs.sheet.getRange(other.row, SUB.REPLACED_BY).setValue('');
-      }
-      if (other.resubmitOf === item.id) subs.sheet.getRange(other.row, SUB.RESUBMIT_OF).setValue('');
-    });
-    subs.sheet.deleteRow(item.row);
+    trashItem_(subs, item, 'Student');
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -421,6 +417,112 @@ function familyNotes_(body) {
     }
     subs.sheet.getRange(item.row, SUB.FAMILY_NOTES).setValue(json);
     return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** A student takes back something they trashed themselves. */
+function restore_(body) {
+  const student = findStudent_(body.studentId);
+  if (!student) return { ok: false, error: 'Your account was not found.' };
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, student.id, clean_(body.id, 60), true);
+    if (!item || !item.trashedAt || item.trashedBy !== 'Student') return { ok: false, error: 'This sample can’t be restored. Ask your ES.' };
+    restoreItem_(subs, item);
+    return { ok: true, item: publicItem_(item) };
+  });
+}
+
+// ---------- WiSH's Trash ----------
+// Deleting a sample moves its PDF (and filed copy) into WiSH Homework / Trash and marks its row.
+// It can be restored for TRASH_DAYS days; after that it is removed for good.
+
+function trashFolder_() {
+  return getChildFolder_(getRootFolder_(), TRASH_FOLDER_NAME);
+}
+
+function deletesOn_(item) {
+  return item.trashedAt + TRASH_DAYS * 24 * 3600 * 1000;
+}
+
+/** A student's own trashed samples, so they can undo a mistake. */
+function studentTrash_(items) {
+  return items.filter(i => i.trashedAt && i.trashedBy === 'Student').map(i => {
+    const p = publicItem_(i);
+    p.trashedAt = i.trashedAt;
+    p.deletesOn = deletesOn_(i);
+    return p;
+  });
+}
+
+function trashItem_(subs, item, by) {
+  const trash = trashFolder_();
+  [item.fileId, item.finalId].forEach(id => {
+    if (!id) return;
+    try { DriveApp.getFileById(id).moveTo(trash); } catch (err) { /* already gone */ }
+  });
+  // Undo the links between a redo and its resubmission, so the redo can be resubmitted again.
+  subs.items.forEach(other => {
+    if (other.studentId !== item.studentId) return;
+    if (item.resubmitOf && other.id === item.resubmitOf && other.replacedBy === item.id) {
+      subs.sheet.getRange(other.row, SUB.REPLACED_BY).setValue('');
+    }
+    if (other.resubmitOf === item.id) subs.sheet.getRange(other.row, SUB.RESUBMIT_OF).setValue('');
+  });
+  const now = new Date();
+  subs.sheet.getRange(item.row, SUB.TRASHED, 1, 2).setValues([[now, by]]);
+  item.trashedAt = now.getTime();
+  item.trashedBy = by;
+}
+
+function restoreItem_(subs, item) {
+  const move = (id, folder) => { if (id) try { DriveApp.getFileById(id).moveTo(folder); } catch (err) { /* gone */ } };
+  move(item.fileId, getUploadFolder_(item.lp));
+  if (item.finalId && item.filedAs) move(item.finalId, getApprovedFolder_(item.lp, item.filedAs));
+  subs.sheet.getRange(item.row, SUB.TRASHED, 1, 2).setValues([['', '']]);
+  item.trashedAt = 0;
+  item.trashedBy = '';
+}
+
+/** Removes a trashed sample for good: its files go to Google's own trash and its row is deleted. */
+function deleteItem_(sheet, item) {
+  [item.fileId, item.finalId].forEach(id => {
+    if (!id) return;
+    try { DriveApp.getFileById(id).setTrashed(true); } catch (err) { /* already gone */ }
+  });
+  sheet.deleteRow(item.row);
+}
+
+/**
+ * Once a day, on whichever request comes first: deletes samples trashed more than TRASH_DAYS ago.
+ * Returns true when it changed the sheet. Needs no timer, so no extra Google permission.
+ */
+function emptyTrashDaily_() {
+  const props = PropertiesService.getScriptProperties();
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (props.getProperty('TRASH_EMPTIED') === today) return false;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return false;
+  try {
+    if (props.getProperty('TRASH_EMPTIED') === today) return false;
+    props.setProperty('TRASH_EMPTIED', today);
+    const sheet = getSubs_();
+    const values = sheet.getDataRange().getValues();
+    const cutoff = Date.now() - TRASH_DAYS * 24 * 3600 * 1000;
+    let removed = 0;
+    // Bottom up, so deleting a row doesn't move the ones still to check.
+    for (let r = values.length - 1; r >= 1; r--) {
+      const v = values[r];
+      const at = v[SUB.TRASHED - 1] instanceof Date ? v[SUB.TRASHED - 1].getTime() : (Date.parse(v[SUB.TRASHED - 1]) || 0);
+      if (!at || at > cutoff) continue;
+      deleteItem_(sheet, { row: r + 1, fileId: String(v[SUB.FILE_ID - 1] || ''), finalId: String(v[SUB.FINAL_ID - 1] || '') });
+      removed++;
+    }
+    return removed > 0;
+  } catch (err) {
+    return false;
   } finally {
     lock.releaseLock();
   }
@@ -742,14 +844,59 @@ function adminOverview_(body) {
     reasons: REDO_REASONS,
     lpDates: getLpDates_(),
     students: getStudents_(),
-    items: readSubs_().items.filter(i => i.lp === lp).map(adminItem_),
+    items: readSubs_().items.filter(i => i.lp === lp && !i.trashedAt).map(adminItem_),
   };
 }
 
 /** All of one student's uploads, every LP. */
 function adminStudent_(body) {
   const id = String(body.studentId || '').toUpperCase();
-  return { ok: true, items: readSubs_().items.filter(i => i.studentId === id).map(adminItem_) };
+  return { ok: true, items: readSubs_().items.filter(i => i.studentId === id && !i.trashedAt).map(adminItem_) };
+}
+
+/** The ES moves any sample to WiSH's Trash, even after approving or filing it. */
+function adminTrash_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
+    if (!item) return { ok: true }; // already gone
+    trashItem_(subs, item, 'ES');
+    return { ok: true, deletesOn: deletesOn_(item) };
+  });
+}
+
+/** Everything in WiSH's Trash, newest first. */
+function adminTrashList_() {
+  const items = readSubs_().items.filter(i => i.trashedAt).sort((a, b) => b.trashedAt - a.trashedAt).map(i => {
+    const p = adminItem_(i);
+    p.trashedAt = i.trashedAt;
+    p.trashedBy = i.trashedBy;
+    p.deletesOn = deletesOn_(i);
+    return p;
+  });
+  return { ok: true, days: TRASH_DAYS, items: items };
+}
+
+function adminRestore_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60), true);
+    if (!item || !item.trashedAt) return { ok: false, error: 'That sample isn’t in the Trash any more.' };
+    restoreItem_(subs, item);
+    return { ok: true, item: adminItem_(item) };
+  });
+}
+
+/** Deletes one trashed sample for good right away, instead of waiting out the 60 days. */
+function adminDeleteNow_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60), true);
+    if (!item) return { ok: true };
+    if (!item.trashedAt) return { ok: false, error: 'Move it to the Trash first.' };
+    deleteItem_(subs.sheet, item);
+    return { ok: true };
+  });
 }
 
 function adminFile_(body) {
@@ -968,6 +1115,8 @@ function readSubs_() {
       finalizedAt: v[SUB.FINALIZED - 1] instanceof Date ? v[SUB.FINALIZED - 1].getTime() : (Date.parse(v[SUB.FINALIZED - 1]) || 0),
       finalUrl: String(v[SUB.FINAL_FILE - 1] || ''),
       finalId: String(v[SUB.FINAL_ID - 1] || ''),
+      trashedAt: v[SUB.TRASHED - 1] instanceof Date ? v[SUB.TRASHED - 1].getTime() : (Date.parse(v[SUB.TRASHED - 1]) || 0),
+      trashedBy: String(v[SUB.TRASHED_BY - 1] || ''),
       filedAs: FILED_AS.indexOf(String(v[SUB.FILED_AS - 1])) !== -1 ? String(v[SUB.FILED_AS - 1]) : (v[SUB.FINALIZED - 1] ? 'Annotated' : ''),
     });
   }
@@ -975,11 +1124,12 @@ function readSubs_() {
   return { sheet: sheet, items: items };
 }
 
-function findItem_(subs, studentId, id) {
+/** Trashed samples count as gone unless withTrash is true. */
+function findItem_(subs, studentId, id, withTrash) {
   if (!id) return null;
   for (let i = 0; i < subs.items.length; i++) {
     const it = subs.items[i];
-    if (it.id === id && it.studentId === studentId) return it;
+    if (it.id === id && it.studentId === studentId && (withTrash || !it.trashedAt)) return it;
   }
   return null;
 }
@@ -1050,7 +1200,7 @@ function adminCore_() {
     if (name && (CORE_AREAS.indexOf(area) !== -1 || area === 'None')) sorting[name.toLowerCase()] = area;
   });
   const items = readSubs_().items
-    .filter(i => i.finalizedAt && i.filedAs === 'Annotated' && !i.redo)
+    .filter(i => i.finalizedAt && i.filedAs === 'Annotated' && !i.redo && !i.trashedAt)
     .map(i => ({ id: i.id, studentId: i.studentId, lp: i.lp, subject: i.subject, finalUrl: i.finalUrl, finalizedAt: i.finalizedAt }));
   return {
     ok: true, students: getStudents_(), items: items, marks: marks, sorting: sorting,
@@ -1309,7 +1459,7 @@ function getCurrentLp_() {
 const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
-const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'adminOverview', 'adminStudent', 'adminFile',
+const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList',
   'adminRoster', 'adminCore', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 

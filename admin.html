@@ -25,6 +25,7 @@
         <button class="btn small user-btn" id="user-btn" aria-haspopup="menu" aria-expanded="false"><span id="user-name">Admin</span> <span aria-hidden="true">▾</span></button>
         <div class="menu" id="user-menu" role="menu" hidden>
           <button type="button" role="menuitem" id="open-dates">Settings</button>
+          <button type="button" role="menuitem" id="open-trash">Trash</button>
           <button type="button" role="menuitem" id="admin-signout">Sign out</button>
         </div>
       </div>
@@ -166,6 +167,14 @@
       </form>
     </section>
 
+    <!-- WiSH's Trash: deleted samples, kept for 60 days -->
+    <section id="screen-trash" class="screen" hidden>
+      <button class="btn ghost back-link" id="trash-back">← Dashboard</button>
+      <div class="dash-head"><h1>Trash</h1></div>
+      <p class="hint" id="trash-hint">Samples deleted by you or a student. Restore puts one back where it was. Each is deleted for good on the date shown.</p>
+      <div class="trash-grid" id="trash-grid"></div>
+    </section>
+
     <!-- The link and QR code students use -->
     <section id="screen-link" class="screen" hidden>
       <button class="btn ghost back-link" id="link-back">← Dashboard</button>
@@ -234,6 +243,7 @@
             <button class="btn big" id="t-extra">📁 File as Extra</button>
           </div>
           <p class="final-state" id="final-state"></p>
+          <button class="btn ghost small trash-btn" id="t-trash">🗑 Delete</button>
           <div id="reasons-box" hidden>
             <p class="hint">Why does it need a redo? Pick all that apply, and type your own reason if you like. The student sees it the next time they sign in.</p>
             <div class="reason-grid" id="reasons"></div>

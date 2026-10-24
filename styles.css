@@ -512,3 +512,9 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 }
 .npage .anno .resize { right: -9px; top: 15%; bottom: 15%; width: 14px; cursor: ew-resize; border-radius: 5px; background: var(--brand); opacity: .75; }
 .notes-flag { font-size: 13px; font-weight: 650; color: var(--brand); }
+
+/* Student's own Trash under My uploads */
+.trash-box { margin-top: 18px; }
+.trash-box summary { cursor: pointer; font-weight: 650; color: var(--muted); }
+.trash-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.trash-row .meta { display: block; }
