@@ -5,4 +5,7 @@ window.WORKIT_CONFIG = {
   SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbw1WBG0ZKIm10wQfr199Li1qAUNallCut9xv2gp1FBDENYdVJzSFnNiOf__8hTfR4r0lg/exec',
   // "Make a copy" link for the WiSH template sheet that other ES copy during setup.
   TEMPLATE_COPY_URL: 'https://docs.google.com/spreadsheets/d/1-92QOWZKLkkSaANCjCkpR-uK02izun6nDQ5PPwrHDJ4/copy',
+  // WiSH's own web address once it moves (for example 'https://wish.example.org/').
+  // While empty, nothing changes. When set, the old jkjpcem.github.io/workit address sends everyone here.
+  NEW_HOME: '',
 };
