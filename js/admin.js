@@ -235,12 +235,16 @@
       const by = { new: 0, approved: 0, finalized: 0, redo: 0, resubmitted: 0 };
       mine.forEach(i => by[status(i)]++);
       const card = document.createElement('div');
-      card.className = `scard ${by.redo ? 'has-redo' : ''}`;
+      // Light blue once every class has its samples and every upload is annotated and filed.
+      const classes = Classes.forLp(s, viewLp);
+      const allFiled = mine.length > 0 && by.finalized === mine.length &&
+        classes.every(c => mine.filter(i => i.subject === c.name).length >= c.need);
+      card.className = `scard ${by.redo ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter') card.click(); });
       // Sem 1 classes for LP1-4, Sem 2 for LP5-8; an accelerated class needs 2 samples.
-      const subjects = Classes.forLp(s, viewLp).map(c => {
+      const subjects = classes.map(c => {
         const n = mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
         const label = c.need > 1 ? ` · ${n}/${c.need}` : n ? ` · ${n}` : '';
         return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${c.need > 1 ? 'Accelerated: 2 samples per LP' : '1 sample per LP'}">${esc(c.name)}${label}</span>`;
@@ -519,18 +523,18 @@
       $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotate';
       const asExtra = finalized && it.filedAs === 'Extra';
       const asAnnotated = finalized && !asExtra;
-      $('#t-finalize').textContent = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '🏁 Save annotated again') : '🏁 Finalize as Annotated';
-      $('#t-extra').textContent = asExtra ? '✓ Filed as Extra' : '📁 File as Extra';
+      $('#t-finalize').textContent = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '🏁 Save annotated again') : '🏁 Export as Annotated';
+      $('#t-extra').textContent = asExtra ? '✓ Exported as Extra' : '📁 Export as Extra';
       $('#t-extra').disabled = asExtra || !it.approved;
       $('#t-finalize').disabled = !it.approved;
       const n = annotatedCount(it.studentId, it.lp);
       const fs = $('#final-state');
       fs.className = `final-state ${finalized ? (it.finalStale ? 'stale' : 'done') : ''}`;
       fs.innerHTML = it.redo ? ''
-        : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Finalize as Annotated or File as Extra.'
+        : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Export as Annotated or Export as Extra.'
         : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
-          (!finalized ? `Annotate and Finalize to save it to Approved › ${esc(it.lp)} Annotated, or File as Extra to save it as is to ${esc(it.lp)} Extra.`
-          : `${it.finalStale ? 'You changed the annotations after finalizing. Click Update annotated copy to save them.' : `✓ Filed in ${esc(it.lp)} ${asExtra ? 'Extra' : 'Annotated'} ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
+          (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
+          : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : `✓ Filed in ${esc(it.lp)} ${asExtra ? 'Extra' : 'Annotated'} ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
            ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}`);
       Core.panel(it);
     }

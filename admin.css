@@ -1,18 +1,19 @@
 /* Teacher dashboard. Builds on styles.css. */
 
 :root {
-  --st-new: #c3cad8;
+  --st-new: #f6e7a1;
   --st-approved: #6cc497;
   --st-finalized: #1f2f6b;
   --st-finalized-soft: #e3e8f6;
   --st-finalized-text: #1f2f6b;
   --st-redo: #d0342c;
-  --st-resubmitted: #f2c200;
+  --st-resubmitted: #c99a00;
   --st-resubmitted-text: #8a6d00;
   --st-missing: transparent;
+  --all-filed-bg: #e6eeff;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --st-new: #4a556b; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffd84d; --st-resubmitted-text: #ffd84d; }
+  :root:not([data-theme="light"]) { --st-new: #7a6a2e; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffcf3a; --st-resubmitted-text: #ffcf3a; --all-filed-bg: #1c2744; }
 }
 
 main.wide { max-width: 1240px; padding-top: 26px; }
@@ -70,6 +71,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .scard:hover, .scard:focus-visible { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); outline: none; }
 .scard.has-redo { box-shadow: inset 4px 0 0 var(--st-redo), var(--shadow); }
 .scard.has-redo:hover { box-shadow: inset 4px 0 0 var(--st-redo), var(--shadow-lg); }
+.scard.all-filed { background: var(--all-filed-bg); border-color: color-mix(in srgb, var(--st-finalized) 30%, var(--line)); }
 .scard .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .scard h3 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
 .scard .sid { font-size: 11px; font-weight: 800; letter-spacing: .08em; color: var(--brand); background: var(--brand-soft); padding: 2px 8px; border-radius: 99px; }
@@ -184,7 +186,9 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 
 /* ---------- Approve → annotate → finalize ---------- */
 
-.finish-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+.finish-row { display: flex; flex-direction: column; margin-bottom: 8px; }
+.step-group { display: grid; grid-template-columns: 1fr; gap: 12px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--line); }
+.export-row { margin-bottom: 6px; }
 .finish-row .btn { white-space: normal; line-height: 1.2; }
 .anno-count { display: block; margin-bottom: 4px; color: var(--text); font-weight: 650; }
 .anno-count.met { color: var(--st-finalized); }

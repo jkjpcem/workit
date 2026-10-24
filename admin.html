@@ -66,12 +66,12 @@
       </div>
       <div class="tiles" id="tiles"></div>
       <div class="legend">
+        <span><i class="sw missing"></i>No upload yet for that class</span>
         <span><i class="sw new"></i>To review</span>
-        <span><i class="sw approved"></i>Approved</span>
-        <span><i class="sw finalized"></i>Filed</span>
         <span><i class="sw redo"></i>Redo</span>
         <span><i class="sw resubmitted"></i>Resubmitted</span>
-        <span><i class="sw missing"></i>No upload yet for that class</span>
+        <span><i class="sw approved"></i>Approved</span>
+        <span><i class="sw finalized"></i>Filed</span>
       </div>
       <div class="dash-body">
         <div class="student-grid" id="student-grid"></div>
@@ -238,9 +238,11 @@
             <button class="toggle redo" id="t-redo" aria-pressed="false">↺ Redo</button>
           </div>
           <div class="finish-row" id="finish-row" hidden>
-            <button class="btn big" id="t-annotate">✏️ Annotate</button>
-            <button class="btn big primary" id="t-finalize">🏁 Finalize as Annotated</button>
-            <button class="btn big" id="t-extra">📁 File as Extra</button>
+            <div class="step-group"><button class="btn big" id="t-annotate">✏️ Annotate</button></div>
+            <div class="step-group export-row">
+              <button class="btn big primary" id="t-finalize">🏁 Export as Annotated</button>
+              <button class="btn big" id="t-extra">📁 Export as Extra</button>
+            </div>
           </div>
           <p class="final-state" id="final-state"></p>
           <button class="btn ghost small trash-btn" id="t-trash">🗑 Delete</button>
