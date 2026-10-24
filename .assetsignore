@@ -1,0 +1,8 @@
+.github
+.assetsignore
+wrangler.jsonc
+apps-script-template
+README.md
+node_modules
+.git
+.wrangler

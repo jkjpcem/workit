@@ -1,0 +1,6 @@
+// Lets Cloudflare serve this folder as the WiSH website (worksample.app).
+{
+  "name": "workit",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "." }
+}
