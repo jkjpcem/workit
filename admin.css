@@ -285,7 +285,21 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster th.sem2 { box-shadow: inset 0 -3px 0 var(--st-finalized); }
 .roster th span { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
 .roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
-.roster td.col-email, .roster td.col-family { min-width: 210px; }
+.roster td.col-email { min-width: 210px; }
+.roster td.col-city { min-width: 120px; }
+.roster td.col-family { min-width: 300px; }
+/* Number and name columns stay put while the rest scrolls right */
+.roster.people { min-width: 1560px; border-collapse: separate; border-spacing: 0; }
+.roster.people .fz { position: sticky; z-index: 2; background: var(--card); }
+.roster.people th.fz { z-index: 3; background: var(--field); }
+.roster.people .fz0 { left: 0; width: 40px; }
+.roster.people td.fz0 { background: var(--field); }
+.roster.people .fz1 { min-width: 130px; }
+.roster.people .fz2 { min-width: 140px; box-shadow: 6px 0 8px -6px rgba(19, 32, 74, .35); }
+.roster.people th.em { color: var(--brand); background: var(--brand-soft, #e4ebff); }
+.roster .rem-cell { padding: 0 12px; font-size: 13px; white-space: nowrap; color: var(--muted); }
+.roster .rem-cell.on { color: var(--good); font-weight: 700; }
+.roster td.col-email input:placeholder-shown, .roster td.col-family input:placeholder-shown { background: #fffbea; }
 .roster td.col-classes2 input::placeholder { color: var(--muted); opacity: .75; font-style: italic; }
 .roster .sid-cell b.ok { color: var(--st-finalized); }
 
@@ -550,11 +564,91 @@ a.brand:hover { opacity: .9; }
 #forgot-form h2 { margin: 0; font-size: 18px; }
 
 /* Emails (Settings) */
-.email-card .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; }
-.email-card .check input { width: auto; margin-top: 3px; }
-.email-card .check small { display: block; color: var(--muted); font-weight: 400; }
-.email-card .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
-.email-card .row > label { flex: 1 1 200px; }
-.email-card fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 8px; }
-.email-card legend { font-weight: 650; padding: 0 6px; }
-.email-card .dialog-actions { flex-wrap: wrap; }
+
+/* ---------- Reminders page ---------- */
+.rem { display: flex; flex-direction: column; gap: 16px; }
+.rem label { flex-direction: row; font-weight: 500; font-size: 14px; }
+.rem label.field { flex-direction: column; }
+.rem input[type="date"] { width: auto; }
+.rem-intro h1 { margin: 6px 0 6px; }
+.rem-intro p { margin: 0; max-width: 80ch; color: var(--text); line-height: 1.5; }
+.rem .note.warn { background: #fff4d6; color: #6b4a00; border-radius: 12px; padding: 12px 14px; margin: 0; font-weight: 600; }
+.rem-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rem-tile { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.rem-tile .lbl { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rem-tile b { font-size: 20px; }
+.rem-tile span:last-child, .rem-tile a { font-size: 13px; color: var(--muted); }
+.rem-tile a { color: var(--brand); }
+.rem-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.rem-main, .rem-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rem-side { position: sticky; top: 76px; }
+.rem-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+.rem-card.side { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.rem-card h2 { margin: 0; font-size: 18px; }
+.rem-card h3 { margin: 14px 0 4px; font-size: 15px; }
+.rem-card .sub { font-size: 13px; color: var(--muted); }
+.rem-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 20px; color: #fff; }
+.rem-head span { font-size: 13px; opacity: .85; }
+.rem-head h2 { color: inherit; }
+.rem-card.fam .rem-head { background: var(--brand); }
+.rem-card.me { border: 2px solid #f2b705; }
+.rem-card.me .rem-head { background: var(--navy); }
+.rem-head.plain { color: var(--text); border-bottom: 1px solid var(--line); }
+.rem-head.plain span { color: var(--muted); opacity: 1; }
+.rem-body { padding: 16px 20px 20px; }
+.rem .seg { display: inline-flex; flex-wrap: wrap; background: rgba(255, 255, 255, .16); border-radius: 12px; padding: 4px; gap: 4px; }
+.rem-head.plain .seg { background: var(--field); }
+.rem .seg label { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; font-size: 14px; font-weight: 650; cursor: pointer; color: inherit; }
+.rem .seg label:has(input:checked) { background: #fff; color: var(--navy); }
+.rem-head.plain .seg label:has(input:checked) { background: var(--brand); color: #fff; }
+.rem .seg input { width: auto; margin: 0; accent-color: var(--brand); }
+.rem-row { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; }
+.rem fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.rem legend { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 4px; width: 100%; }
+.rem label.inline { display: inline-flex; gap: 8px; align-items: center; font-weight: 500; font-size: 14px; }
+.rem input[type="checkbox"], .rem input[type="radio"] { width: 18px; height: 18px; margin: 0; accent-color: var(--brand); flex: none; }
+.rem select { width: auto; padding: 7px 10px; font-size: 14px; }
+.rem .lbl-sel { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; }
+.rem .chk { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; border-top: 1px solid var(--line); }
+.rem h3 + .chk { border-top: 0; }
+.rem .chk input { margin-top: 2px; }
+.rem .chk b { display: block; font-size: 15px; font-weight: 600; }
+.rem .chk small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.rem-sched { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--field); display: flex; flex-direction: column; gap: 12px; }
+.rem-sched-head h3 { margin: 0; }
+.rem-sched-head span { font-size: 13px; color: var(--muted); }
+.rem .weeks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.rem .week { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); }
+.rem .week.now { border: 2px solid var(--brand); }
+.rem .week span { font-size: 11px; font-weight: 800; letter-spacing: .08em; color: var(--muted); }
+.rem .week select { width: 100%; }
+.rem .good { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--good-soft); color: var(--good); font-size: 14px; font-weight: 600; }
+.rem .field { display: flex; flex-direction: column; gap: 6px; font-weight: 650; font-size: 14px; margin-bottom: 12px; }
+.rem textarea { font: inherit; font-size: 14px; line-height: 1.5; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); color: var(--text); resize: vertical; }
+.rem-insert { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.rem-insert button { font: inherit; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; border: 0; background: #e4ebff; color: var(--brand); cursor: pointer; }
+.rem .linkish { margin-top: 10px; background: none; border: 0; padding: 0; color: var(--brand); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; }
+.rem-when { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rem .when { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); font-size: 13px; color: var(--muted); }
+.rem .when b { display: block; font-size: 15px; color: var(--text); margin-bottom: 4px; }
+.rem .when select { margin-top: 6px; display: block; }
+.rem-two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.rem-preview { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--field); border: 1px solid var(--line); font-size: 14px; }
+.rem-preview .to { font-size: 12px; color: var(--muted); }
+.rem-preview #pv-body { white-space: pre-wrap; line-height: 1.45; }
+#rem-recent { display: flex; flex-direction: column; }
+#rem-recent div { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+#rem-recent div:first-child { border-top: 0; }
+#rem-recent .k { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #e4ebff; color: var(--brand); text-transform: capitalize; }
+#rem-recent .t { color: var(--muted); white-space: nowrap; }
+#rem-recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rem-pause { display: flex; gap: 8px; }
+.rem-pause input { min-width: 0; }
+.rem-save { position: sticky; bottom: 0; display: flex; justify-content: flex-end; align-items: center; gap: 14px; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 30%); }
+.rem-save .meta { color: var(--warn); font-weight: 650; }
+@media (max-width: 1100px) { .rem-cols { grid-template-columns: 1fr; } .rem-side { position: static; } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rem-insert button, :root:not([data-theme="light"]) #rem-recent .k, :root:not([data-theme="light"]) .roster.people th.em { background: #222b4a; color: #b9c7f5; }
+  :root:not([data-theme="light"]) .roster td.col-email input:placeholder-shown, :root:not([data-theme="light"]) .roster td.col-family input:placeholder-shown { background: #2e2a18; }
+  :root:not([data-theme="light"]) .rem .note.warn { background: #3a2f12; color: #ffd98a; }
+}

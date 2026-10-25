@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 18;
+const WORKIT_VERSION = 19;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -54,12 +54,12 @@ const SUB = {
   RECEIVED: 1, STUDENT_ID: 2, NAME: 3, LP: 4, SUBJECT: 5, DATE_DONE: 6, SCORE: 7,
   FEEDBACK: 8, COMMENTS: 9, PAGES: 10, FILE: 11, FAVORITE: 12, UPLOAD_ID: 13, FILE_ID: 14, THUMB: 15,
   APPROVED: 16, REDO: 17, REASONS: 18, NOTIFIED: 19, REPLACED_BY: 20, RESUBMIT_OF: 21,
-  ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30, TRASHED: 31, TRASHED_BY: 32, REDO_MARKED: 33,
+  ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30, TRASHED: 31, TRASHED_BY: 32, REDO_MARKED: 33, APPROVED_AT: 34,
 };
 const SUB_HEADERS = ['Received', 'Student ID', 'Student name', 'LP', 'Subject', 'Date completed',
   'Grade / score', 'Feedback', 'Comments', 'Pages', 'File', 'Favorite', 'Upload ID', 'File ID', 'Thumbnail',
   'Approved', 'Redo', 'Redo reasons', 'Student saw redo', 'Resubmitted as', 'Resubmission of',
-  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by', 'Redo marked'];
+  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by', 'Redo marked', 'Approved at'];
 // Where each LP's start and end dates live on the Settings tab (header row, then LP1..LP8).
 const LP_DATES_ROW = 5;
 const SOURCES = ['scan', 'photo', 'pdf', 'docx', 'gdoc', 'mixed'];
@@ -208,7 +208,7 @@ function doPost(e) {
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
-      adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_, adminEmailTest: adminEmailTest_,
+      adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
     };
     const es = {
       esLogin: esLogin_, esForgot: esForgot_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
@@ -1050,8 +1050,10 @@ function adminReview_(body) {
     const notified = redo ? (same ? item.notified : false) : '';
     subs.sheet.getRange(item.row, SUB.APPROVED, 1, 4).setValues([[approved, redo, reasons, notified]]);
     subs.sheet.getRange(item.row, SUB.REDO_NOTE).setValue(cell_(note));
-    // A new or changed redo is emailed to the family a few minutes later (see wishSoon).
+    // A new or changed redo is emailed to the family a few minutes later (see wishTick).
     if (!redo || !same) subs.sheet.getRange(item.row, SUB.REDO_MARKED).setValue(redo ? new Date() : '');
+    // When it was approved, for the "each sample approved" family email.
+    if (approved !== item.approved) subs.sheet.getRange(item.row, SUB.APPROVED_AT).setValue(approved ? new Date() : '');
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -1249,6 +1251,7 @@ function readSubs_() {
       trashedAt: v[SUB.TRASHED - 1] instanceof Date ? v[SUB.TRASHED - 1].getTime() : (Date.parse(v[SUB.TRASHED - 1]) || 0),
       trashedBy: String(v[SUB.TRASHED_BY - 1] || ''),
       redoMarkedAt: v[SUB.REDO_MARKED - 1] instanceof Date ? v[SUB.REDO_MARKED - 1].getTime() : (Date.parse(v[SUB.REDO_MARKED - 1]) || 0),
+      approvedAt: v[SUB.APPROVED_AT - 1] instanceof Date ? v[SUB.APPROVED_AT - 1].getTime() : (Date.parse(v[SUB.APPROVED_AT - 1]) || 0),
       filedAs: FILED_AS.indexOf(String(v[SUB.FILED_AS - 1])) !== -1 ? String(v[SUB.FILED_AS - 1]) : (v[SUB.FINALIZED - 1] ? 'Annotated' : ''),
     });
   }
@@ -1845,92 +1848,262 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-// ---------- Emails: your morning report, and reminders to students and families ----------
+// ---------- Reminders: emails to families, and status reports to you ----------
 //
-// Two timers run them once they're turned on in Settings (the first save asks Google to allow
-// WiSH to run on a schedule): wishMorning every morning, and wishSoon every 10 minutes for
-// redo emails. Family emails start in Test mode, which sends each one to you instead.
+// Set on the dashboard's Reminders page. One timer (wishTick, every 10 minutes) does the
+// sending once you allow it: run turnOnEmails once from the editor. Family emails start in
+// Test mode, which sends each one to you instead of the family.
+
+const EMAIL_LOG = 'Email log';
+const REDO_WAIT_MINUTES = 5;    // time to finish picking redo reasons before it goes out
+const QUIET_FROM = 20;          // family emails that happen in the evening wait until morning
+const QUIET_UNTIL = 7;
+const SCHEDULE_CHOICES = ['none', 'once', 'every3', 'daily'];
+
+const EMAIL_TEMPLATES = {
+  missing: {
+    subject: '{first} still needs {count} for {lp}',
+    body: 'Hi {first} and family,\n\n{first} still needs to turn in work samples for these classes in {lp}:\n\n{missing classes}\n\n' +
+      '{lp} ends {end date} ({days left} days left). Turn them in at {link}\n\nThank you,\nYour ES',
+  },
+  redo: {
+    subject: 'Please redo {first}’s {class} sample ({lp})',
+    body: 'Hi {first} and family,\n\n{first}’s {class} work sample for {lp} needs a redo.\n\nWhat to fix:\n{reasons}\n\n' +
+      'Sign in at {link}, open My uploads, and tap Resubmit on that sample.\n\nThank you,\nYour ES',
+  },
+  approved: {
+    subject: 'All of {first}’s {lp} work samples are approved',
+    body: 'Hi {first} and family,\n\nGood news: every work sample {first} needs for {lp} is turned in and approved. ' +
+      'Nothing else is needed for {lp}.\n\nThank you,\nYour ES',
+  },
+  each: {
+    subject: '{first}’s {class} sample is approved',
+    body: 'Hi {first} and family,\n\n{first}’s {class} work sample for {lp} is approved.\n\nThank you,\nYour ES',
+  },
+  received: {
+    subject: 'WiSH got {first}’s {class} sample',
+    body: 'Hi {first} and family,\n\nWiSH received {first}’s {class} work sample for {lp}. Your ES will look at it soon.\n\nThank you,\nYour ES',
+  },
+};
 
 const EMAIL_DEFAULTS = {
-  report: true, reportHour: 7, reportTo: '',
-  families: 'test',            // 'off' | 'test' (send them to me) | 'on'
-  reminders: true, redo: true, approved: true,
-  signature: '', link: APP_URL,
+  families: 'test',              // 'off' | 'test' (send them to me) | 'on'
+  parents: true, students: true,
+  famHow: 'event',               // 'event' (as things happen) | 'daily' (one summary a day)
+  famHour: 7,
+  missing: true, redo: true, approved: true, each: false, received: false,
+  weeks: ['none', 'once', 'once', 'every3', 'daily'], // weeks 1-2, 3, 4, 5, 6+
+  onceDay: 1,                    // 1 = Monday ... 5 = Friday
+  noWeekends: true, noHolidays: true,
+  pauseFrom: '', pauseTo: '',
+  report: true,
+  daily: true, reportHour: 7,
+  weekly: false, weeklyDay: 5,
+  live: false,
+  inReport: { uploads: true, daysLeft: true, families: true, waiting: true, sent: true },
+  esEvents: { upload: false, resubmit: true, lpEnd: true },
+  templates: {},                 // only the ones you changed
+  link: APP_URL,
 };
-const REMINDER_DAYS = [14, 11, 8, 5, 2]; // days left in the LP: the last 2 weeks, every 3 days
-const REDO_WAIT_MINUTES = 5;              // time to finish picking redo reasons before it goes out
-const EMAIL_LOG = 'Email log';
 
 function emailSettings_() {
   const saved = JSON.parse(PropertiesService.getScriptProperties().getProperty('EMAIL_SETTINGS') || '{}');
   const s = Object.assign({}, EMAIL_DEFAULTS, saved);
+  s.inReport = Object.assign({}, EMAIL_DEFAULTS.inReport, saved.inReport || {});
+  s.esEvents = Object.assign({}, EMAIL_DEFAULTS.esEvents, saved.esEvents || {});
   s.me = Session.getEffectiveUser().getEmail();
-  s.to = s.reportTo || s.me;
   return s;
 }
 
+function template_(s, kind) {
+  return Object.assign({}, EMAIL_TEMPLATES[kind], (s.templates || {})[kind] || {});
+}
+
+function timerOn_() {
+  return ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'wishTick');
+}
+
+/** Everything the Reminders page shows. */
 function adminEmailSettings_() {
   const s = emailSettings_();
-  const on = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'wishMorning');
-  return { ok: true, settings: s, running: on, quota: MailApp.getRemainingDailyQuota() };
+  let running = false;
+  try { running = timerOn_(); } catch (e) { /* not allowed yet */ }
+  const st = emailState_();
+  const missingFamilies = st.students.filter(x => x.missing.length).length;
+  const noEmail = st.students.filter(x => !recipients_(Object.assign({}, s, { parents: true, students: true }), x.student).length).length;
+  const sample = st.students.filter(x => x.missing.length)[0] || st.students[0] || null;
+  return {
+    ok: true, settings: s, defaults: EMAIL_TEMPLATES, running: running, quota: MailApp.getRemainingDailyQuota(),
+    status: {
+      lp: st.lp, range: st.range, daysLeft: st.daysLeft, week: st.week, weeks: st.weeks,
+      nextReminder: nextReminder_(s, st), missingFamilies: missingFamilies, noEmail: noEmail, students: st.students.length,
+    },
+    sample: sample && {
+      first: sample.student.firstName || sample.student.name,
+      to: recipients_(s, sample.student),
+      missing: sample.missing.map(m => m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')),
+    },
+    recent: recentEmails_(8),
+    logUrl: getAdmin_().getUrl() + '#gid=' + emailLogSheet_().getSheetId(),
+  };
 }
 
 function adminSaveEmailSettings_(body) {
   const b = body.settings || {};
-  const to = clean_(b.reportTo, 200);
-  if (to && !EMAIL_RE.test(to)) return { ok: false, error: 'The report email address doesn’t look right.' };
+  const hour = (v, lo, hi, d) => { const n = Math.round(Number(v)); return n >= lo && n <= hi ? n : d; };
+  const day = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '';
   const link = clean_(b.link, 300);
+  const templates = {};
+  Object.keys(EMAIL_TEMPLATES).forEach(k => {
+    const t = (b.templates || {})[k];
+    if (!t) return;
+    const subject = clean_(t.subject, 200), text = String(t.body || '').replace(/\r/g, '').slice(0, 4000);
+    const out = {};
+    if (subject && subject !== EMAIL_TEMPLATES[k].subject) out.subject = subject;
+    if (text.trim() && text !== EMAIL_TEMPLATES[k].body) out.body = text;
+    if (Object.keys(out).length) templates[k] = out;
+  });
+  const weeks = EMAIL_DEFAULTS.weeks.map((d, n) => SCHEDULE_CHOICES.indexOf((b.weeks || [])[n]) !== -1 ? b.weeks[n] : d);
+  const pick = (obj, defs) => { const o = {}; Object.keys(defs).forEach(k => { o[k] = (obj || {})[k] === true; }); return o; };
+  const old = emailSettings_();
   const s = {
-    report: b.report === true,
-    reportHour: Math.min(10, Math.max(5, Math.round(Number(b.reportHour) || 7))),
-    reportTo: to,
     families: ['off', 'test', 'on'].indexOf(b.families) !== -1 ? b.families : 'test',
-    reminders: b.reminders === true, redo: b.redo === true, approved: b.approved === true,
-    signature: clean_(b.signature, 80),
+    parents: b.parents === true, students: b.students === true,
+    famHow: b.famHow === 'daily' ? 'daily' : 'event',
+    famHour: hour(b.famHour, 5, 19, 7),
+    missing: b.missing === true, redo: b.redo === true, approved: b.approved === true, each: b.each === true, received: b.received === true,
+    weeks: weeks,
+    onceDay: hour(b.onceDay, 1, 5, 1),
+    noWeekends: b.noWeekends === true, noHolidays: b.noHolidays === true,
+    pauseFrom: day(b.pauseFrom), pauseTo: day(b.pauseTo),
+    report: b.report === true,
+    daily: b.daily === true, reportHour: hour(b.reportHour, 5, 10, 7),
+    weekly: b.weekly === true, weeklyDay: hour(b.weeklyDay, 1, 5, 5),
+    live: b.live === true,
+    inReport: pick(b.inReport, EMAIL_DEFAULTS.inReport),
+    esEvents: pick(b.esEvents, EMAIL_DEFAULTS.esEvents),
+    templates: templates,
     link: /^https:\/\/(www\.)?worksample\.app\/[^\s]*$|^https:\/\/jkjpcem\.github\.io\/workit\/[^\s]*$/.test(link) ? link : APP_URL,
   };
-  PropertiesService.getScriptProperties().setProperty('EMAIL_SETTINGS', JSON.stringify(s));
-  setEmailTimers_(s);
-  return adminEmailSettings_();
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('EMAIL_SETTINGS', JSON.stringify(s));
+  // Only things that happen from now on are emailed about, never older uploads or redos.
+  if (!props.getProperty('EMAIL_SINCE') || (old.families === 'off' && s.families !== 'off')) props.setProperty('EMAIL_SINCE', String(Date.now()));
+  let allowed = true;
+  try { if (!timerOn_()) setEmailTimer_(); } catch (e) { allowed = false; }
+  const res = adminEmailSettings_();
+  res.needsAllow = !allowed;
+  return res;
 }
 
-/** Makes (or remakes) the two timers. Also run it once from the editor to allow scheduling. */
-function setEmailTimers_(s) {
-  s = s || emailSettings_();
+function setEmailTimer_() {
   ScriptApp.getProjectTriggers().forEach(t => {
-    if (['wishMorning', 'wishSoon'].indexOf(t.getHandlerFunction()) !== -1) ScriptApp.deleteTrigger(t);
+    if (['wishTick', 'wishMorning', 'wishSoon'].indexOf(t.getHandlerFunction()) !== -1) ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('wishMorning').timeBased().everyDays(1).atHour(s.reportHour).create();
-  ScriptApp.newTrigger('wishSoon').timeBased().everyMinutes(10).create();
+  ScriptApp.newTrigger('wishTick').timeBased().everyMinutes(10).create();
 }
 
 /** Run this once from the Apps Script editor (Run > turnOnEmails) to allow WiSH to email on a schedule. */
 function turnOnEmails() {
-  setEmailTimers_();
-  return 'WiSH emails are on. Change them in the dashboard: name menu > Settings > Emails.';
+  setEmailTimer_();
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('EMAIL_SINCE')) props.setProperty('EMAIL_SINCE', String(Date.now()));
+  return 'WiSH reminders are on. Change them in the dashboard: Reminders.';
 }
 
-/** "Email me a test": today's report, or one sample of each family email, all to you. */
-function adminEmailTest_(body) {
-  const s = emailSettings_();
-  const st = emailState_();
-  if (body.kind === 'report') {
-    sendReport_(s, st);
-    return { ok: true, message: 'Sent today’s report to ' + s.to + '.' };
+// ----- Days -----
+
+function ymd_(d, tz) {
+  return Utilities.formatDate(d, tz || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function addDays_(ymd, n) {
+  return new Date(Date.parse(ymd + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+}
+
+function daysBetween_(a, b) {
+  return Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400000);
+}
+
+function weekday_(ymd) {
+  return new Date(ymd + 'T12:00:00Z').getUTCDay(); // 0 Sunday ... 6 Saturday
+}
+
+/** Major US holidays, plus the winter break from Dec 24 to Jan 1. */
+function isHoliday_(ymd) {
+  const y = Number(ymd.slice(0, 4)), md = ymd.slice(5);
+  if (['01-01', '06-19', '07-04', '11-11'].indexOf(md) !== -1 || md >= '12-24') return true;
+  const nth = (month, dow, n) => { // n-th weekday of a month; n = -1 for the last one
+    if (n > 0) {
+      const first = new Date(Date.UTC(y, month - 1, 1)).getUTCDay();
+      return 1 + ((dow - first + 7) % 7) + (n - 1) * 7;
+    }
+    const lastDate = new Date(Date.UTC(y, month, 0)).getUTCDate();
+    const last = new Date(Date.UTC(y, month - 1, lastDate)).getUTCDay();
+    return lastDate - ((last - dow + 7) % 7);
+  };
+  const m = Number(ymd.slice(5, 7)), d = Number(ymd.slice(8));
+  if (m === 1 && d === nth(1, 1, 3)) return true;               // Martin Luther King Jr. Day
+  if (m === 2 && d === nth(2, 1, 3)) return true;               // Presidents' Day
+  if (m === 5 && d === nth(5, 1, -1)) return true;              // Memorial Day
+  if (m === 9 && d === nth(9, 1, 1)) return true;               // Labor Day
+  if (m === 11 && (d === nth(11, 4, 4) || d === nth(11, 4, 4) + 1)) return true; // Thanksgiving and the day after
+  return false;
+}
+
+function paused_(s, ymd) {
+  return !!(s.pauseFrom && s.pauseTo && ymd >= s.pauseFrom && ymd <= s.pauseTo);
+}
+
+/** A day family emails and your reports may go out on. */
+function sendDay_(s, ymd) {
+  const wd = weekday_(ymd);
+  return !paused_(s, ymd) && !(s.noWeekends && (wd === 0 || wd === 6)) && !(s.noHolidays && isHoliday_(ymd));
+}
+
+/** Week of the LP a day falls in, counted from the LP's start date (1, 2, ...). */
+function lpWeek_(range, ymd) {
+  return range ? Math.floor(daysBetween_(range.start, ymd) / 7) + 1 : null;
+}
+
+function weekRule_(s, week) {
+  return week <= 2 ? s.weeks[0] : week >= 6 ? s.weeks[4] : s.weeks[week - 2];
+}
+
+/** The day in an LP week that "Once" reminders go out on. */
+function onceTarget_(s, range, week) {
+  const weekStart = addDays_(range.start, (week - 1) * 7);
+  for (let n = 0; n < 7; n++) {
+    const d = addDays_(weekStart, n);
+    if (weekday_(d) === s.onceDay) return d;
   }
-  const t = Object.assign({}, s, { families: 'test' });
-  const withMissing = st.students.filter(x => x.missing.length)[0];
-  const done = st.students.filter(x => x.allApproved)[0];
-  const redoItem = st.items.filter(i => i.redo && !i.replacedBy)[0];
-  let n = 0;
-  if (withMissing) { sendFamily_(t, withMissing.student, 'missing', missingEmail_(t, st, withMissing)); n++; }
-  if (redoItem) {
-    const who = st.byId[redoItem.studentId];
-    if (who) { sendFamily_(t, who, 'redo', redoEmail_(t, who, redoItem)); n++; }
+  return weekStart;
+}
+
+/** Would the schedule send missing-sample reminders on this day (to a family who last got one on `last`)? */
+function reminderDue_(s, range, ymd, last) {
+  if (!range || ymd < range.start || ymd > range.end || !sendDay_(s, ymd)) return false;
+  const week = lpWeek_(range, ymd);
+  const rule = weekRule_(s, week);
+  if (rule === 'none') return false;
+  if (last === ymd) return false;
+  if (rule === 'daily') return true;
+  if (rule === 'every3') return !last || daysBetween_(last, ymd) >= 3;
+  // once: on the chosen weekday, or the first send day after it if that one was skipped
+  const target = onceTarget_(s, range, week);
+  return ymd >= target && !(last && lpWeek_(range, last) === week);
+}
+
+function nextReminder_(s, st) {
+  if (s.families === 'off' || !s.missing || !st.range) return null;
+  const hourNow = Number(Utilities.formatDate(new Date(), st.tz, 'H'));
+  for (let n = 0; n < 70; n++) {
+    const d = addDays_(st.today, n);
+    if (d > st.range.end) return null;
+    if (n === 0 && hourNow >= s.famHour) continue;
+    if (reminderDue_(s, st.range, d, null)) return { date: d, hour: s.famHour };
   }
-  if (done) { sendFamily_(t, done.student, 'approved', approvedEmail_(t, st, done)); n++; }
-  return { ok: true, message: n ? 'Sent ' + n + ' sample email' + (n > 1 ? 's' : '') + ' to ' + s.to + '. Nothing went to families.'
-    : 'No student has anything to email about right now, so there was nothing to send.' };
+  return null;
 }
 
 // ----- What each student has this LP -----
@@ -1940,8 +2113,8 @@ function emailState_() {
   const lp = getCurrentLp_();
   const range = getLpDates_()[lp] || null;
   const tz = Session.getScriptTimeZone();
-  const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-  const daysLeft = range ? Math.round((Date.parse(range.end + 'T12:00:00Z') - Date.parse(today + 'T12:00:00Z')) / 86400000) : null;
+  const today = ymd_(new Date(), tz);
+  const daysLeft = range ? daysBetween_(today, range.end) : null;
   const students = getStudents_();
   const byId = {};
   students.forEach(x => { byId[x.id] = x; });
@@ -1965,51 +2138,134 @@ function emailState_() {
       needed: classes.reduce((n, c) => n + c.need, 0),
     };
   });
-  return { lp: lp, range: range, today: today, daysLeft: daysLeft, students: rows, byId: byId, items: items, subs: subs, tz: tz };
+  return {
+    lp: lp, range: range, today: today, daysLeft: daysLeft, tz: tz,
+    week: range ? lpWeek_(range, today) : null,
+    weeks: range ? Math.ceil((daysBetween_(range.start, range.end) + 1) / 7) : null,
+    students: rows, byId: byId, items: items, subs: subs,
+  };
 }
 
-// ----- Timers -----
+// ----- The timer -----
 
-function wishMorning() {
+/** Every 10 minutes: whatever is due goes out. Nothing is sent twice (see the Email log tab). */
+function wishTick() {
   const s = emailSettings_();
-  const st = emailState_();
-  if (s.report) sendReport_(s, st);
-  if (s.families === 'off') return;
-  const sent = emailSent_();
-  // Reminders: the last 2 weeks of the LP, every 3 days.
-  if (s.reminders && st.daysLeft !== null && REMINDER_DAYS.indexOf(st.daysLeft) !== -1) {
-    st.students.filter(x => x.missing.length).forEach(x => {
-      const key = 'missing|' + st.lp + '|' + st.today + '|' + x.student.id;
-      if (!sent[tagged_(s, key)]) sendFamily_(s, x.student, 'missing', missingEmail_(s, st, x), key);
-    });
-  }
-  // All approved: once per LP.
-  if (s.approved) {
-    st.students.filter(x => x.allApproved).forEach(x => {
-      const key = 'approved|' + st.lp + '|' + x.student.id;
-      if (!sent[tagged_(s, key)]) sendFamily_(s, x.student, 'approved', approvedEmail_(s, st, x), key);
-    });
+  if (s.families === 'off' && !s.report) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try {
+    const st = emailState_();
+    const now = new Date();
+    const hourNow = Number(Utilities.formatDate(now, st.tz, 'H'));
+    const sent = emailSent_();
+    const since = Number(PropertiesService.getScriptProperties().getProperty('EMAIL_SINCE')) || now.getTime();
+    if (s.report) yourEmails_(s, st, sent, hourNow, since);
+    if (s.families !== 'off') familyEmails_(s, st, sent, hourNow, since);
+  } finally {
+    lock.releaseLock();
   }
 }
 
-/** Every 10 minutes: redo requests go out a few minutes after you mark them. */
-function wishSoon() {
-  const s = emailSettings_();
-  if (s.families === 'off' || !s.redo) return;
-  FRESH_ = true;
-  const subs = readSubs_();
-  const students = getStudents_();
-  const sent = emailSent_();
-  const now = Date.now();
-  subs.items.forEach(i => {
-    // Only fresh ones: turning family emails on later doesn't send old redo requests.
-    if (!i.redo || i.replacedBy || i.trashedAt || !i.redoMarkedAt || now - i.redoMarkedAt < REDO_WAIT_MINUTES * 60000 ||
-        now - i.redoMarkedAt > 3 * 86400000) return;
-    const key = 'redo|' + i.id + '|' + i.redoMarkedAt;
+function familyEmails_(s, st, sent, hourNow, since) {
+  if (!sendDay_(s, st.today)) return;
+  const due = {}; // student id -> list of { kind, key, mail }
+  const add = (student, kind, key, vars) => {
     if (sent[tagged_(s, key)]) return;
-    const who = students.filter(x => x.id === i.studentId)[0];
-    if (who) sendFamily_(s, who, 'redo', redoEmail_(s, who, i), key);
+    (due[student.id] = due[student.id] || { student: student, list: [] }).list.push({ kind: kind, key: key, mail: fill_(template_(s, kind), vars) });
+  };
+  const atSendHour = hourNow >= s.famHour;
+  const daytime = hourNow >= QUIET_UNTIL && hourNow < QUIET_FROM;
+  const now = Date.now();
+
+  // Things that just happened: right away in the daytime, or in the daily summary.
+  const events = s.famHow === 'daily' ? atSendHour : daytime;
+  if (events) {
+    st.items.forEach(i => {
+      const x = st.byId[i.studentId];
+      if (!x) return;
+      if (s.redo && i.redo && !i.replacedBy && i.redoMarkedAt > since && now - i.redoMarkedAt >= REDO_WAIT_MINUTES * 60000) {
+        add(x, 'redo', 'redo|' + i.id + '|' + i.redoMarkedAt, itemVars_(s, st, x, i));
+      }
+      if (s.each && i.approved && i.approvedAt > since) add(x, 'each', 'each|' + i.id, itemVars_(s, st, x, i));
+      if (s.received && i.receivedAt > since) add(x, 'received', 'received|' + i.id, itemVars_(s, st, x, i));
+    });
+    if (s.approved) st.students.filter(x => x.allApproved).forEach(x => {
+      add(x.student, 'approved', 'approved|' + st.lp + '|' + x.student.id, studentVars_(s, st, x));
+    });
+  }
+
+  // Missing samples: on the schedule, at the send time. Families with everything in aren't emailed.
+  if (s.missing && atSendHour && st.range) {
+    const last = lastReminders_(s, st.lp, sent);
+    st.students.filter(x => x.missing.length).forEach(x => {
+      if (reminderDue_(s, st.range, st.today, last[x.student.id] || null)) {
+        add(x.student, 'missing', 'missing|' + st.lp + '|' + st.today + '|' + x.student.id, studentVars_(s, st, x));
+      }
+    });
+  }
+
+  Object.keys(due).forEach(id => {
+    const d = due[id];
+    if (!recipients_(s, d.student).length && s.families === 'on') return; // listed in your report instead
+    if (s.famHow === 'daily' && d.list.length > 1) {
+      const first = d.student.firstName || d.student.name;
+      const mail = {
+        subject: 'WiSH update for ' + first + ' (' + st.lp + ')',
+        body: d.list.map(e => e.mail.body).join('\n\n──────────\n\n'),
+      };
+      sendFamily_(s, d.student, 'summary', mail, d.list.map(e => e.key));
+    } else {
+      d.list.forEach(e => sendFamily_(s, d.student, e.kind, e.mail, [e.key]));
+    }
   });
+}
+
+/** The last day each student got a missing-sample reminder this LP. */
+function lastReminders_(s, lp, sent) {
+  const out = {};
+  const prefix = (s.families === 'test' ? 'test|' : '') + 'missing|' + lp + '|';
+  Object.keys(sent).forEach(k => {
+    if (k.indexOf(prefix) !== 0) return;
+    const parts = k.slice(prefix.length).split('|'); // date | student id
+    if (!out[parts[1]] || parts[0] > out[parts[1]]) out[parts[1]] = parts[0];
+  });
+  return out;
+}
+
+function yourEmails_(s, st, sent, hourNow, since) {
+  const allowed = sendDay_(s, st.today);
+  if (s.daily && allowed && hourNow >= s.reportHour && !sent['report|' + st.today]) {
+    sendReport_(s, st, 1, 'report|' + st.today);
+  }
+  if (s.weekly && !paused_(s, st.today) && weekday_(st.today) === s.weeklyDay && hourNow >= s.reportHour && !sent['weekly|' + st.today]) {
+    sendReport_(s, st, 7, 'weekly|' + st.today);
+  }
+  if (!s.live || paused_(s, st.today)) return;
+  const fresh = st.items.filter(i => i.receivedAt > since && !sent['es|' + i.id] &&
+    (i.resubmitOf ? s.esEvents.resubmit : s.esEvents.upload));
+  if (fresh.length) {
+    const lines = fresh.map(i => '  • ' + i.name + ', ' + i.subject + (i.resubmitOf ? ' (resubmitted redo)' : ''));
+    const n = fresh.length;
+    MailApp.sendEmail({
+      to: s.me, name: 'WiSH',
+      subject: 'WiSH: ' + n + ' new upload' + (n > 1 ? 's' : '') + (fresh.some(i => i.resubmitOf) ? ' (with resubmitted redos)' : ''),
+      body: ['New in ' + st.lp + ':', ''].concat(lines).concat(['', 'Open the dashboard: ' + dashLink_(s)]).join('\n'),
+    });
+    fresh.forEach(i => logEmail_(s.me, { name: i.name }, 'to you', 'New upload: ' + i.subject, 'es|' + i.id));
+  }
+  if (s.esEvents.lpEnd && st.daysLeft === 3 && hourNow >= s.reportHour && !sent['lpend|' + st.lp]) {
+    const missing = st.students.filter(x => x.missing.length);
+    if (missing.length) {
+      MailApp.sendEmail({
+        to: s.me, name: 'WiSH',
+        subject: 'WiSH: ' + st.lp + ' ends in 3 days, ' + missing.length + ' student' + (missing.length > 1 ? 's' : '') + ' still missing samples',
+        body: [st.lp + ' ends ' + niceDay_(st.range.end) + '. Still missing:', ''].concat(missing.map(x =>
+          '  • ' + x.student.name + ': ' + x.missing.map(m => m.name).join(', '))).concat(['', 'Open the dashboard: ' + dashLink_(s)]).join('\n'),
+      });
+    }
+    logEmail_(s.me, '', 'to you', st.lp + ' ends in 3 days', 'lpend|' + st.lp);
+  }
 }
 
 // ----- Writing the emails -----
@@ -2018,96 +2274,108 @@ function niceDay_(ymd) {
   return ymd ? Utilities.formatDate(new Date(ymd + 'T12:00:00Z'), 'UTC', 'EEE, MMM d') : '';
 }
 
-function signOff_(s) {
-  return s.signature ? 'Thank you,\n' + s.signature : 'Thank you,\nYour ES';
+function dashLink_(s) {
+  return s.link.replace(/\?.*$/, '').replace(/\/?$/, '/') + 'admin.html';
 }
 
-function missingEmail_(s, st, x) {
-  const first = x.student.firstName || x.student.name;
-  const lines = x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : ''));
+function studentVars_(s, st, x) {
   return {
-    subject: first + ' still needs ' + x.missing.length + ' work sample' + (x.missing.length > 1 ? 's' : '') + ' for ' + st.lp,
-    body: ['Hi ' + first + ' and family,', '',
-      first + ' still needs to turn in work samples for these classes in ' + st.lp + ':', ''].concat(lines).concat(['',
-      st.range ? st.lp + ' ends ' + niceDay_(st.range.end) + (st.daysLeft > 0 ? ' (' + st.daysLeft + ' day' + (st.daysLeft > 1 ? 's' : '') + ' left).' : '.') : '',
-      'Turn them in at ' + s.link, '', signOff_(s)]).join('\n'),
+    first: x.student.firstName || x.student.name, lp: st.lp,
+    count: x.missing.length + ' work sample' + (x.missing.length === 1 ? '' : 's'),
+    'missing classes': x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
+    'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
+    'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
   };
 }
 
-function redoEmail_(s, student, i) {
-  const first = student.firstName || student.name;
-  const why = i.reasons.map(r => '  • ' + r).concat(i.redoNote ? ['  • ' + i.redoNote] : []);
+function itemVars_(s, st, student, i) {
+  const why = i.reasons.concat(i.redoNote ? [i.redoNote] : []).map(r => '  • ' + r).join('\n');
   return {
-    subject: 'Please redo ' + first + '’s ' + i.subject + ' sample (' + i.lp + ')',
-    body: ['Hi ' + first + ' and family,', '',
-      first + '’s ' + i.subject + ' work sample for ' + i.lp + (i.dateCompleted ? ' (completed ' + niceDay_(i.dateCompleted) + ')' : '') + ' needs a redo.']
-      .concat(why.length ? ['', 'What to fix:'].concat(why) : [])
-      .concat(['', 'Sign in at ' + s.link + ', open My uploads, and tap Resubmit on that sample.', '', signOff_(s)]).join('\n'),
+    first: student.firstName || student.name, lp: i.lp, count: '', 'missing classes': '',
+    'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
+    'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: i.subject, reasons: why || '  • See the note on the sample',
   };
 }
 
-function approvedEmail_(s, st, x) {
-  const first = x.student.firstName || x.student.name;
-  return {
-    subject: 'All of ' + first + '’s ' + st.lp + ' work samples are approved',
-    body: ['Hi ' + first + ' and family,', '',
-      'Good news: every work sample ' + first + ' needs for ' + st.lp + ' is turned in and approved. Nothing else is needed for ' + st.lp + '.',
-      '', signOff_(s)].join('\n'),
-  };
+/** Puts each family's details into {first}, {lp} and the other fill-ins. */
+function fill_(tpl, vars) {
+  const put = (text) => String(text).replace(/\{([a-z ]+)\}/g, (m, k) => vars[k] !== undefined ? vars[k] : m);
+  return { subject: put(tpl.subject).replace(/\s+/g, ' ').trim(), body: put(tpl.body) };
 }
 
-function sendReport_(s, st) {
+function recipients_(s, student) {
+  return [].concat(s.parents ? student.familyEmails || [] : [], s.students && student.email ? [student.email] : []);
+}
+
+/**
+ * days = 1 for the daily report, 7 for the weekly summary.
+ */
+function sendReport_(s, st, days, key) {
   const all = st.students;
-  const dayAgo = Date.now() - 24 * 3600000;
-  const fresh = st.items.filter(i => i.receivedAt > dayAgo);
+  const on = s.inReport;
+  const after = Date.now() - days * 24 * 3600000;
+  const fresh = st.items.filter(i => i.receivedAt > after);
   const count = (f) => st.items.filter(f).length;
   const toReview = count(i => !i.approved && !i.finalizedAt && !i.redo);
-  const approvedNotFiled = count(i => i.approved && !i.finalizedAt);
-  const redo = count(i => i.redo && !i.replacedBy);
-  const complete = all.filter(x => !x.missing.length).length;
   const left = st.daysLeft === null ? '' : st.daysLeft > 0 ? st.daysLeft + ' day' + (st.daysLeft > 1 ? 's' : '') + ' left' : st.daysLeft === 0 ? 'ends today' : 'ended';
-  const lines = [
-    'WiSH report for ' + niceDay_(st.today), '',
-    st.lp + (st.range ? ' (' + niceDay_(st.range.start) + ' to ' + niceDay_(st.range.end) + '): ' + left : ': no dates set'), '',
-    'New uploads in the last 24 hours: ' + fresh.length,
-  ].concat(fresh.map(i => '  • ' + i.name + ', ' + i.subject))
-    .concat(['',
-      'To review: ' + toReview,
-      'Approved, not filed yet: ' + approvedNotFiled,
-      'Waiting on a redo: ' + redo,
-      'Students with every sample in: ' + complete + ' of ' + all.length,
-      '', 'Each student this LP (uploads / needed):']);
-  all.slice().sort((a, b) => (a.student.lastName || a.student.name).localeCompare(b.student.lastName || b.student.name)).forEach(x => {
-    const bits = [];
-    if (x.missing.length) bits.push('missing ' + x.missing.map(m => m.name).join(', '));
-    if (x.toReview) bits.push(x.toReview + ' to review');
-    if (x.redos.length) bits.push(x.redos.length + ' redo');
-    if (x.allApproved) bits.push('all approved ✓');
-    lines.push('  • ' + x.student.name + ': ' + x.uploads + ' / ' + x.needed + (bits.length ? ' · ' + bits.join(' · ') : ''));
+  const lines = [(days > 1 ? 'WiSH weekly summary, ' : 'WiSH report for ') + niceDay_(st.today), ''];
+  if (on.daysLeft) lines.push(st.lp + (st.range ? ' (' + niceDay_(st.range.start) + ' to ' + niceDay_(st.range.end) + '): ' + left : ': no dates set'), '');
+  if (on.uploads) {
+    lines.push('New uploads ' + (days > 1 ? 'this week' : 'since yesterday') + ': ' + fresh.length);
+    fresh.forEach(i => lines.push('  • ' + i.name + ', ' + i.subject + (i.resubmitOf ? ' (resubmitted redo)' : '')));
+    lines.push('');
+  }
+  if (on.waiting) {
+    lines.push('Waiting for you:',
+      '  • To review: ' + toReview,
+      '  • Approved, not filed yet: ' + count(i => i.approved && !i.finalizedAt),
+      '  • Waiting on a student’s redo: ' + count(i => i.redo && !i.replacedBy), '');
+  }
+  if (on.families) {
+    lines.push('Each student this LP (uploads / needed), ' + all.filter(x => !x.missing.length).length + ' of ' + all.length + ' have every sample in:');
+    all.slice().sort((a, b) => (a.student.lastName || a.student.name).localeCompare(b.student.lastName || b.student.name)).forEach(x => {
+      const bits = [];
+      if (x.missing.length) bits.push('missing ' + x.missing.map(m => m.name).join(', '));
+      if (x.toReview) bits.push(x.toReview + ' to review');
+      if (x.redos.length) bits.push(x.redos.length + ' redo');
+      if (x.allApproved) bits.push('all approved ✓');
+      lines.push('  • ' + x.student.name + ': ' + x.uploads + ' / ' + x.needed + (bits.length ? ' · ' + bits.join(' · ') : ''));
+    });
+    lines.push('');
+  }
+  if (on.sent) {
+    const mine = recentEmails_(200).filter(e => e.at > after && e.kind !== 'report' && e.kind !== 'to you');
+    const kinds = {};
+    mine.forEach(e => { kinds[e.kind] = (kinds[e.kind] || 0) + 1; });
+    lines.push('Emails sent to families: ' + (mine.length ? Object.keys(kinds).map(k => kinds[k] + ' ' + k).join(', ') : 'none'), '');
+  }
+  const noEmail = all.filter(x => !recipients_(s, x.student).length).map(x => x.student.name);
+  if (noEmail.length && s.families !== 'off') lines.push('No email on file (add one in the Student Roster): ' + noEmail.join(', '), '');
+  if (s.families === 'test') lines.push('Family emails are in Test mode: they come to you instead of families.', '');
+  lines.push('Open the dashboard: ' + dashLink_(s));
+  MailApp.sendEmail({
+    to: s.me, name: 'WiSH', body: lines.join('\n'),
+    subject: (days > 1 ? 'WiSH week: ' : 'WiSH ') + st.lp + ': ' + toReview + ' to review' + (left ? ', ' + left : ''),
   });
-  const noEmail = all.filter(x => !x.student.email && !(x.student.familyEmails || []).length).map(x => x.student.name);
-  if (noEmail.length) lines.push('', 'No email on file (add one in the Student Roster): ' + noEmail.join(', '));
-  if (s.families !== 'on') lines.push('', 'Family emails are ' + (s.families === 'test' ? 'in Test mode: they come to you instead of families.' : 'off.'));
-  lines.push('', 'Open the dashboard: ' + s.link.replace(/\?.*$/, '') + 'admin.html');
-  MailApp.sendEmail({ to: s.to, subject: 'WiSH ' + st.lp + ': ' + toReview + ' to review' + (left ? ', ' + left : ''), body: lines.join('\n'), name: 'WiSH' });
-  logEmail_(s.to, '', 'report', 'Daily report', '');
+  logEmail_(s.me, '', 'report', days > 1 ? 'Weekly summary' : 'Daily report', key);
 }
 
-/** Sends to the student and family, or to you in Test mode. key: remembered so it isn't sent twice. */
-function sendFamily_(s, student, kind, mail, key) {
-  const to = [].concat(student.familyEmails || [], student.email ? [student.email] : []);
+/** Sends to the student and family, or to you in Test mode. keys: remembered so nothing is sent twice. */
+function sendFamily_(s, student, kind, mail, keys) {
+  const to = recipients_(s, student);
+  const key = keys.map(k => tagged_(s, k)).join(' ');
   if (s.families === 'test') {
     MailApp.sendEmail({
-      to: s.to, name: 'WiSH',
+      to: s.me, name: 'WiSH',
       subject: '[Test] ' + mail.subject,
       body: 'TEST MODE: this would have gone to ' + (to.length ? to.join(', ') : '(no email on file for ' + student.name + ')') +
         '. Nothing was sent to the family.\n\n----------\n\n' + mail.body,
     });
-    logEmail_(s.to, student, kind, '[Test] ' + mail.subject, key && tagged_(s, key));
+    logEmail_(s.me, student, kind, '[Test] ' + mail.subject, key);
     return;
   }
-  if (!to.length) return; // the morning report lists students with no email on file
-  MailApp.sendEmail({ to: to.join(','), replyTo: s.me, subject: mail.subject, body: mail.body, name: s.signature || 'WiSH' });
+  if (!to.length) return;
+  MailApp.sendEmail({ to: to.join(','), replyTo: s.me, subject: mail.subject, body: mail.body, name: 'WiSH' });
   logEmail_(to.join(', '), student, kind, mail.subject, key);
 }
 
@@ -2132,10 +2400,21 @@ function tagged_(s, key) {
   return s.families === 'test' ? 'test|' + key : key;
 }
 
-/** Keys of family emails already sent, so a rerun of a timer doesn't send twice. */
+/** Keys of emails already sent, so nothing goes out twice. One row can hold several keys. */
 function emailSent_() {
   const values = emailLogSheet_().getDataRange().getValues();
   const out = {};
-  for (let r = 1; r < values.length; r++) if (values[r][5]) out[String(values[r][5])] = true;
+  for (let r = 1; r < values.length; r++) String(values[r][5] || '').split(' ').forEach(k => { if (k) out[k] = true; });
   return out;
+}
+
+function recentEmails_(n) {
+  const sheet = emailLogSheet_();
+  const last = sheet.getLastRow();
+  if (last < 2) return [];
+  const from = Math.max(2, last - n + 1);
+  return sheet.getRange(from, 1, last - from + 1, 5).getValues().reverse().map(v => ({
+    at: v[0] instanceof Date ? v[0].getTime() : Date.parse(v[0]) || 0,
+    to: String(v[1]), student: String(v[2]), kind: String(v[3]), subject: String(v[4]),
+  }));
 }

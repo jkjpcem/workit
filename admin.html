@@ -19,6 +19,7 @@
     <nav class="admin-controls" id="admin-controls" hidden>
       <button class="btn small" id="open-roster">Student Roster</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
+      <button class="btn small" id="open-reminders">Reminders</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
       <button class="btn small" id="open-accounts" hidden>ES accounts</button>
       <div class="user-menu">
@@ -149,10 +150,10 @@
           <button class="btn primary" id="roster-save">Save students</button>
         </div>
       </div>
-      <p class="hint">Copy rows from Excel or Google Sheets in this order: <b>First name, Last name, Grade, City, Sem 1 classes, Sem 2 classes</b>. Click a cell and paste; the rows fill in below it. Separate classes with commas. Sem 1 is LP1 to LP4 and Sem 2 is LP5 to LP8. Type <b>(Accel)</b> after an accelerated class, for example <i>Algebra 1A H (Accel)</i>: it needs 2 samples per LP. Leave Sem 2 blank to use Sem 1 with A changed to B (the grey text shows the result); accelerated and one-semester classes like Econ are left out, so type Sem 2 whenever it differs. To remove a student, click ✕ on their row. Nothing changes until you click Save students.</p>
+      <p class="hint">Copy rows from Excel or Google Sheets in this order: <b>First name, Last name, Grade, City, Sem 1 classes, Sem 2 classes, Student email, Parent emails</b>. Names stay put while you scroll right. Put several parent emails in one box, separated by commas. Click a cell and paste; the rows fill in below it. Separate classes with commas. Sem 1 is LP1 to LP4 and Sem 2 is LP5 to LP8. Type <b>(Accel)</b> after an accelerated class, for example <i>Algebra 1A H (Accel)</i>: it needs 2 samples per LP. Leave Sem 2 blank to use Sem 1 with A changed to B (the grey text shows the result); accelerated and one-semester classes like Econ are left out, so type Sem 2 whenever it differs. To remove a student, click ✕ on their row. Nothing changes until you click Save students.</p>
       <div class="roster-wrap">
-        <table class="roster">
-          <thead><tr><th>#</th><th>First name</th><th>Last name</th><th>Grade</th><th>City</th><th class="sem1">Sem 1 classes <span>LP1–4</span></th><th class="sem2">Sem 2 classes <span>LP5–8</span></th><th>Student email</th><th>Family email</th><th>OK?</th><th><span class="sr-only">Remove</span></th></tr></thead>
+        <table class="roster people">
+          <thead><tr><th class="fz fz0">#</th><th class="fz fz1">First name</th><th class="fz fz2">Last name</th><th>Grade</th><th>City</th><th class="sem1">Sem 1 classes <span>LP1–4</span></th><th class="sem2">Sem 2 classes <span>LP5–8</span></th><th class="em">Student email</th><th class="em">Parent emails</th><th class="em">Reminders</th><th>OK?</th><th><span class="sr-only">Remove</span></th></tr></thead>
           <tbody id="roster-body"></tbody>
         </table>
       </div>
@@ -176,34 +177,6 @@
           <button class="btn primary" type="submit" id="dates-save">Save dates</button>
         </div>
       </form>
-      <form class="card stack settings-card email-card" id="email-form">
-        <h2>Emails</h2>
-        <p class="hint">WiSH emails from your Google account. Family emails go to the addresses in the Student Roster.</p>
-        <label class="check"><input type="checkbox" name="report"> <span>Morning report to me<small>New uploads, days left in the LP, each student’s uploads and what’s missing, and what needs your review.</small></span></label>
-        <div class="row">
-          <label>Time <select name="reportHour">
-            <option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option>
-            <option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option>
-          </select></label>
-          <label>Send it to <input type="email" name="reportTo" spellcheck="false" placeholder="Your account’s email"></label>
-        </div>
-        <fieldset>
-          <legend>Emails to students and families</legend>
-          <label class="check"><input type="radio" name="families" value="off"> <span>Off</span></label>
-          <label class="check"><input type="radio" name="families" value="test"> <span>Test: send them to me instead<small>Check the wording before families get anything.</small></span></label>
-          <label class="check"><input type="radio" name="families" value="on"> <span>On: send them to students and families</span></label>
-        </fieldset>
-        <label class="check"><input type="checkbox" name="reminders"> <span>Missing samples<small>In the last 2 weeks of the LP, every 3 days: which classes still need a sample.</small></span></label>
-        <label class="check"><input type="checkbox" name="redo"> <span>Redo requests<small>A few minutes after you mark Redo, with your reasons.</small></span></label>
-        <label class="check"><input type="checkbox" name="approved"> <span>All approved<small>Once per LP, when every sample is in and approved.</small></span></label>
-        <label>Sign emails as <input name="signature" maxlength="80" placeholder="For example: Joon, your ES"></label>
-        <p class="note" id="email-status" hidden></p>
-        <div class="dialog-actions">
-          <button class="btn primary" type="submit">Save emails</button>
-          <button class="btn" type="button" id="email-test-report">Email me today’s report</button>
-          <button class="btn" type="button" id="email-test-families">Email me sample family emails</button>
-        </div>
-      </form>
       <form class="card stack settings-card" id="password-form">
         <h2>Change password</h2>
         <p class="hint">For signing in to this dashboard. Use at least 8 characters.</p>
@@ -219,6 +192,147 @@
         <div class="dialog-actions">
           <button class="btn primary" type="submit">Change password</button>
         </div>
+      </form>
+    </section>
+
+    <!-- Reminders: emails to families, and status reports to you -->
+    <section id="screen-reminders" class="screen" hidden>
+      <button class="btn ghost back-link" id="rem-back">← Dashboard</button>
+      <form id="rem-form" class="rem">
+        <div class="rem-intro">
+          <h1>Reminders</h1>
+          <p>WiSH can email two groups for you. <b>Families</b> (students and parents) get reminders about missing samples, redos and approvals. <b>You</b> get status reports on how the LP is going. Pick what each group gets and how often. Emails come from your school account.</p>
+        </div>
+        <p class="note warn" id="rem-allow" hidden></p>
+        <div class="rem-tiles">
+          <div class="rem-tile"><span class="lbl">Current LP</span><b id="rem-lp">–</b><span id="rem-lp-sub"></span></div>
+          <div class="rem-tile"><span class="lbl">Next family reminder</span><b id="rem-next">–</b><span id="rem-next-sub"></span></div>
+          <div class="rem-tile"><span class="lbl">Missing emails</span><b id="rem-noemail">–</b><a href="#" id="rem-to-roster">Add them in the Student Roster →</a></div>
+        </div>
+        <div class="rem-cols">
+          <div class="rem-main">
+            <section class="rem-card fam">
+              <div class="rem-head">
+                <div><h2>Families: students and parents</h2><span>Reminders that help them turn in work on time</span></div>
+                <div class="seg" role="radiogroup" aria-label="Family emails">
+                  <label><input type="radio" name="families" value="off"> Off</label>
+                  <label><input type="radio" name="families" value="test"> Test: send to me</label>
+                  <label><input type="radio" name="families" value="on"> On</label>
+                </div>
+              </div>
+              <div class="rem-body">
+                <div class="rem-row">
+                  <fieldset><legend>Who gets them</legend>
+                    <label class="inline"><input type="checkbox" name="parents"> Parents</label>
+                    <label class="inline"><input type="checkbox" name="students"> Students</label>
+                  </fieldset>
+                  <fieldset><legend>How they hear from WiSH</legend>
+                    <label class="inline"><input type="radio" name="famHow" value="event"> <span><b>As things happen</b> (one email per event)</span></label>
+                    <label class="inline"><input type="radio" name="famHow" value="daily"> <span><b>One daily summary</b> (everything in one email)</span></label>
+                  </fieldset>
+                  <label class="lbl-sel">Send at
+                    <select name="famHour"><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="15">3 PM</option><option value="18">6 PM</option></select>
+                  </label>
+                </div>
+                <h3>What they get emailed about</h3>
+                <label class="chk"><input type="checkbox" name="missing"> <span><b>Missing samples</b><small>Which classes still need a sample this LP. Follows the schedule below.</small></span></label>
+                <label class="chk"><input type="checkbox" name="redo"> <span><b>Redo needed</b><small>A few minutes after you mark Redo, with your reasons and note.</small></span></label>
+                <label class="chk"><input type="checkbox" name="approved"> <span><b>All samples approved for the LP</b><small>Once per LP, when everything is in and approved.</small></span></label>
+                <label class="chk"><input type="checkbox" name="each"> <span><b>Each sample approved</b><small>A short note every time you approve one.</small></span></label>
+                <label class="chk"><input type="checkbox" name="received"> <span><b>Upload received</b><small>A receipt when a sample arrives.</small></span></label>
+                <div class="rem-sched">
+                  <div class="rem-sched-head"><h3>Missing-sample schedule</h3><span>Weeks count from the LP’s start date. Most LPs are 5 weeks.</span></div>
+                  <div class="weeks" id="rem-weeks"></div>
+                  <div class="rem-row">
+                    <label class="lbl-sel">“Once” goes out on
+                      <select name="onceDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option></select>
+                    </label>
+                    <label class="inline"><input type="checkbox" name="noWeekends"> Don’t send on weekends</label>
+                    <label class="inline"><input type="checkbox" name="noHolidays"> Don’t send on major holidays</label>
+                  </div>
+                  <p class="good"><span aria-hidden="true">✓</span> Families who have turned in every sample and have no redo waiting don’t get reminders.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="rem-card">
+              <div class="rem-head plain">
+                <div><h2>Email wording</h2><span>Change what each email says. WiSH fills in the words in {curly brackets} for each family.</span></div>
+                <div class="seg" role="radiogroup" aria-label="Which email" id="rem-tabs">
+                  <label><input type="radio" name="tpl" value="missing" checked> Missing samples</label>
+                  <label><input type="radio" name="tpl" value="redo"> Redo</label>
+                  <label><input type="radio" name="tpl" value="approved"> All approved</label>
+                  <label><input type="radio" name="tpl" value="each"> Each approved</label>
+                  <label><input type="radio" name="tpl" value="received"> Received</label>
+                </div>
+              </div>
+              <div class="rem-body">
+                <label class="field">Subject <input id="tpl-subject" maxlength="200" spellcheck="true"></label>
+                <label class="field">Message <textarea id="tpl-body" rows="10" maxlength="4000" spellcheck="true"></textarea></label>
+                <div class="rem-insert" id="tpl-insert"><span>Insert:</span></div>
+                <button type="button" class="linkish" id="tpl-reset">Reset to the original wording</button>
+              </div>
+            </section>
+
+            <section class="rem-card me">
+              <div class="rem-head">
+                <div><h2>You: status reports</h2><span id="rem-me-to">How the LP is going, sent to you</span></div>
+                <div class="seg" role="radiogroup" aria-label="Your reports">
+                  <label><input type="radio" name="report" value="off"> Off</label>
+                  <label><input type="radio" name="report" value="on"> On</label>
+                </div>
+              </div>
+              <div class="rem-body">
+                <div class="rem-when">
+                  <label class="when"><input type="checkbox" name="daily"> <span><b>Daily report</b> Every school day at
+                    <select name="reportHour"><option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option></select></span></label>
+                  <label class="when"><input type="checkbox" name="weekly"> <span><b>Weekly summary</b> One email on
+                    <select name="weeklyDay"><option value="1">Monday</option><option value="5">Friday</option></select></span></label>
+                  <label class="when"><input type="checkbox" name="live"> <span><b>As things happen</b> An email for each event you tick below</span></label>
+                </div>
+                <div class="rem-two">
+                  <div>
+                    <h3>In the report</h3>
+                    <label class="chk"><input type="checkbox" data-in="uploads"> <span><b>New uploads since yesterday</b></span></label>
+                    <label class="chk"><input type="checkbox" data-in="daysLeft"> <span><b>Days left in the LP</b></span></label>
+                    <label class="chk"><input type="checkbox" data-in="families"> <span><b>Each family’s uploads so far</b><small>Uploads out of what’s needed, and which classes are missing</small></span></label>
+                    <label class="chk"><input type="checkbox" data-in="waiting"> <span><b>Waiting for you</b><small>To review, approved but not filed, waiting on a redo</small></span></label>
+                    <label class="chk"><input type="checkbox" data-in="sent"> <span><b>Reminders sent to families</b></span></label>
+                  </div>
+                  <div>
+                    <h3>Events (for “As things happen”)</h3>
+                    <label class="chk"><input type="checkbox" data-ev="upload"> <span><b>New upload</b></span></label>
+                    <label class="chk"><input type="checkbox" data-ev="resubmit"> <span><b>Resubmitted redo</b></span></label>
+                    <label class="chk"><input type="checkbox" data-ev="lpEnd"> <span><b>LP ends in 3 days and samples are missing</b></span></label>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="rem-side">
+            <section class="rem-card side">
+              <h2>Preview</h2>
+              <span class="sub">How the email you’re editing looks for one family</span>
+              <div class="rem-preview">
+                <span class="to" id="pv-to"></span>
+                <b id="pv-subject"></b>
+                <div id="pv-body"></div>
+              </div>
+            </section>
+            <section class="rem-card side">
+              <h2>Recently sent</h2>
+              <div id="rem-recent"></div>
+              <a href="#" target="_blank" rel="noopener" id="rem-log">See the full email log →</a>
+            </section>
+            <section class="rem-card side">
+              <h2>Pause all emails</h2>
+              <span class="sub">For school breaks. Major holidays are skipped by themselves. Nothing goes out between these dates.</span>
+              <div class="rem-pause"><input type="date" name="pauseFrom" aria-label="Pause from"><input type="date" name="pauseTo" aria-label="Pause until"></div>
+            </section>
+          </aside>
+        </div>
+        <div class="rem-save"><span class="meta" id="rem-state"></span><button class="btn primary" type="submit">Save reminders</button></div>
       </form>
     </section>
 

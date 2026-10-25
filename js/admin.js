@@ -1113,63 +1113,8 @@
     $('#dates-save').hidden = shared;
     currentStudent = null;
     show('settings');
-    loadEmails();
   }
 
-  // ----- Emails: the morning report and family emails -----
-  const emailForm = $('#email-form');
-  const emailError = (err) => /unknown request/i.test(err.message) ? 'Emails start working after the next WiSH update.'
-    : /permission|authoriz/i.test(err.message) ? 'Google needs you to allow WiSH to email on a schedule first. Ask Claude to “turn on WiSH emails”.'
-    : err.message;
-  function emailStatus(text) {
-    $('#email-status').textContent = text;
-    $('#email-status').hidden = !text;
-  }
-  function fillEmails(res) {
-    const s = res.settings;
-    emailForm.report.checked = s.report;
-    emailForm.reportHour.value = String(s.reportHour);
-    emailForm.reportTo.value = s.reportTo || '';
-    emailForm.reportTo.placeholder = s.me || 'Your account’s email';
-    $$('input[name="families"]', emailForm).forEach(r => { r.checked = r.value === s.families; });
-    emailForm.reminders.checked = s.reminders;
-    emailForm.redo.checked = s.redo;
-    emailForm.approved.checked = s.approved;
-    emailForm.signature.value = s.signature || '';
-    emailStatus(res.running ? `Emails are on. ${s.report ? `Your report comes about ${emailForm.reportHour.selectedOptions[0].text}.` : ''}${s.families === 'test' ? ' Family emails come to you while Test is picked.' : ''}`
-      : 'Emails aren’t scheduled yet. Click Save emails to start them.');
-  }
-  async function loadEmails() {
-    emailStatus('');
-    try { fillEmails(await call('adminEmailSettings')); } catch (err) { emailStatus(emailError(err)); }
-  }
-  // The link in family emails: this site, with ?es= for an ES's own students.
-  const studentLink = () => new URL('./', location.href).href + (creds.role === 'es' ? `?es=${encodeURIComponent(creds.user)}` : '');
-  emailForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = emailForm;
-    const families = ($('input[name="families"]:checked', f) || {}).value || 'test';
-    if (families === 'on' && !confirm('Turn on emails to students and families? They’ll start getting WiSH emails from your account.')) return;
-    busy('Saving…');
-    try {
-      fillEmails(await call('adminSaveEmailSettings', { settings: {
-        report: f.report.checked, reportHour: Number(f.reportHour.value), reportTo: f.reportTo.value.trim(), families,
-        reminders: f.reminders.checked, redo: f.redo.checked, approved: f.approved.checked,
-        signature: f.signature.value.trim(), link: studentLink(),
-      } }));
-      toast('Email settings saved.');
-    } catch (err) {
-      toast(emailError(err));
-    } finally {
-      busy(false);
-    }
-  });
-  const emailTest = (kind) => async () => {
-    busy('Sending…');
-    try { toast((await call('adminEmailTest', { kind })).message); } catch (err) { toast(emailError(err)); } finally { busy(false); }
-  };
-  $('#email-test-report').addEventListener('click', emailTest('report'));
-  $('#email-test-families').addEventListener('click', emailTest('families'));
   $('#open-dates').addEventListener('click', () => openSettings('dash'));
   $('#settings-back').addEventListener('click', () => {
     if (settingsBack === 'setup') return Setup.open();
@@ -1221,6 +1166,199 @@
     }
   });
 
+  // ---------- Reminders: emails to families, and status reports to you ----------
+
+  const remForm = $('#rem-form');
+  const TPL_FILLS = {
+    missing: ['first', 'lp', 'count', 'missing classes', 'days left', 'end date', 'link'],
+    redo: ['first', 'class', 'lp', 'reasons', 'link'],
+    approved: ['first', 'lp', 'link'],
+    each: ['first', 'class', 'lp', 'link'],
+    received: ['first', 'class', 'lp', 'link'],
+  };
+  const WEEK_NAMES = ['Week 1–2', 'Week 3', 'Week 4', 'Week 5', 'Week 6+'];
+  const KIND_NAMES = { missing: 'Missing', redo: 'Redo', approved: 'All approved', each: 'Approved', received: 'Received', summary: 'Summary', report: 'Report', 'to you': 'To you' };
+  let rem = null;          // last adminEmailSettings answer
+  let tpls = {};           // the wording being edited, for every email
+  let tplKind = 'missing';
+  let tplField = null;     // where Insert puts a fill-in
+  let remDirty = false;
+
+  $('#rem-weeks').innerHTML = WEEK_NAMES.map((w, n) => `<div class="week" data-w="${n}"><span>${w.toUpperCase()}</span>
+    <select name="week${n}" aria-label="${w}"><option value="none">None</option><option value="once">Once</option><option value="every3">Every 3 days</option><option value="daily">Every day</option></select></div>`).join('');
+
+  const remError = (err) => /unknown request/i.test(err.message) ? 'Reminders start working after the next WiSH update.' : err.message;
+  function setRemDirty(on) {
+    remDirty = on;
+    $('#rem-state').textContent = on ? 'Unsaved changes' : '';
+  }
+  const dayName = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const hourName = (h) => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`;
+
+  async function openReminders() {
+    if (!data) return;
+    busy('Loading reminders…');
+    try {
+      rem = await call('adminEmailSettings');
+      fillReminders();
+      currentStudent = null;
+      show('reminders');
+    } catch (err) {
+      toast(remError(err));
+    } finally {
+      busy(false);
+    }
+  }
+
+  function fillReminders() {
+    const s = rem.settings, f = remForm;
+    const radio = (name, v) => $$(`input[name="${name}"]`, f).forEach(r => { r.checked = r.value === String(v); });
+    radio('families', s.families);
+    radio('famHow', s.famHow);
+    radio('report', s.report ? 'on' : 'off');
+    ['parents', 'students', 'missing', 'redo', 'approved', 'each', 'received', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
+      .forEach(k => { f[k].checked = !!s[k]; });
+    ['famHour', 'onceDay', 'reportHour', 'weeklyDay'].forEach(k => { f[k].value = String(s[k]); });
+    s.weeks.forEach((w, n) => { f[`week${n}`].value = w; });
+    $$('[data-in]', f).forEach(i => { i.checked = !!s.inReport[i.dataset.in]; });
+    $$('[data-ev]', f).forEach(i => { i.checked = !!s.esEvents[i.dataset.ev]; });
+    f.pauseFrom.value = s.pauseFrom || '';
+    f.pauseTo.value = s.pauseTo || '';
+    tpls = {};
+    Object.keys(rem.defaults).forEach(k => { tpls[k] = { ...rem.defaults[k], ...((s.templates || {})[k] || {}) }; });
+    showTemplate(tplKind);
+
+    const st = rem.status;
+    $('#rem-lp').textContent = st.week && st.week > 0 ? `${st.lp} · Week ${Math.min(st.week, st.weeks)} of ${st.weeks}` : st.lp;
+    $('#rem-lp-sub').textContent = st.range ? `${dayName(st.range.start)} to ${dayName(st.range.end)}${st.daysLeft >= 0 ? ` · ${st.daysLeft} day${st.daysLeft === 1 ? '' : 's'} left` : ' · ended'}` : 'No LP dates set in Settings';
+    $('#rem-next').textContent = st.nextReminder ? `${dayName(st.nextReminder.date)} · ${hourName(st.nextReminder.hour)}` : 'None scheduled';
+    $('#rem-next-sub').textContent = s.families === 'off' ? 'Family emails are off' : `${st.missingFamilies} famil${st.missingFamilies === 1 ? 'y is' : 'ies are'} missing samples`;
+    $('#rem-noemail').textContent = st.noEmail ? `${st.noEmail} student${st.noEmail === 1 ? '' : 's'}` : 'None';
+    $$('.week', f).forEach((w, n) => {
+      const now = st.week ? (st.week <= 2 ? 0 : st.week >= 6 ? 4 : st.week - 2) : -1;
+      w.classList.toggle('now', n === now && st.daysLeft >= 0);
+    });
+    $('#rem-me-to').textContent = `How the LP is going, sent to ${s.me || 'you'}`;
+    $('#rem-log').href = rem.logUrl || '#';
+    $('#rem-recent').innerHTML = rem.recent.length ? rem.recent.map(e => `<div><span class="k">${esc(KIND_NAMES[e.kind] || e.kind)}</span>
+      <span title="${esc(e.subject)}">${esc(e.student || e.subject)}</span><span class="t">${esc(when(e.at))}</span></div>`).join('')
+      : '<p class="hint">Nothing sent yet.</p>';
+    remAllow(rem.running ? '' : 'Reminders aren’t running yet. Google needs you to allow WiSH to send email on a schedule, once. Ask Claude to “turn on WiSH reminders”.');
+    setRemDirty(false);
+  }
+  function remAllow(text) {
+    $('#rem-allow').textContent = text;
+    $('#rem-allow').hidden = !text;
+  }
+  function when(t) {
+    const d = new Date(t), today = new Date();
+    const days = Math.round((new Date(today.toDateString()) - new Date(d.toDateString())) / 86400000);
+    return days === 0 ? `Today ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : days === 1 ? 'Yesterday'
+      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  // ----- Email wording -----
+  function showTemplate(kind) {
+    tplKind = kind;
+    $$('input[name="tpl"]', remForm).forEach(r => { r.checked = r.value === kind; });
+    $('#tpl-subject').value = tpls[kind].subject;
+    $('#tpl-body').value = tpls[kind].body;
+    $('#tpl-insert').innerHTML = '<span>Insert:</span>' + TPL_FILLS[kind].map(k => `<button type="button" data-fill="${esc(k)}">{${esc(k)}}</button>`).join('');
+    tplField = null;
+    preview();
+  }
+  // A made-up family, or the first one missing samples, filled into the wording.
+  function preview() {
+    const sample = rem.sample || { first: 'Maya', to: [], missing: ['Algebra 2 (1 of 2 turned in)', 'Biology'] };
+    const st = rem.status;
+    const vars = {
+      first: sample.first, lp: st.lp, count: `${sample.missing.length || 1} work sample${sample.missing.length === 1 ? '' : 's'}`,
+      'missing classes': (sample.missing.length ? sample.missing : ['Biology']).map(m => `  • ${m}`).join('\n'),
+      'days left': st.daysLeft === null || st.daysLeft === undefined ? '' : String(Math.max(0, st.daysLeft)),
+      'end date': st.range ? dayName(st.range.end) : '', link: new URL('./', location.href).host + (creds.role === 'es' ? `/?es=${creds.user}` : ''),
+      class: 'Biology', reasons: '  • Missing date\n  • Please add your score',
+    };
+    const put = (t) => String(t).replace(/\{([a-z ]+)\}/g, (m, k) => vars[k] ?? m);
+    $('#pv-to').textContent = `To: ${sample.to && sample.to.length ? sample.to.join(', ') : 'parent@…, student@…'}`;
+    $('#pv-subject').textContent = put(tpls[tplKind].subject);
+    $('#pv-body').textContent = put(tpls[tplKind].body);
+  }
+  $('#rem-tabs').addEventListener('change', (e) => { if (e.target.name === 'tpl') showTemplate(e.target.value); });
+  ['#tpl-subject', '#tpl-body'].forEach(sel => {
+    $(sel).addEventListener('input', () => {
+      tpls[tplKind][sel === '#tpl-subject' ? 'subject' : 'body'] = $(sel).value;
+      preview();
+    });
+    $(sel).addEventListener('focus', () => { tplField = $(sel); });
+  });
+  $('#tpl-insert').addEventListener('mousedown', (e) => { if (e.target.closest('[data-fill]')) e.preventDefault(); }); // keep the cursor
+  $('#tpl-insert').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fill]');
+    if (!b) return;
+    const el = tplField || $('#tpl-body');
+    const text = `{${b.dataset.fill}}`;
+    const at = el.selectionStart ?? el.value.length;
+    el.value = el.value.slice(0, at) + text + el.value.slice(el.selectionEnd ?? at);
+    el.focus();
+    el.selectionStart = el.selectionEnd = at + text.length;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  $('#tpl-reset').addEventListener('click', () => {
+    tpls[tplKind] = { ...rem.defaults[tplKind] };
+    showTemplate(tplKind);
+    setRemDirty(true);
+  });
+
+  remForm.addEventListener('input', () => setRemDirty(true));
+  remForm.addEventListener('change', () => setRemDirty(true));
+  remForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = remForm;
+    const val = (name) => ($(`input[name="${name}"]:checked`, f) || {}).value;
+    const families = val('families') || 'test';
+    if (families === 'on' && rem.settings.families !== 'on' &&
+      !confirm('Turn on emails to students and families? They’ll start getting WiSH emails from your account.')) return;
+    if ((f.pauseFrom.value && !f.pauseTo.value) || (!f.pauseFrom.value && f.pauseTo.value) || (f.pauseFrom.value > f.pauseTo.value)) {
+      return toast('For a pause, pick a start date and an end date after it.');
+    }
+    const checks = (attr) => Object.fromEntries($$(`[data-${attr}]`, f).map(i => [i.dataset[attr], i.checked]));
+    const settings = {
+      families, famHow: val('famHow'), report: val('report') === 'on',
+      famHour: Number(f.famHour.value), onceDay: Number(f.onceDay.value), reportHour: Number(f.reportHour.value), weeklyDay: Number(f.weeklyDay.value),
+      weeks: WEEK_NAMES.map((w, n) => f[`week${n}`].value),
+      inReport: checks('in'), esEvents: checks('ev'),
+      pauseFrom: f.pauseFrom.value, pauseTo: f.pauseTo.value,
+      templates: tpls,
+      link: new URL('./', location.href).href + (creds.role === 'es' ? `?es=${encodeURIComponent(creds.user)}` : ''),
+    };
+    ['parents', 'students', 'missing', 'redo', 'approved', 'each', 'received', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
+      .forEach(k => { settings[k] = f[k].checked; });
+    busy('Saving…');
+    try {
+      rem = await call('adminSaveEmailSettings', { settings });
+      fillReminders();
+      toast(rem.needsAllow ? 'Saved. Reminders start once you allow WiSH in Google (see the note at the top).' : 'Reminders saved.');
+    } catch (err) {
+      toast(remError(err));
+    } finally {
+      busy(false);
+    }
+  });
+
+  $('#open-reminders').addEventListener('click', openReminders);
+  $('#rem-to-roster').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (remDirty && !confirm('You have unsaved reminder changes. Leave without saving?')) return;
+    setRemDirty(false);
+    $('#open-roster').click();
+  });
+  $('#rem-back').addEventListener('click', () => {
+    if (remDirty && !confirm('You have unsaved reminder changes. Leave without saving?')) return;
+    setRemDirty(false);
+    renderDash();
+    show('dash');
+  });
+
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
   const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family'];
@@ -1240,6 +1378,9 @@
     return list.length ? `Blank = ${list.map(c => c.name).join(', ')}` : '';
   };
   const isEmpty = (r) => COLS.every(k => !String(r[k] || '').trim());
+  // Whether reminders can reach this family.
+  const remCell = (r) => isEmpty(r) ? '<td class="rem-cell"></td>'
+    : String(r.email || '').trim() || String(r.family || '').trim() ? '<td class="rem-cell on">● On</td>' : '<td class="rem-cell">No email yet</td>';
 
   // The setup steps open the Students page too, and come back to it.
   let rosterBack = 'dash';
@@ -1254,6 +1395,7 @@
       currentStudent = null;
       renderRoster();
       show('roster');
+      pinNames();
     } catch (err) {
       toast(err.message);
     } finally {
@@ -1283,12 +1425,23 @@
       const id = rosterId(r);
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}">
-        <td class="num">${i + 1}</td>
-        ${COLS.map(k => `<td class="col-${k}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}></td>`).join('')}
+        <td class="num fz fz0">${i + 1}</td>
+        ${COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
+        ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
         <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
+    pinNames();
+  }
+  // The number and name columns stay put while the rest scrolls; each starts where the one before ends.
+  function pinNames() {
+    const ths = $$('#screen-roster th.fz');
+    let left = 0;
+    ths.forEach((th, n) => {
+      $$(`#screen-roster .fz${n}`).forEach(el => { el.style.left = `${left}px`; });
+      left += th.getBoundingClientRect().width;
+    });
   }
 
   // Typing updates the row; the ID column refreshes without losing the cursor.
@@ -1309,6 +1462,7 @@
       const id = rosterId(r);
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       tr.classList.toggle('bad', !!problem);
+      $('.rem-cell', tr).outerHTML = remCell(r);
       $('.sid-cell', tr).innerHTML = `${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}`;
     });
     $('#roster-count').textContent = `${roster.filter(r => !isEmpty(r)).length}`;
@@ -1381,7 +1535,7 @@
       busy(false);
     }
   });
-  window.addEventListener('beforeunload', (e) => { if (rosterDirty) { e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('beforeunload', (e) => { if (rosterDirty || remDirty) { e.preventDefault(); e.returnValue = ''; } });
 
   // Your password stays in this tab only. An ES's key is kept across tabs, so the
   // "Finish in WiSH" button in their copy can open a new tab that's already signed in.
