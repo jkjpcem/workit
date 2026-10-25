@@ -273,7 +273,7 @@
         return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${c.need > 1 ? 'Accelerated: 2 samples per LP' : '1 sample per LP'}">${esc(c.name)}${label}</span>`;
       }).join('');
       const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
-        `<img src="${i.thumb || blankThumb()}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
+        `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
         (mine.length > 6 ? `<span class="more">+${mine.length - 5}</span>` : '');
       card.innerHTML = `
         <div class="top"><h3>${esc(s.name)}</h3><span class="sid">Grade ${esc(s.grade)}</span></div>
@@ -354,7 +354,7 @@
     }
     grid.innerHTML = items.map((i, idx) => `
       <button class="utile st-${status(i)}" data-idx="${idx}">
-        ${i.thumb ? `<img src="${i.thumb}" alt="">` : '<div class="noimg">📄</div>'}
+        ${i.thumb ? `<img src="${esc(i.thumb)}" alt="">` : '<div class="noimg">📄</div>'}
         <span class="cap">
           <span class="tag">${statusLabel(i)}</span>
           <strong>${esc(i.subject)}</strong>
@@ -1046,7 +1046,7 @@
     const nameOf = (i) => (data.students.find(s => s.id === i.studentId) || {}).name || i.name || i.studentId;
     grid.innerHTML = trashItems.map((i, n) => `
       <div class="card trash-item">
-        ${i.thumb ? `<img src="${i.thumb}" alt="">` : '<div class="noimg">📄</div>'}
+        ${i.thumb ? `<img src="${esc(i.thumb)}" alt="">` : '<div class="noimg">📄</div>'}
         <div class="trash-info">
           <strong>${esc(nameOf(i))}</strong>
           <span>${esc(i.subject)} · ${esc(i.lp)}${i.filedAs && i.finalizedAt ? ` · was filed as ${esc(i.filedAs)}` : ''}</span>

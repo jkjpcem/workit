@@ -1053,7 +1053,7 @@
         : item.approved || item.finalized ? '<span class="badge approved">✓ Approved</span>' : '';
       el.classList.toggle('needs-redo', needsRedo);
       el.innerHTML = `
-        ${item.thumb ? `<img src="${item.thumb}" alt="First page">` : '<div class="nothumb">📄</div>'}
+        ${item.thumb ? `<img src="${esc(item.thumb)}" alt="First page">` : '<div class="nothumb">📄</div>'}
         <div class="body">
           <h3>${esc(item.subject)}</h3>
           <div class="meta">${esc(item.lp)} · Completed ${esc(niceDate(item.dateCompleted))} · ${esc(sizeLabel(item))}</div>

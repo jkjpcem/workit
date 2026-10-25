@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 16;
+const WORKIT_VERSION = 17;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -47,6 +47,7 @@ const LEARNING_PERIODS = ['LP1', 'LP2', 'LP3', 'LP4', 'LP5', 'LP6', 'LP7', 'LP8'
 const GRADES = ['8', '9', '10', '11', '12'];
 const REDO_REASONS = ['Missing name', 'Missing date', 'Missing subject', 'Missing score/grade/feedback'];
 const MAX_BYTES = 30 * 1024 * 1024;
+const UPLOADS_PER_DAY = 30; // per student, so a guessed sign-in can't fill your Drive
 
 // Columns in the Submissions sheet (1-based).
 const SUB = {
@@ -267,7 +268,7 @@ function upload_(body) {
   if (source === 'gdoc' ? !body.link : !body.data) return { ok: false, error: 'No file was attached.' };
   const dateProblem = checkDate_(body.lp, clean_(body.dateCompleted, 20));
   if (dateProblem) return { ok: false, error: dateProblem };
-  const uploadId = clean_(body.uploadId, 60);
+  const uploadId = /^[A-Za-z0-9_-]{1,60}$/.test(String(body.uploadId || '')) ? String(body.uploadId) : '';
   const resubmitOf = clean_(body.resubmitOf, 60);
 
   const bytes = source === 'gdoc' ? null : Utilities.base64Decode(body.data);
@@ -288,6 +289,10 @@ function upload_(body) {
     // A retry of an upload that already arrived: don't save it twice.
     const existing = uploadId && findItem_(subs, student.id, uploadId, true);
     if (existing) return { ok: true, fileUrl: existing.fileUrl, duplicate: true };
+    const dayAgo = Date.now() - 24 * 3600000;
+    if (subs.items.filter(i => i.studentId === student.id && i.receivedAt > dayAgo).length >= UPLOADS_PER_DAY) {
+      return { ok: false, error: 'That’s the most uploads WiSH takes from one student in a day. Try again tomorrow, or ask your ES.' };
+    }
 
     const folder = getUploadFolder_(body.lp);
     const name = uniqueName_(folder, workName_(student, body.lp, clean_(body.subject, 60)));
@@ -327,8 +332,8 @@ function upload_(body) {
     row[SUB.FAVORITE - 1] = false;
     row[SUB.UPLOAD_ID - 1] = uploadId;
     row[SUB.FILE_ID - 1] = file.getId();
-    row[SUB.THUMB - 1] = String(body.thumb || '').indexOf('data:image/jpeg;base64,') === 0
-      ? String(body.thumb).slice(0, 45000) : '';
+    row[SUB.THUMB - 1] = /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/.test(String(body.thumb || '')) && String(body.thumb).length <= 45000
+      ? String(body.thumb) : '';
     row[SUB.APPROVED - 1] = false;
     row[SUB.REDO - 1] = false;
     row[SUB.REASONS - 1] = '';
@@ -404,7 +409,7 @@ function remove_(body) {
 function familyNotes_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: 'Your account was not found.' };
-  const json = JSON.stringify((Array.isArray(body.notes) ? body.notes : []).slice(0, 60));
+  const json = JSON.stringify((Array.isArray(body.notes) ? body.notes : []).slice(0, 60).map(cleanNote_));
   if (json.length > 45000) return { ok: false, error: 'Too many notes on one upload.' };
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -420,6 +425,22 @@ function familyNotes_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// A family text box, reduced to what the boxes use, so nothing else rides along to the ES's screen.
+const NOTE_FONTS = ['sans', 'serif', 'hand', 'mono'];
+function cleanNote_(n) {
+  n = n || {};
+  const num = (v, lo, hi, d) => { const x = Number(v); return isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
+  return {
+    page: Math.round(num(n.page, 0, 99, 0)),
+    x: num(n.x, 0, 1, 0), y: num(n.y, 0, 1, 0), w: num(n.w, 0.02, 1, 0.3),
+    size: num(n.size, 6, 96, 18),
+    font: NOTE_FONTS.indexOf(n.font) !== -1 ? n.font : 'sans',
+    bold: n.bold === true,
+    color: /^#[0-9a-f]{6}$/i.test(String(n.color || '')) ? n.color : '#d0342c',
+    text: String(n.text == null ? '' : n.text).slice(0, 2000),
+  };
 }
 
 /** A student takes back something they trashed themselves. */
@@ -539,11 +560,25 @@ function checkAdmin_(body) {
 
 /** Only your username and password; blank in the copies other ES make. */
 function checkSuper_(body) {
-  if (!isMain_() || String(body.adminUser || '').trim().toLowerCase() !== ADMIN_USERNAME.toLowerCase() ||
-      !superPassOk_(body.adminKey)) {
+  if (!isMain_()) return { ok: false, error: 'Wrong username or password.' };
+  if (lockedOut_(ADMIN_USERNAME)) return LOCKED_OUT;
+  if (String(body.adminUser || '').trim().toLowerCase() !== ADMIN_USERNAME.toLowerCase() || !superPassOk_(body.adminKey)) {
+    wrongPass_(ADMIN_USERNAME);
     return { ok: false, error: 'Wrong username or password.' };
   }
   return null;
+}
+
+// After 10 wrong passwords for one account in 15 minutes, that account waits 15 minutes.
+const WRONG_PASS_LIMIT = 10;
+const LOCKED_OUT = { ok: false, error: 'Too many wrong passwords. Wait 15 minutes, then try again.' };
+function lockedOut_(user) {
+  return Number(CacheService.getScriptCache().get('wrongpass:' + String(user).toLowerCase()) || 0) >= WRONG_PASS_LIMIT;
+}
+function wrongPass_(user) {
+  const cache = CacheService.getScriptCache();
+  const key = 'wrongpass:' + String(user).toLowerCase();
+  cache.put(key, String(Number(cache.get(key) || 0) + 1), 900);
 }
 
 /** Once you change your password in Settings, its hash in Script properties replaces ADMIN_PASSWORD. */
@@ -655,10 +690,17 @@ function esLogin_(body) {
   if (!isMain_()) return { ok: false, error: 'Unknown request.' };
   const user = String(body.user || '').trim().toLowerCase();
   const pass = String(body.pass || '');
-  if (user === ADMIN_USERNAME.toLowerCase() && superPassOk_(pass)) return { ok: true, role: 'super', version: WORKIT_VERSION };
+  if (lockedOut_(user)) return LOCKED_OUT;
+  if (user === ADMIN_USERNAME.toLowerCase()) {
+    if (superPassOk_(pass)) return { ok: true, role: 'super', version: WORKIT_VERSION };
+    wrongPass_(user);
+    Utilities.sleep(800);
+    return { ok: false, error: 'Wrong username or password.' };
+  }
   const found = findEs_(user);
   const es = found.es;
   if (!es || !es.hash || (hash_(es.salt, pass) !== es.hash && !useResetPass_(found, pass))) {
+    wrongPass_(user);
     Utilities.sleep(800); // slows down guessing
     return { ok: false, error: 'Wrong username or password.' };
   }

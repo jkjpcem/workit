@@ -2,7 +2,7 @@
 // downloaded the first time someone opens a PDF that WiSH didn't make itself.
 
 const PdfView = (() => {
-  const BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  const BASE = 'js/vendor/pdfjs-3.11.174/'; // kept here, not on a CDN
   let loading = null;
 
   const addScript = (src) => new Promise((resolve, reject) => {
@@ -32,7 +32,8 @@ const PdfView = (() => {
     const lib = await ready();
     let doc;
     try {
-      doc = await lib.getDocument({ data: bytes.slice() }).promise;
+      // isEvalSupported off: a booby-trapped PDF can't run code on the page (CVE-2024-4367).
+      doc = await lib.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
     } catch {
       throw new Error('That PDF could not be opened. It may be damaged or password-protected.');
     }
