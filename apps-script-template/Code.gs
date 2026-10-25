@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 14;
+const WORKIT_VERSION = 15;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -209,7 +209,7 @@ function doPost(e) {
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
     };
     const es = {
-      esLogin: esLogin_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
+      esLogin: esLogin_, esForgot: esForgot_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
     };
     const superAdmin = {
       superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_, superChangePassword: adminChangePassword_,
@@ -658,7 +658,7 @@ function esLogin_(body) {
   if (user === ADMIN_USERNAME.toLowerCase() && superPassOk_(pass)) return { ok: true, role: 'super', version: WORKIT_VERSION };
   const found = findEs_(user);
   const es = found.es;
-  if (!es || !es.hash || hash_(es.salt, pass) !== es.hash) {
+  if (!es || !es.hash || (hash_(es.salt, pass) !== es.hash && !useResetPass_(found, pass))) {
     Utilities.sleep(800); // slows down guessing
     return { ok: false, error: 'Wrong username or password.' };
   }
@@ -670,6 +670,66 @@ function esLogin_(body) {
   out.key = es.key;
   out.latestVersion = WORKIT_VERSION;
   return out;
+}
+
+// ---------- Forgot password (ES accounts) ----------
+
+const RESET_HOURS = 24;
+const RESET_WAIT_MINUTES = 10;
+
+/**
+ * "Forgot password?" on the sign-in page. Emails a temporary password to the address on the
+ * account. Their old password keeps working until the temporary one is used, so nobody can
+ * lock an ES out by asking for one. The answer is the same whether or not the account exists.
+ */
+function esForgot_(body) {
+  if (!isMain_()) return { ok: false, error: 'Unknown request.' };
+  const done = { ok: true, message: 'If that matches a WiSH account, we’ve emailed a temporary password to it. It works for 24 hours. Check your spam folder too.' };
+  const who = String(body.who || '').trim().toLowerCase();
+  if (!who) return { ok: false, error: 'Type your username or school email.' };
+  const all = readEs_();
+  const es = all.list.filter(e => e.user === who || (e.email && e.email.toLowerCase() === who))[0];
+  if (!es || !es.active || !es.email) return done;
+  const props = PropertiesService.getScriptProperties();
+  const key = 'ES_RESET_' + es.user;
+  const old = JSON.parse(props.getProperty(key) || 'null');
+  if (old && Date.now() - old.sent < RESET_WAIT_MINUTES * 60000) return done;
+  const pass = tempPassword_();
+  const salt = randomHex_(32);
+  props.setProperty(key, JSON.stringify({ hash: hash_(salt, pass), salt: salt, sent: Date.now() }));
+  const link = String(body.link || '');
+  const text = [
+    'Hi ' + es.name.split(' ')[0] + ',',
+    '',
+    'Someone (hopefully you) asked for a new WiSH password. If it wasn’t you, ignore this email: your current password still works.',
+    '',
+    '1. On a computer, open: ' + (/^https:\/\/[^\s]+$/.test(link) ? link : 'the WiSH ES dashboard'),
+    '2. Username: ' + es.user,
+    '   Temporary password: ' + pass,
+    '3. Choose your own password right after you sign in.',
+    '',
+    'The temporary password works for ' + RESET_HOURS + ' hours.',
+  ].join('\n');
+  try {
+    MailApp.sendEmail({ to: es.email, subject: 'Your new WiSH password', body: text, name: 'WiSH' });
+  } catch (err) {
+    props.deleteProperty(key);
+    return { ok: false, error: 'The email didn’t send. Please try again later, or ask the person who made your WiSH account for a new password.' };
+  }
+  return done;
+}
+
+/** Signing in with an emailed temporary password makes it their password until they choose one. */
+function useResetPass_(found, pass) {
+  const props = PropertiesService.getScriptProperties();
+  const key = 'ES_RESET_' + found.es.user;
+  const r = JSON.parse(props.getProperty(key) || 'null');
+  if (!r || Date.now() - r.sent > RESET_HOURS * 3600000 || hash_(r.salt, pass) !== r.hash) return false;
+  found.sheet.getRange(found.es.row, ES.HASH, 1, 3).setValues([[r.hash, r.salt, true]]);
+  found.es.mustChange = true;
+  props.deleteProperty(key);
+  FRESH_ = true;
+  return true;
 }
 
 /** Checks an ES's own requests to the main copy (password change, setup progress). */

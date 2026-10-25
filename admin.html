@@ -17,7 +17,7 @@
   <header class="topbar">
     <a class="brand" href="#" id="brand-home" title="Dashboard home"><img class="brand-logo" src="icons/logo-dark.svg" alt="WiSH, Work Sample Herder" height="38"></a>
     <nav class="admin-controls" id="admin-controls" hidden>
-      <button class="btn small" id="open-roster">Students</button>
+      <button class="btn small" id="open-roster">Student Roster</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
       <button class="btn small" id="open-accounts" hidden>ES accounts</button>
@@ -52,6 +52,17 @@
           <input type="password" name="password" required autocomplete="current-password">
         </label>
         <button class="btn primary big" type="submit">Open dashboard</button>
+        <button class="btn ghost small forgot-link" type="button" id="forgot-open">Forgot password?</button>
+      </form>
+      <form id="forgot-form" class="card stack" hidden>
+        <h2>Reset your password</h2>
+        <p class="hint">Type your WiSH username or your school email. We’ll email you a temporary password, and you choose a new one after you sign in.</p>
+        <label>Username or school email
+          <input name="who" required autocomplete="username" autocapitalize="none" spellcheck="false">
+        </label>
+        <button class="btn primary big" type="submit">Email me a temporary password</button>
+        <p class="note" id="forgot-done" hidden></p>
+        <button class="btn ghost small forgot-link" type="button" id="forgot-back">← Back to sign in</button>
       </form>
     </section>
 

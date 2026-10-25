@@ -543,3 +543,7 @@ a.brand:hover { opacity: .9; }
 .trash-item img, .trash-item .noimg { width: 64px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; background: #fff; display: grid; place-items: center; }
 .trash-info { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .trash-actions { display: flex; gap: 8px; }
+
+/* Forgot password */
+.forgot-link { align-self: center; }
+#forgot-form h2 { margin: 0; font-size: 18px; }

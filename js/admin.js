@@ -32,6 +32,29 @@
 
   // ---------- Sign in ----------
 
+  // Forgot password: an ES gets a temporary password by email. (Your own is in the script.)
+  const showForgot = (on) => {
+    $('#admin-login').hidden = on;
+    $('#forgot-form').hidden = !on;
+    $('#forgot-done').hidden = true;
+    if (on) $('#forgot-form').who.value = $('#admin-login').username.value.trim();
+  };
+  $('#forgot-open').addEventListener('click', () => showForgot(true));
+  $('#forgot-back').addEventListener('click', () => showForgot(false));
+  $('#forgot-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    busy('Sending…');
+    try {
+      const res = await mainCall('esForgot', { who: e.target.who.value.trim(), link: location.origin + location.pathname });
+      $('#forgot-done').textContent = res.message;
+      $('#forgot-done').hidden = false;
+    } catch (err) {
+      toast(/unknown request/i.test(err.message) ? 'Password reset starts working after the next WiSH update.' : err.message);
+    } finally {
+      busy(false);
+    }
+  });
+
   $('#admin-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const user = e.target.username.value.trim(), pass = e.target.password.value;
