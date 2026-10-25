@@ -169,7 +169,7 @@ function AdminCore(ctx) {
     box.innerHTML = `
       <h2>${esc(student.firstName)} · ${forRp} (${RPS[forRp][0]}–${RPS[forRp][RPS[forRp].length - 1]})</h2>
       ${tag}
-      <h3 class="core-sub">Core subjects: ${list.filter(done).length} of 4</h3>
+      <h3 class="core-sub">${forRp} Annotation Tracker: ${list.filter(done).length} of 4</h3>
       <ul class="core-mini">${list.map(s => `
         <li class="${s.state}">
           <span class="core-dot"></span>
@@ -214,7 +214,7 @@ function AdminCore(ctx) {
     const range = [(core.lpDates || {})[lps[0]], (core.lpDates || {})[lps[lps.length - 1]]];
     const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
     box.innerHTML = `
-      <h2>${forRp} core subjects</h2>
+      <h2>${forRp} Annotation Tracker</h2>
       <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
       <p class="side-sum"><b>${complete} of ${rows.length}</b> students have all 4</p>
       <div class="side-head"><span></span>${boxes(null)}</div>
@@ -278,7 +278,7 @@ function AdminCore(ctx) {
     const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
     const left = list.filter(x => !done(x)).length;
     box.innerHTML = `
-      <h2>${pageRp} core subjects</h2>
+      <h2>${pageRp} Annotation Tracker</h2>
       <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
       <div class="chips rp-chips">${Object.keys(RPS).map(r => `<button type="button" class="chip ${r === pageRp ? 'active' : ''}" data-rp="${r}">${r}</button>`).join('')}</div>
       <div class="side-head"><span></span>${boxes(null)}</div>
