@@ -1118,6 +1118,30 @@
     }
   });
 
+  // Your own password lives in the main copy, for you and for each ES.
+  $('#password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target, cur = f.current.value, next = f.next.value;
+    if (next !== f.again.value) return toast('The two new passwords don’t match.');
+    busy('Changing password…');
+    try {
+      if (creds.role === 'super') {
+        await mainCall('superChangePassword', { adminUser: creds.user, adminKey: cur, newPass: next });
+        creds = { ...creds, key: next };
+        saveCreds(creds);
+      } else {
+        await mainCall('esChangePassword', { esUser: creds.user, esKey: creds.key, currentPass: cur, newPass: next });
+      }
+      f.reset();
+      toast('Password changed. Use the new one next time you sign in.');
+    } catch (err) {
+      toast(/wrong username or password/i.test(err.message) ? 'Your current password isn’t right.'
+        : /unknown request/i.test(err.message) ? 'Changing passwords starts working after the next WiSH update.' : err.message);
+    } finally {
+      busy(false);
+    }
+  });
+
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
   const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2'];

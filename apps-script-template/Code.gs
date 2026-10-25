@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 13;
+const WORKIT_VERSION = 14;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -212,7 +212,7 @@ function doPost(e) {
       esLogin: esLogin_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
     };
     const superAdmin = {
-      superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_,
+      superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_, superChangePassword: adminChangePassword_,
     };
     // Requests that only read use the remembered copy of the sheet; anything else reads the
     // sheet itself and makes the next request read it fresh too.
@@ -540,10 +540,27 @@ function checkAdmin_(body) {
 /** Only your username and password; blank in the copies other ES make. */
 function checkSuper_(body) {
   if (!isMain_() || String(body.adminUser || '').trim().toLowerCase() !== ADMIN_USERNAME.toLowerCase() ||
-      String(body.adminKey || '') !== ADMIN_PASSWORD) {
+      !superPassOk_(body.adminKey)) {
     return { ok: false, error: 'Wrong username or password.' };
   }
   return null;
+}
+
+/** Once you change your password in Settings, its hash in Script properties replaces ADMIN_PASSWORD. */
+function superPassOk_(pass) {
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty('ADMIN_PASS_HASH');
+  if (saved) return hash_(props.getProperty('ADMIN_PASS_SALT'), String(pass || '')) === saved;
+  return String(pass || '') === ADMIN_PASSWORD;
+}
+
+/** Your own password change, from Settings. adminKey is the current password. */
+function adminChangePassword_(body) {
+  const pass = String(body.newPass || '');
+  if (pass.length < 8) return { ok: false, error: 'Use at least 8 characters.' };
+  const salt = randomHex_(32);
+  PropertiesService.getScriptProperties().setProperties({ ADMIN_PASS_SALT: salt, ADMIN_PASS_HASH: hash_(salt, pass) });
+  return { ok: true };
 }
 
 function isMain_() {
@@ -638,7 +655,7 @@ function esLogin_(body) {
   if (!isMain_()) return { ok: false, error: 'Unknown request.' };
   const user = String(body.user || '').trim().toLowerCase();
   const pass = String(body.pass || '');
-  if (user === ADMIN_USERNAME.toLowerCase() && pass === ADMIN_PASSWORD) return { ok: true, role: 'super', version: WORKIT_VERSION };
+  if (user === ADMIN_USERNAME.toLowerCase() && superPassOk_(pass)) return { ok: true, role: 'super', version: WORKIT_VERSION };
   const found = findEs_(user);
   const es = found.es;
   if (!es || !es.hash || hash_(es.salt, pass) !== es.hash) {
@@ -672,6 +689,10 @@ function esChangePassword_(body) {
   return withLock_(() => {
     const a = esAuth_(body);
     if (a.error) return a.error;
+    // From Settings the current password is checked too; the first-sign-in change skips it.
+    if (body.currentPass !== undefined && hash_(a.es.salt, String(body.currentPass)) !== a.es.hash) {
+      return { ok: false, error: 'Your current password isn’t right.' };
+    }
     const salt = randomHex_(32);
     a.sheet.getRange(a.es.row, ES.HASH, 1, 3).setValues([[hash_(salt, pass), salt, false]]);
     return { ok: true };
