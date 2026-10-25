@@ -152,7 +152,7 @@
       <p class="hint">Copy rows from Excel or Google Sheets in this order: <b>First name, Last name, Grade, City, Sem 1 classes, Sem 2 classes</b>. Click a cell and paste; the rows fill in below it. Separate classes with commas. Sem 1 is LP1 to LP4 and Sem 2 is LP5 to LP8. Type <b>(Accel)</b> after an accelerated class, for example <i>Algebra 1A H (Accel)</i>: it needs 2 samples per LP. Leave Sem 2 blank to use Sem 1 with A changed to B (the grey text shows the result); accelerated and one-semester classes like Econ are left out, so type Sem 2 whenever it differs. To remove a student, click ✕ on their row. Nothing changes until you click Save students.</p>
       <div class="roster-wrap">
         <table class="roster">
-          <thead><tr><th>#</th><th>First name</th><th>Last name</th><th>Grade</th><th>City</th><th class="sem1">Sem 1 classes <span>LP1–4</span></th><th class="sem2">Sem 2 classes <span>LP5–8</span></th><th>OK?</th><th><span class="sr-only">Remove</span></th></tr></thead>
+          <thead><tr><th>#</th><th>First name</th><th>Last name</th><th>Grade</th><th>City</th><th class="sem1">Sem 1 classes <span>LP1–4</span></th><th class="sem2">Sem 2 classes <span>LP5–8</span></th><th>Student email</th><th>Family email</th><th>OK?</th><th><span class="sr-only">Remove</span></th></tr></thead>
           <tbody id="roster-body"></tbody>
         </table>
       </div>
@@ -174,6 +174,34 @@
         <div class="dates-grid" id="dates-grid"></div>
         <div class="dialog-actions">
           <button class="btn primary" type="submit" id="dates-save">Save dates</button>
+        </div>
+      </form>
+      <form class="card stack settings-card email-card" id="email-form">
+        <h2>Emails</h2>
+        <p class="hint">WiSH emails from your Google account. Family emails go to the addresses in the Student Roster.</p>
+        <label class="check"><input type="checkbox" name="report"> <span>Morning report to me<small>New uploads, days left in the LP, each student’s uploads and what’s missing, and what needs your review.</small></span></label>
+        <div class="row">
+          <label>Time <select name="reportHour">
+            <option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option>
+            <option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option>
+          </select></label>
+          <label>Send it to <input type="email" name="reportTo" spellcheck="false" placeholder="Your account’s email"></label>
+        </div>
+        <fieldset>
+          <legend>Emails to students and families</legend>
+          <label class="check"><input type="radio" name="families" value="off"> <span>Off</span></label>
+          <label class="check"><input type="radio" name="families" value="test"> <span>Test: send them to me instead<small>Check the wording before families get anything.</small></span></label>
+          <label class="check"><input type="radio" name="families" value="on"> <span>On: send them to students and families</span></label>
+        </fieldset>
+        <label class="check"><input type="checkbox" name="reminders"> <span>Missing samples<small>In the last 2 weeks of the LP, every 3 days: which classes still need a sample.</small></span></label>
+        <label class="check"><input type="checkbox" name="redo"> <span>Redo requests<small>A few minutes after you mark Redo, with your reasons.</small></span></label>
+        <label class="check"><input type="checkbox" name="approved"> <span>All approved<small>Once per LP, when every sample is in and approved.</small></span></label>
+        <label>Sign emails as <input name="signature" maxlength="80" placeholder="For example: Joon, your ES"></label>
+        <p class="note" id="email-status" hidden></p>
+        <div class="dialog-actions">
+          <button class="btn primary" type="submit">Save emails</button>
+          <button class="btn" type="button" id="email-test-report">Email me today’s report</button>
+          <button class="btn" type="button" id="email-test-families">Email me sample family emails</button>
         </div>
       </form>
       <form class="card stack settings-card" id="password-form">

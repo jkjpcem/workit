@@ -248,7 +248,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster-actions .meta { color: var(--warn); font-weight: 650; }
 #screen-roster .hint { margin-top: 12px; max-width: 80ch; }
 .roster-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-.roster { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px; }
+.roster { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 1260px; }
 .roster th { position: sticky; top: 0; z-index: 1; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
   color: var(--muted); background: var(--field); padding: 10px 8px; border-bottom: 1px solid var(--line); }
 .roster td { padding: 0; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); vertical-align: middle; }
@@ -285,6 +285,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster th.sem2 { box-shadow: inset 0 -3px 0 var(--st-finalized); }
 .roster th span { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
 .roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
+.roster td.col-email, .roster td.col-family { min-width: 210px; }
 .roster td.col-classes2 input::placeholder { color: var(--muted); opacity: .75; font-style: italic; }
 .roster .sid-cell b.ok { color: var(--st-finalized); }
 
@@ -547,3 +548,13 @@ a.brand:hover { opacity: .9; }
 /* Forgot password */
 .forgot-link { align-self: center; }
 #forgot-form h2 { margin: 0; font-size: 18px; }
+
+/* Emails (Settings) */
+.email-card .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; }
+.email-card .check input { width: auto; margin-top: 3px; }
+.email-card .check small { display: block; color: var(--muted); font-weight: 400; }
+.email-card .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.email-card .row > label { flex: 1 1 200px; }
+.email-card fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 8px; }
+.email-card legend { font-weight: 650; padding: 0 6px; }
+.email-card .dialog-actions { flex-wrap: wrap; }

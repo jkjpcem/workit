@@ -1113,7 +1113,63 @@
     $('#dates-save').hidden = shared;
     currentStudent = null;
     show('settings');
+    loadEmails();
   }
+
+  // ----- Emails: the morning report and family emails -----
+  const emailForm = $('#email-form');
+  const emailError = (err) => /unknown request/i.test(err.message) ? 'Emails start working after the next WiSH update.'
+    : /permission|authoriz/i.test(err.message) ? 'Google needs you to allow WiSH to email on a schedule first. Ask Claude to “turn on WiSH emails”.'
+    : err.message;
+  function emailStatus(text) {
+    $('#email-status').textContent = text;
+    $('#email-status').hidden = !text;
+  }
+  function fillEmails(res) {
+    const s = res.settings;
+    emailForm.report.checked = s.report;
+    emailForm.reportHour.value = String(s.reportHour);
+    emailForm.reportTo.value = s.reportTo || '';
+    emailForm.reportTo.placeholder = s.me || 'Your account’s email';
+    $$('input[name="families"]', emailForm).forEach(r => { r.checked = r.value === s.families; });
+    emailForm.reminders.checked = s.reminders;
+    emailForm.redo.checked = s.redo;
+    emailForm.approved.checked = s.approved;
+    emailForm.signature.value = s.signature || '';
+    emailStatus(res.running ? `Emails are on. ${s.report ? `Your report comes about ${emailForm.reportHour.selectedOptions[0].text}.` : ''}${s.families === 'test' ? ' Family emails come to you while Test is picked.' : ''}`
+      : 'Emails aren’t scheduled yet. Click Save emails to start them.');
+  }
+  async function loadEmails() {
+    emailStatus('');
+    try { fillEmails(await call('adminEmailSettings')); } catch (err) { emailStatus(emailError(err)); }
+  }
+  // The link in family emails: this site, with ?es= for an ES's own students.
+  const studentLink = () => new URL('./', location.href).href + (creds.role === 'es' ? `?es=${encodeURIComponent(creds.user)}` : '');
+  emailForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = emailForm;
+    const families = ($('input[name="families"]:checked', f) || {}).value || 'test';
+    if (families === 'on' && !confirm('Turn on emails to students and families? They’ll start getting WiSH emails from your account.')) return;
+    busy('Saving…');
+    try {
+      fillEmails(await call('adminSaveEmailSettings', { settings: {
+        report: f.report.checked, reportHour: Number(f.reportHour.value), reportTo: f.reportTo.value.trim(), families,
+        reminders: f.reminders.checked, redo: f.redo.checked, approved: f.approved.checked,
+        signature: f.signature.value.trim(), link: studentLink(),
+      } }));
+      toast('Email settings saved.');
+    } catch (err) {
+      toast(emailError(err));
+    } finally {
+      busy(false);
+    }
+  });
+  const emailTest = (kind) => async () => {
+    busy('Sending…');
+    try { toast((await call('adminEmailTest', { kind })).message); } catch (err) { toast(emailError(err)); } finally { busy(false); }
+  };
+  $('#email-test-report').addEventListener('click', emailTest('report'));
+  $('#email-test-families').addEventListener('click', emailTest('families'));
   $('#open-dates').addEventListener('click', () => openSettings('dash'));
   $('#settings-back').addEventListener('click', () => {
     if (settingsBack === 'setup') return Setup.open();
@@ -1167,7 +1223,7 @@
 
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
-  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2'];
+  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family'];
   const GRADE_LIST = ['8', '9', '10', '11', '12'];
   let roster = [];
   let rosterDirty = false;
@@ -1177,7 +1233,7 @@
     const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
-  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '' });
+  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '', email: '', family: '' });
   // A blank Sem 2 cell shows what the student will get: Sem 1 with A changed to B.
   const sem2Hint = (r) => {
     const list = Classes.sem2From(Classes.parse(r.classes));
@@ -1228,7 +1284,7 @@
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}">
         <td class="num">${i + 1}</td>
-        ${COLS.map(k => `<td class="col-${k}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}></td>`).join('')}
+        ${COLS.map(k => `<td class="col-${k}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}></td>`).join('')}
         <td class="sid-cell" title="${esc(problem)}">${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
         <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
       </tr>`;
