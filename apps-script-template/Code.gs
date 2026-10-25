@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 15;
+const WORKIT_VERSION = 16;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -1512,16 +1512,26 @@ function googleFileInfo_(link) {
   if (!info.kind) throw new Error('That link isn’t a Google Doc or Google Slides. For other files, download them and use Choose a file.');
   info.name = String(meta.name || 'Untitled').slice(0, 120);
   info.url = meta.webViewLink || link;
+  // The script runs as you, so it could open files only you can see. Students may only hand in
+  // files anyone with the link can open, checked without your sign-in.
+  const open = UrlFetchApp.fetch(publicUrl_(info, '/edit'), { followRedirects: false, muteHttpExceptions: true });
+  if (open.getResponseCode() !== 200) throw new Error(NO_ACCESS);
   return info;
 }
 
+function publicUrl_(info, path) {
+  const kind = info.kind === 'Google Slides' ? 'presentation' : 'document';
+  return 'https://docs.google.com/' + kind + '/d/' + encodeURIComponent(info.id) + path +
+    (info.resourceKey ? (path.indexOf('?') === -1 ? '?' : '&') + 'resourcekey=' + encodeURIComponent(info.resourceKey) : '');
+}
+
+// Exported without your sign-in too, so only a file shared with anyone with the link comes back.
 function googleFilePdf_(info) {
-  const res = driveGet_('/export?mimeType=application%2Fpdf', info);
-  if (res.getResponseCode() === 403 && /exportSizeLimitExceeded/.test(res.getContentText())) {
-    throw new Error('That file is too big for Google to turn into a PDF. Download it as a PDF and use Choose a file instead.');
-  }
-  if (res.getResponseCode() !== 200) throw new Error(NO_ACCESS);
-  return res.getContent();
+  const res = UrlFetchApp.fetch(publicUrl_(info, info.kind === 'Google Slides' ? '/export/pdf' : '/export?format=pdf'), { muteHttpExceptions: true });
+  const type = String((res.getHeaders() || {})['Content-Type'] || (res.getHeaders() || {})['content-type'] || '');
+  if (res.getResponseCode() === 200 && /application\/pdf/i.test(type)) return res.getContent();
+  if (res.getResponseCode() === 200 || res.getResponseCode() === 401 || res.getResponseCode() === 403 || res.getResponseCode() === 404) throw new Error(NO_ACCESS);
+  throw new Error('That file is too big for Google to turn into a PDF, or Google is busy. Download it as a PDF and use Choose a file instead.');
 }
 
 function getCurrentLp_() {
