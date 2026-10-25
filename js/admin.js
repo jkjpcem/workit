@@ -1361,7 +1361,9 @@
 
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
+  // Spreadsheet order, for pasting. Classes are edited in their own table below the students.
   const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family'];
+  const MAIN_COLS = ['first', 'last', 'grade', 'city', 'email', 'family'];
   const GRADE_LIST = ['8', '9', '10', '11', '12'];
   let roster = [];
   let rosterDirty = false;
@@ -1372,11 +1374,10 @@
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
   const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '', email: '', family: '' });
-  // A blank Sem 2 cell shows what the student will get: Sem 1 with A changed to B.
-  const sem2Hint = (r) => {
-    const list = Classes.sem2From(Classes.parse(r.classes));
-    return list.length ? `Blank = ${list.map(c => c.name).join(', ')}` : '';
-  };
+  // A blank Sem 2 means Sem 1 with A changed to B.
+  const classList = (r, k) => k === 'classes2' && !String(r.classes2 || '').trim()
+    ? Classes.sem2From(Classes.parse(r.classes)) : Classes.parse(r[k]);
+  const classText = (list) => list.map(c => c.name + (c.need === 2 ? ' (Accel)' : '')).join(', ');
   const isEmpty = (r) => COLS.every(k => !String(r[k] || '').trim());
   // Whether reminders can reach this family.
   const remCell = (r) => isEmpty(r) ? '<td class="rem-cell"></td>'
@@ -1426,14 +1427,68 @@
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}">
         <td class="num fz fz0">${i + 1}</td>
-        ${COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'classes2' ? ` placeholder="${esc(sem2Hint(r))}"` : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
+        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
         <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
+    renderClasses();
   }
+
+  // ----- Classes: one tag per class, Sem 1 and Sem 2 side by side -----
+  function renderClasses() {
+    const rows = roster.map((r, i) => ({ r, i })).filter(x => !isEmpty(x.r));
+    $('#classes-body').innerHTML = rows.length ? rows.map(({ r, i }) => `<tr data-r="${i}">
+        <td class="cls-who">${esc(`${r.first} ${r.last}`.trim() || '(no name)')}</td>
+        ${['classes', 'classes2'].map(k => {
+          const derived = k === 'classes2' && !String(r.classes2 || '').trim();
+          const list = classList(r, k);
+          return `<td class="cls-cell${derived ? ' derived' : ''}" data-k="${k}">
+            ${derived && list.length ? '<span class="cls-note">Same as Sem 1, A → B:</span>' : ''}
+            ${list.map((c, n) => `<span class="cls${c.need === 2 ? ' accel' : ''}"><button type="button" class="cls-name" data-acc="${n}" title="Click to switch Accel on or off">${esc(c.name)}${c.need === 2 ? '<b>Accel</b>' : ''}</button><button type="button" class="cls-x" data-del="${n}" aria-label="Remove ${esc(c.name)}">×</button></span>`).join('')}
+            <input class="cls-add" placeholder="${list.length ? '＋ Add' : '＋ Add a class'}" aria-label="Add a ${k === 'classes' ? 'Sem 1' : 'Sem 2'} class for ${esc(r.first)}">
+          </td>`;
+        }).join('')}
+      </tr>`).join('') : '<tr><td colspan="3" class="cls-empty">Add students above, then their classes show here.</td></tr>';
+  }
+  function setClasses(i, k, list) {
+    roster[i][k] = classText(list);
+    setDirty(true);
+    renderClasses();
+  }
+  $('#classes-body').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del], [data-acc]');
+    if (!b) return;
+    const i = Number(b.closest('tr').dataset.r), k = b.closest('td').dataset.k;
+    const list = classList(roster[i], k);
+    if (b.dataset.del !== undefined) list.splice(Number(b.dataset.del), 1);
+    else { const c = list[Number(b.dataset.acc)]; c.need = c.need === 2 ? 1 : 2; }
+    setClasses(i, k, list);
+  });
+  // Type a class and press Enter or a comma. "(Accel)" after a name marks it accelerated.
+  function addClasses(inp) {
+    const text = inp.value.trim();
+    if (!text) return;
+    const i = Number(inp.closest('tr').dataset.r), k = inp.closest('td').dataset.k;
+    const list = classList(roster[i], k);
+    Classes.parse(text).forEach(c => { if (!list.some(x => x.name.toLowerCase() === c.name.toLowerCase())) list.push(c); });
+    setClasses(i, k, list);
+    const again = $(`#classes-body tr[data-r="${i}"] td[data-k="${k}"] .cls-add`);
+    if (again) again.focus();
+  }
+  $('#classes-body').addEventListener('keydown', (e) => {
+    const inp = e.target.closest('.cls-add');
+    if (!inp) return;
+    if (e.key === 'Enter' || (e.key === ',' && !/\(/.test(inp.value.split(',').pop()))) { e.preventDefault(); addClasses(inp); }
+    else if (e.key === 'Backspace' && !inp.value) {
+      const i = Number(inp.closest('tr').dataset.r), k = inp.closest('td').dataset.k;
+      const list = classList(roster[i], k);
+      if (list.length) { list.pop(); setClasses(i, k, list); $(`#classes-body tr[data-r="${i}"] td[data-k="${k}"] .cls-add`).focus(); }
+    }
+  });
+  $('#classes-body').addEventListener('focusout', (e) => { if (e.target.closest('.cls-add') && e.target.value.trim()) addClasses(e.target); });
   // The number and name columns stay put while the rest scrolls; each starts where the one before ends.
   function pinNames() {
     const ths = $$('#screen-roster th.fz');
@@ -1450,9 +1505,9 @@
     if (!inp) return;
     const i = Number(inp.closest('tr').dataset.r);
     roster[i][inp.dataset.k] = inp.value;
-    if (inp.dataset.k === 'classes') $('input[data-k="classes2"]', inp.closest('tr')).placeholder = sem2Hint(roster[i]);
     setDirty(true);
     refreshIds();
+    if (inp.dataset.k === 'first' || inp.dataset.k === 'last' || isEmpty(roster[i]) !== !$(`#classes-body tr[data-r="${i}"]`)) renderClasses();
   });
   function refreshIds() {
     const counts = {};
