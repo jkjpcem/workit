@@ -697,13 +697,15 @@ function esForgot_(body) {
   const pass = tempPassword_();
   const salt = randomHex_(32);
   props.setProperty(key, JSON.stringify({ hash: hash_(salt, pass), salt: salt, sent: Date.now() }));
-  const link = String(body.link || '');
+  // Anyone can ask, so the link in the email is only ever WiSH's own address.
+  const asked = String(body.link || '');
+  const link = /^https:\/\/(www\.)?worksample\.app\/[^\s]*$|^https:\/\/jkjpcem\.github\.io\/workit\/[^\s]*$/.test(asked) ? asked : 'https://worksample.app/admin';
   const text = [
     'Hi ' + es.name.split(' ')[0] + ',',
     '',
     'Someone (hopefully you) asked for a new WiSH password. If it wasn’t you, ignore this email: your current password still works.',
     '',
-    '1. On a computer, open: ' + (/^https:\/\/[^\s]+$/.test(link) ? link : 'the WiSH ES dashboard'),
+    '1. On a computer, open: ' + link,
     '2. Username: ' + es.user,
     '   Temporary password: ' + pass,
     '3. Choose your own password right after you sign in.',
