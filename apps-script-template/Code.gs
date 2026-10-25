@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 19;
+const WORKIT_VERSION = 20;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -1858,31 +1858,31 @@ const EMAIL_LOG = 'Email log';
 const REDO_WAIT_MINUTES = 5;    // time to finish picking redo reasons before it goes out
 const QUIET_FROM = 20;          // family emails that happen in the evening wait until morning
 const QUIET_UNTIL = 7;
-const SCHEDULE_CHOICES = ['none', 'once', 'every3', 'daily'];
+const SCHEDULE_CHOICES = ['none', 'once', 'every5', 'every4', 'every3', 'every2', 'daily'];
 
 const EMAIL_TEMPLATES = {
   missing: {
-    subject: '{first} still needs {count} for {lp}',
-    body: 'Hi {first} and family,\n\n{first} still needs to turn in work samples for these classes in {lp}:\n\n{missing classes}\n\n' +
+    subject: '{student_first_name} still needs {count} for {lp}',
+    body: 'Hi {student_first_name} and family,\n\n{student_first_name} still needs to turn in work samples for these classes in {lp}:\n\n{missing classes}\n\n' +
       '{lp} ends {end date} ({days left} days left). Turn them in at {link}\n\nThank you,\nYour ES',
   },
   redo: {
-    subject: 'Please redo {first}’s {class} sample ({lp})',
-    body: 'Hi {first} and family,\n\n{first}’s {class} work sample for {lp} needs a redo.\n\nWhat to fix:\n{reasons}\n\n' +
+    subject: 'Please redo {student_first_name}’s {class} sample ({lp})',
+    body: 'Hi {student_first_name} and family,\n\n{student_first_name}’s {class} work sample for {lp} needs a redo.\n\nWhat to fix:\n{reasons}\n\n' +
       'Sign in at {link}, open My uploads, and tap Resubmit on that sample.\n\nThank you,\nYour ES',
   },
   approved: {
-    subject: 'All of {first}’s {lp} work samples are approved',
-    body: 'Hi {first} and family,\n\nGood news: every work sample {first} needs for {lp} is turned in and approved. ' +
+    subject: 'All of {student_first_name}’s {lp} work samples are approved',
+    body: 'Hi {student_first_name} and family,\n\nGood news: every work sample {student_first_name} needs for {lp} is turned in and approved. ' +
       'Nothing else is needed for {lp}.\n\nThank you,\nYour ES',
   },
   each: {
-    subject: '{first}’s {class} sample is approved',
-    body: 'Hi {first} and family,\n\n{first}’s {class} work sample for {lp} is approved.\n\nThank you,\nYour ES',
+    subject: '{student_first_name}’s {class} sample is approved',
+    body: 'Hi {student_first_name} and family,\n\n{student_first_name}’s {class} work sample for {lp} is approved.\n\nThank you,\nYour ES',
   },
   received: {
-    subject: 'WiSH got {first}’s {class} sample',
-    body: 'Hi {first} and family,\n\nWiSH received {first}’s {class} work sample for {lp}. Your ES will look at it soon.\n\nThank you,\nYour ES',
+    subject: 'WiSH got {student_first_name}’s {class} sample',
+    body: 'Hi {student_first_name} and family,\n\nWiSH received {student_first_name}’s {class} work sample for {lp}. Your ES will look at it soon.\n\nThank you,\nYour ES',
   },
 };
 
@@ -1892,7 +1892,7 @@ const EMAIL_DEFAULTS = {
   famHow: 'event',               // 'event' (as things happen) | 'daily' (one summary a day)
   famHour: 7,
   missing: true, redo: true, approved: true, each: false, received: false,
-  weeks: ['none', 'once', 'once', 'every3', 'daily'], // weeks 1-2, 3, 4, 5, 6+
+  weeks: ['none', 'once', 'once', 'every3'], // weeks 1-2, 3, 4, 5+
   onceDay: 1,                    // 1 = Monday ... 5 = Friday
   noWeekends: true, noHolidays: true,
   pauseFrom: '', pauseTo: '',
@@ -1901,7 +1901,7 @@ const EMAIL_DEFAULTS = {
   weekly: false, weeklyDay: 5,
   live: false,
   inReport: { uploads: true, daysLeft: true, families: true, waiting: true, sent: true },
-  esEvents: { upload: false, resubmit: true, lpEnd: true },
+  esEvents: { upload: false, resubmit: false, lpEnd: false },
   templates: {},                 // only the ones you changed
   link: APP_URL,
 };
@@ -1911,6 +1911,7 @@ function emailSettings_() {
   const s = Object.assign({}, EMAIL_DEFAULTS, saved);
   s.inReport = Object.assign({}, EMAIL_DEFAULTS.inReport, saved.inReport || {});
   s.esEvents = Object.assign({}, EMAIL_DEFAULTS.esEvents, saved.esEvents || {});
+  if (s.weeks.length > 4) s.weeks = s.weeks.slice(0, 4); // version 19 had a separate week 6
   s.me = Session.getEffectiveUser().getEmail();
   return s;
 }
@@ -2067,7 +2068,7 @@ function lpWeek_(range, ymd) {
 }
 
 function weekRule_(s, week) {
-  return week <= 2 ? s.weeks[0] : week >= 6 ? s.weeks[4] : s.weeks[week - 2];
+  return week <= 2 ? s.weeks[0] : week >= 5 ? s.weeks[3] : s.weeks[week - 2];
 }
 
 /** The day in an LP week that "Once" reminders go out on. */
@@ -2088,7 +2089,8 @@ function reminderDue_(s, range, ymd, last) {
   if (rule === 'none') return false;
   if (last === ymd) return false;
   if (rule === 'daily') return true;
-  if (rule === 'every3') return !last || daysBetween_(last, ymd) >= 3;
+  const every = Number(rule.replace('every', ''));
+  if (every) return !last || daysBetween_(last, ymd) >= every;
   // once: on the chosen weekday, or the first send day after it if that one was skipped
   const target = onceTarget_(s, range, week);
   return ymd >= target && !(last && lpWeek_(range, last) === week);
@@ -2280,7 +2282,7 @@ function dashLink_(s) {
 
 function studentVars_(s, st, x) {
   return {
-    first: x.student.firstName || x.student.name, lp: st.lp,
+    first: x.student.firstName || x.student.name, student_first_name: x.student.firstName || x.student.name, lp: st.lp,
     count: x.missing.length + ' work sample' + (x.missing.length === 1 ? '' : 's'),
     'missing classes': x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
@@ -2291,15 +2293,15 @@ function studentVars_(s, st, x) {
 function itemVars_(s, st, student, i) {
   const why = i.reasons.concat(i.redoNote ? [i.redoNote] : []).map(r => '  • ' + r).join('\n');
   return {
-    first: student.firstName || student.name, lp: i.lp, count: '', 'missing classes': '',
+    first: student.firstName || student.name, student_first_name: student.firstName || student.name, lp: i.lp, count: '', 'missing classes': '',
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: i.subject, reasons: why || '  • See the note on the sample',
   };
 }
 
-/** Puts each family's details into {first}, {lp} and the other fill-ins. */
+/** Puts each family's details into {student_first_name}, {lp} and the other fill-ins ({first} still works). */
 function fill_(tpl, vars) {
-  const put = (text) => String(text).replace(/\{([a-z ]+)\}/g, (m, k) => vars[k] !== undefined ? vars[k] : m);
+  const put = (text) => String(text).replace(/\{([a-z_ ]+)\}/g, (m, k) => vars[k] !== undefined ? vars[k] : m);
   return { subject: put(tpl.subject).replace(/\s+/g, ' ').trim(), body: put(tpl.body) };
 }
 
