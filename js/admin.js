@@ -293,13 +293,13 @@
         (mine.length > 6 ? `<span class="more">+${mine.length - 5}</span>` : '');
       card.innerHTML = `
         <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
-        ${mine.length ? `
+        <div class="card-uploads">${mine.length ? `
           <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
             by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
           <div class="counts"><b>${mine.length}</b> upload${mine.length > 1 ? 's' : ''} ·
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
-        : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}
+        : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}</div>
         ${subjects ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
         <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
       card.addEventListener('click', (e) => {
@@ -313,7 +313,18 @@
       });
       grid.appendChild(card);
     }
+    evenUploads();
   }
+
+  // The upload area is as tall on every card as on the tallest, so class lists all start at the same height.
+  function evenUploads() {
+    const boxes = $$('#student-grid .card-uploads');
+    boxes.forEach(b => { b.style.minHeight = ''; });
+    const h = Math.max(0, ...boxes.filter(b => !b.querySelector('.empty-card')).map(b => b.offsetHeight));
+    boxes.forEach(b => { b.style.minHeight = h ? h + 'px' : ''; });
+  }
+  let evenTimer = null;
+  window.addEventListener('resize', () => { clearTimeout(evenTimer); evenTimer = setTimeout(evenUploads, 150); });
 
   // Short class names for the dashboard cards ("English 10 A H" -> "Eng 10"); the full name is in the tooltip.
   const SHORT = [
@@ -608,9 +619,8 @@
       $('#t-send').hidden = !!it.redo;
       $('#t-send').disabled = !hasReason(it);
       $('#redo-sent').hidden = !it.redo;
-      $('#redo-sent').textContent = it.redoSentAt
-        ? `✓ Sent back to student ${new Date(it.redoSentAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
-        : '✓ Sent back to student';
+      $('#redo-sent').textContent = it.redoSentAt ? `✓ Sent back to student ${daysAgo(it.redoSentAt)}` : '✓ Sent back to student';
+      $('#redo-sent').title = it.redoSentAt ? new Date(it.redoSentAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
       // Annotate works any time except on a redo; filing needs Approve first.
       $('#finish-row').hidden = redoing;
       $('#t-annotate').disabled = redoing;
@@ -666,6 +676,12 @@
       if (annoTimer) { clearTimeout(annoTimer); saveAnnotations(item()); }
     }
 
+    // "today", "yesterday", "3 days ago" (calendar days).
+    function daysAgo(ms) {
+      const day = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+      const n = Math.round((day(Date.now()) - day(ms)) / 86400000);
+      return n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`;
+    }
     function hasReason(it) { return (it.reasons || []).length > 0 || !!String(it.redoNote || '').trim(); }
     // A redo that was picked but not sent: leaving the sample drops it (after asking, if reasons were picked).
     function dropDraft() {
