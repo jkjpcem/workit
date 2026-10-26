@@ -159,7 +159,7 @@
   async function loadOverview(lp, { stay = false } = {}) {
     busy('Loading…');
     try {
-      data = await call('adminOverview', { lp });
+      data = keepRecent(await call('adminOverview', { lp }));
       viewLp = data.lp;
       renderControls();
       renderDash();
@@ -354,7 +354,7 @@
       loadingStudent = id;
       renderStudent();
       try {
-        studentCache[id] = (await call('adminStudent', { studentId: id })).items;
+        studentCache[id] = keepRecent({ items: (await call('adminStudent', { studentId: id })).items }).items;
       } catch (err) {
         toast(err.message);
       } finally {
@@ -434,8 +434,27 @@
     if (t) Viewer.open(studentItems(), Number(t.dataset.idx), currentStudent);
   });
 
+  // Approve/Redo changes made in the last few minutes win over a list that comes back from
+  // Google, which can be a moment behind (it was read just before the change was saved).
+  const recent = new Map();
+  const RECENT_MS = 6 * 60 * 1000;
+  function keepRecent(res) {
+    const now = Date.now();
+    for (const [k, v] of recent) if (now - v.at > RECENT_MS) recent.delete(k);
+    for (const it of (res && res.items) || []) {
+      const mine = recent.get(it.studentId + '|' + it.id);
+      if (mine) Object.assign(it, mine.fields);
+    }
+    return res;
+  }
+
   // The same upload can be in the overview and the student cache; keep them matching.
   function syncCaches(item, fields) {
+    if (fields.includes('redo')) {
+      const f = {};
+      for (const k of fields) f[k] = Array.isArray(item[k]) ? item[k].slice() : item[k];
+      recent.set(item.studentId + '|' + item.id, { fields: f, at: Date.now() });
+    }
     for (const arr of [data.items, studentCache[item.studentId] || []]) {
       const other = arr.find(i => i.id === item.id && i.studentId === item.studentId);
       if (other && other !== item) for (const f of fields) other[f] = item[f];
@@ -621,6 +640,7 @@
         await call('adminReview', { studentId: it.studentId, id: it.id, approved: !!it.approved, redo: !!it.redo, reasons: it.reasons || [], note: it.redoNote || '' });
         if (item() === it) $('#v-save').textContent = 'Saved ✓';
       } catch (err) {
+        recent.delete(it.studentId + '|' + it.id);
         if (item() === it) $('#v-save').textContent = 'Not saved';
         toast(`Couldn’t save: ${err.message}`);
       }
@@ -1640,7 +1660,7 @@
       roster = rows.concat([blankRow(), blankRow(), blankRow()]);
       renderRoster();
       Object.keys(studentCache).forEach(k => delete studentCache[k]);
-      data = await call('adminOverview', { lp: viewLp });
+      data = keepRecent(await call('adminOverview', { lp: viewLp }));
       renderDash();
       toast(`Saved ${res.count} student${res.count === 1 ? '' : 's'}.`);
     } catch (err) {

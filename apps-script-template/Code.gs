@@ -220,6 +220,7 @@ function doPost(e) {
     };
     // Requests that only read use the remembered copy of the sheet; anything else reads the
     // sheet itself and makes the next request read it fresh too.
+    MEMO_GEN_ = null;
     FRESH_ = READ_ONLY_ACTIONS.indexOf(body.action) === -1;
     // Once a day, the first request empties samples that have been in the Trash for 60 days.
     if (emptyTrashDaily_()) { memoClear_(); FRESH_ = true; }
@@ -1630,12 +1631,17 @@ const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'adminOverview'
   'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 
+// Each request keeps the generation it started with. A slow read that finishes after a change
+// then saves its (now old) copy under the old generation, where nothing will use it.
+let MEMO_GEN_ = null;
 function memoGen_(cache) {
+  if (MEMO_GEN_) return MEMO_GEN_;
   let gen = cache.get('memo-gen');
   if (!gen) {
     gen = String(Date.now());
     cache.put('memo-gen', gen, 21600);
   }
+  MEMO_GEN_ = gen;
   return gen;
 }
 
