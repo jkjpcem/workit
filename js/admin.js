@@ -92,6 +92,7 @@
     data = null;
     currentStudent = null;
     Core.reset();
+    Meetings.reset();
     show('login');
   }
 
@@ -166,6 +167,8 @@
     } finally {
       busy(false);
     }
+    // Bookings come from the calendar, which can be slow, so they fill in afterwards.
+    Meetings.load().then(() => redrawMeetings()).catch(() => {});
     // Checked once per visit, after the dashboard is already showing.
     if (creds && creds.role === 'es' && !datesFollowed) {
       datesFollowed = true;
@@ -253,7 +256,8 @@
       ['approved', count('approved'), 'Approved, not filed yet'],
       ['finalized', count('finalized'), 'Filed (Annotated or Extra)'],
       ['redo', count('redo'), 'Waiting on redo'],
-    ].map(([cls, n, label]) => `<div class="tile ${cls}"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
+      Meetings.tile(viewLp, data.students),
+    ].filter(Boolean).map(([cls, n, label]) => `<div class="tile ${cls}"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
 
     const q = $('#student-search').value.trim().toLowerCase();
     const grid = $('#student-grid');
@@ -296,7 +300,8 @@
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}
-        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}`;
+        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}
+        ${Meetings.cardLine(s.id, viewLp)}`;
       card.addEventListener('click', (e) => {
         const img = e.target.closest('img[data-id]');
         if (img) {
@@ -356,6 +361,7 @@
     $('#student-lps').innerHTML = ['all', ...data.lps].map(lp => `
       <button class="chip ${studentLp === lp ? 'active' : ''}" data-lp="${lp}">${lp === 'all' ? 'All' : lp}${lp === data.currentLp ? ' •' : ''}</button>`).join('');
     renderClassCheck(s);
+    Meetings.studentCard(s);
     const items = studentItems();
     const grid = $('#upload-grid');
     if (!items.length) {
@@ -1182,7 +1188,7 @@
 
   const remForm = $('#rem-form');
   const TPL_FILLS = {
-    missing: ['student_first_name', 'lp', 'count', 'missing classes', 'days left', 'end date', 'link'],
+    missing: ['student_first_name', 'lp', 'count', 'missing classes', 'days left', 'end date', 'link', 'booking link'],
     redo: ['student_first_name', 'class', 'lp', 'reasons', 'link'],
     approved: ['student_first_name', 'lp', 'link'],
     each: ['student_first_name', 'class', 'lp', 'link'],
@@ -1289,6 +1295,7 @@
       'days left': st.daysLeft === null || st.daysLeft === undefined ? '' : String(Math.max(0, st.daysLeft)),
       'end date': st.range ? dayName(st.range.end) : '', link: new URL('./', location.href).host + (creds.role === 'es' ? `/?es=${creds.user}` : ''),
       class: 'Biology', reasons: '  • Missing date\n  • Please add your score',
+      'booking link': Meetings.link(st.lp) || 'calendar.app.google/…',
     };
     const put = (t) => String(t).replace(/\{([a-z_ ]+)\}/g, (m, k) => vars[k] ?? m);
     $('#pv-to').textContent = `To: ${sample.to && sample.to.length ? sample.to.join(', ') : 'parent@…, student@…'}`;
@@ -1672,6 +1679,31 @@
     openDash: () => loadOverview(),
     openRoster: () => { $('#open-roster').click(); rosterBack = 'setup'; $('#roster-back').textContent = '← Back to setup'; },
     openDates: () => openSettings('setup'),
+  });
+
+  // ---------- LP meetings (js/meetings.js) ----------
+
+  const Meetings = AdminMeetings({
+    $, esc, toast, busy, show, call,
+    data: () => data,
+    lps: () => data.lps,
+    openStudent: (id) => openStudent(id, viewLp).catch(err => toast(err.message)),
+    redraw: () => redrawMeetings(),
+  });
+  function redrawMeetings() {
+    if (!data) return;
+    if (!$('#screen-dash').hidden) renderDash();
+    if (!$('#screen-student').hidden && currentStudent) renderStudent();
+  }
+  $('#open-meetings').addEventListener('click', () => {
+    if (!data) return;
+    currentStudent = null;
+    Meetings.setLp(viewLp);
+    Meetings.open(viewLp).catch(err => toast(err.message));
+  });
+  $('#meet-back').addEventListener('click', () => {
+    renderDash();
+    show('dash');
   });
 
   // ---------- Core subjects (js/core.js) ----------

@@ -23,6 +23,7 @@
       <button class="btn small" id="open-roster">Student Roster</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
       <button class="btn small" id="open-reminders">Reminders</button>
+      <button class="btn small" id="open-meetings">Meetings</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
       <button class="btn small" id="open-accounts" hidden>ES accounts</button>
       <div class="user-menu">
@@ -361,6 +362,32 @@
       <div class="trash-grid" id="trash-grid"></div>
     </section>
 
+    <!-- LP meetings families booked on your Google Calendar booking pages -->
+    <section id="screen-meetings" class="screen" hidden>
+      <button class="btn ghost back-link" id="meet-back">← Dashboard</button>
+      <div class="dash-head">
+        <div class="lp-head">
+          <h1>LP meetings</h1>
+          <label class="inline lp-pick">Showing <select id="meet-lp" aria-label="Learning period to show"></select></label>
+        </div>
+        <span class="meet-cal"><span class="meta" id="meet-cal"></span> <button class="btn small ghost" type="button" id="meet-refresh">↻ Check calendar now</button></span>
+      </div>
+      <p class="note warn" id="meet-allow" hidden></p>
+      <div class="meet-cols">
+        <div id="meet-body"></div>
+        <form class="card stack meet-side" id="meet-form">
+          <h2>Booking pages</h2>
+          <p class="hint">In Google Calendar, make a booking page (Create → Appointment schedule) for each LP, then paste its link here. Families get a “Book your LP meeting” button in WiSH, and your reminder emails can use <code>{booking link}</code>.</p>
+          <div id="meet-links" class="meet-links"></div>
+          <label>Other events to count <span class="meta">(optional)</span>
+            <input name="words" placeholder="For example: LP meeting, Family conference" spellcheck="false">
+          </label>
+          <p class="hint">WiSH always counts bookings made on a booking page. Add words here to also count events you put on your calendar yourself whose title has one of these words (separate with commas). Put “LP3” in a title to count it for LP3.</p>
+          <button class="btn primary" type="submit">Save</button>
+        </form>
+      </div>
+    </section>
+
     <!-- The link and QR code students use -->
     <section id="screen-link" class="screen" hidden>
       <button class="btn ghost back-link" id="link-back">← Dashboard</button>
@@ -376,6 +403,7 @@
           <div class="student-head" id="student-head"></div>
           <div class="chips" id="student-lps"></div>
           <div class="card class-check" id="student-classes" hidden></div>
+          <div class="card class-check" id="student-meetings" hidden></div>
           <div class="upload-grid" id="upload-grid"></div>
         </div>
         <aside class="card rp-side student-core" id="student-core" hidden></aside>
@@ -470,6 +498,7 @@
   <script src="js/qrcode.js"></script>
   <script src="js/setup.js"></script>
   <script src="js/core.js"></script>
+  <script src="js/meetings.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

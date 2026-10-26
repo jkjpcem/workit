@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 20;
+const WORKIT_VERSION = 21;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -209,6 +209,7 @@ function doPost(e) {
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
+      adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
     };
     const es = {
       esLogin: esLogin_, esForgot: esForgot_, esLookup: esLookup_, esChangePassword: esChangePassword_, esSaveSetup: esSaveSetup_, esClaim: esClaim_, schoolDates: schoolDates_,
@@ -247,7 +248,7 @@ function login_(body) {
     .map(i => ({ id: i.id, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted, reasons: i.reasons, redoNote: i.redoNote }));
   // The student's uploads come along, so the app doesn't have to ask a second time.
   return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), alerts: alerts,
-    items: mine.map(publicItem_), trash: studentTrash_(all) };
+    items: mine.map(publicItem_), trash: studentTrash_(all), meetings: studentMeetings_(student.id) };
 }
 
 /** Remembers when each student last signed in (shown in the Student Roster). Kept apart from the
@@ -1621,7 +1622,7 @@ const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
 const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList',
-  'adminRoster', 'adminCore', 'adminEmailSettings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
+  'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 
 function memoGen_(cache) {
@@ -2166,6 +2167,8 @@ function emailState_() {
 
 /** Every 10 minutes: whatever is due goes out. Nothing is sent twice (see the Email log tab). */
 function wishTick() {
+  // Keeps the LP meeting bookings fresh, so sign-in never waits for the calendar.
+  if (Object.keys(meetingSettings_().links).length) { try { readBookings_(true); } catch (err) { /* not allowed yet */ } }
   const s = emailSettings_();
   if (s.families === 'off' && !s.report) return;
   const lock = LockService.getScriptLock();
@@ -2301,6 +2304,7 @@ function studentVars_(s, st, x) {
     'missing classes': x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
+    'booking link': meetingSettings_().links[st.lp] || '',
   };
 }
 
@@ -2310,6 +2314,7 @@ function itemVars_(s, st, student, i) {
     first: student.firstName || student.name, student_first_name: student.firstName || student.name, lp: i.lp, count: '', 'missing classes': '',
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: i.subject, reasons: why || '  • See the note on the sample',
+    'booking link': meetingSettings_().links[i.lp] || '',
   };
 }
 
@@ -2433,4 +2438,201 @@ function recentEmails_(n) {
     at: v[0] instanceof Date ? v[0].getTime() : Date.parse(v[0]) || 0,
     to: String(v[1]), student: String(v[2]), kind: String(v[3]), subject: String(v[4]),
   }));
+}
+
+// ---------- LP meetings: bookings from your Google Calendar ----------
+//
+// You make a Google Calendar booking page (appointment schedule) for each LP and paste its link
+// on the dashboard's Meetings page. Families book there; Google puts each booking on your
+// calendar with the family as a guest. WiSH reads those events (read-only) and matches the
+// guest's email to the Student email and Family email columns of the roster. A booking from an
+// email that isn't on the roster shows as unmatched until you link it to a student once.
+//
+// A calendar event counts as a booking when Google wrote "Booked by" in it (every booking page
+// does), or its title has one of the words you set on the Meetings page. An event belongs to the
+// LP named in its title ("LP3"), otherwise to the LP whose dates it falls in.
+
+const MEETINGS_SECONDS = 900;   // bookings are remembered this long (the 10-minute timer refreshes them)
+const MEETINGS_DEFAULTS = { links: {}, words: '' };
+
+function meetingSettings_() {
+  const saved = JSON.parse(PropertiesService.getScriptProperties().getProperty('MEETINGS') || '{}');
+  const s = Object.assign({}, MEETINGS_DEFAULTS, saved);
+  s.links = Object.assign({}, saved.links || {});
+  return s;
+}
+
+/** Emails you linked to a student by hand ('-' = not a family, don't show it). */
+function meetingMatches_() {
+  return JSON.parse(PropertiesService.getScriptProperties().getProperty('MEETING_MATCH') || '{}');
+}
+
+function forgetMeetings_() {
+  try { CacheService.getScriptCache().remove('meetings'); } catch (err) {}
+}
+
+/** The school year to look in: the LP dates, plus a little before and after. */
+function meetingRange_() {
+  const dates = getLpDates_();
+  const starts = [], ends = [];
+  LEARNING_PERIODS.forEach(lp => { if (dates[lp]) { starts.push(dates[lp].start); ends.push(dates[lp].end); } });
+  const day = 24 * 3600 * 1000;
+  if (!starts.length) return { from: new Date(Date.now() - 120 * day), to: new Date(Date.now() + 120 * day) };
+  starts.sort(); ends.sort();
+  return { from: new Date(Date.parse(starts[0] + 'T00:00:00Z') - 14 * day), to: new Date(Date.parse(ends[ends.length - 1] + 'T00:00:00Z') + 28 * day) };
+}
+
+function meetingLp_(title, ymd, dates) {
+  const m = /\bLP\s?([1-8])\b/i.exec(title || '');
+  if (m) return 'LP' + m[1];
+  let best = null;
+  LEARNING_PERIODS.forEach(lp => {
+    const r = dates[lp];
+    if (!r) return;
+    if (ymd >= r.start && ymd <= r.end) best = lp;
+    else if (!best && ymd < r.start) best = lp;  // between two LPs: counts for the one coming up
+  });
+  return best;
+}
+
+/**
+ * Every booking in the school year: [{ key, lp, start, end, title, who: [{ name, email }] }].
+ * Read from the calendar at most every 15 minutes. Throws if the calendar isn't allowed yet.
+ */
+function readBookings_(fresh) {
+  const cache = CacheService.getScriptCache();
+  if (!fresh) {
+    const remembered = cache.get('meetings');
+    if (remembered) return JSON.parse(remembered);
+  }
+  const s = meetingSettings_();
+  const cal = CalendarApp.getDefaultCalendar();
+  const range = meetingRange_();
+  const me = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  const tz = Session.getScriptTimeZone();
+  const dates = getLpDates_();
+  const words = String(s.words || '').split(',').map(w => w.trim()).filter(Boolean);
+  const seen = {};
+  const out = [];
+  ['Booked by'].concat(words).forEach(word => {
+    cal.getEvents(range.from, range.to, { search: word }).forEach(ev => {
+      const start = ev.getStartTime();
+      const key = ev.getId() + '@' + start.getTime();
+      if (seen[key]) return;
+      seen[key] = true;
+      const title = ev.getTitle();
+      const desc = ev.getDescription() || '';
+      const booked = /booked by/i.test(desc);
+      if (!booked && !words.some(w => title.toLowerCase().indexOf(w.toLowerCase()) !== -1)) return;
+      const who = [];
+      const add = (email, name) => {
+        email = String(email || '').trim().toLowerCase();
+        if (!email || email === me || who.some(w => w.email === email)) return;
+        who.push({ email: email, name: String(name || '').trim() });
+      };
+      // Google writes "Booked by", then the name, then the email.
+      const m = /booked by\s*(?:<[^>]*>|\s)*([^<\n]*?)\s*(?:<[^>]*>|\s)*([\w.+'-]+@[\w-]+(?:\.[\w-]+)+)/i.exec(desc);
+      if (m) add(m[2], m[1]);
+      ev.getGuestList().forEach(g => add(g.getEmail(), g.getName()));
+      const lp = meetingLp_(title, ymd_(start, tz), dates);
+      if (!lp) return;
+      out.push({ key: key, lp: lp, start: start.getTime(), end: ev.getEndTime().getTime(), title: clean_(title, 200), who: who });
+    });
+  });
+  out.sort((a, b) => a.start - b.start);
+  try { cache.put('meetings', JSON.stringify(out), MEETINGS_SECONDS); } catch (err) { /* too big: read next time */ }
+  return out;
+}
+
+/** Adds studentIds to each booking, from the roster emails and the links you made by hand. */
+function matchBookings_(bookings) {
+  const byEmail = {};
+  const put = (email, id) => { email = String(email || '').trim().toLowerCase(); if (email) (byEmail[email] = byEmail[email] || []).push(id); };
+  getStudents_().forEach(st => { put(st.email, st.id); st.familyEmails.forEach(e => put(e, st.id)); });
+  const manual = meetingMatches_();
+  return bookings.map(b => {
+    let ids = [], ignored = false;
+    b.who.forEach(w => {
+      const set = manual[w.email];
+      if (set === '-') ignored = true;
+      else if (set) ids.push(set);
+      else ids = ids.concat(byEmail[w.email] || []);
+    });
+    ids = ids.filter((id, n) => ids.indexOf(id) === n);
+    return Object.assign({}, b, { studentIds: ids, ignored: ignored && !ids.length });
+  });
+}
+
+/** One student's bookings, or [] when the calendar can't be read. */
+function studentBookings_(id) {
+  try {
+    return matchBookings_(readBookings_(false)).filter(b => b.studentIds.indexOf(id) !== -1)
+      .map(b => ({ lp: b.lp, start: b.start, end: b.end }));
+  } catch (err) {
+    return [];
+  }
+}
+
+/** What the student app shows: the booking link for each LP, and the student's own meetings. */
+function studentMeetings_(id) {
+  const s = meetingSettings_();
+  if (!Object.keys(s.links).length) return null;
+  return { links: s.links, booked: studentBookings_(id) };
+}
+
+/** The Meetings page and the dashboard: links, settings and every booking with its student. */
+function adminMeetings_(body) {
+  const s = meetingSettings_();
+  const out = { ok: true, links: s.links, words: s.words, manual: meetingMatches_(), items: [], calendar: '' };
+  try {
+    out.items = matchBookings_(readBookings_(!!body.fresh));
+    out.calendar = CalendarApp.getDefaultCalendar().getName();
+  } catch (err) {
+    out.error = /permission|authoriz|scope/i.test(err.message)
+      ? 'allow' : 'WiSH couldn’t read your calendar: ' + err.message;
+  }
+  return out;
+}
+
+function adminSaveMeetings_(body) {
+  const links = {};
+  const given = body.links || {};
+  for (let i = 0; i < LEARNING_PERIODS.length; i++) {
+    const lp = LEARNING_PERIODS[i];
+    const link = clean_(given[lp], 300);
+    if (!link) continue;
+    if (!/^https:\/\/(calendar\.app\.google|calendar\.google\.com)\/[^\s"<>]+$/.test(link)) {
+      return { ok: false, error: lp + ': paste the booking page link from Google Calendar (it starts with https://calendar.app.google/).' };
+    }
+    links[lp] = link;
+  }
+  const words = clean_(body.words, 200);
+  PropertiesService.getScriptProperties().setProperty('MEETINGS', JSON.stringify({ links: links, words: words }));
+  forgetMeetings_();
+  return adminMeetings_({ fresh: true });
+}
+
+/** Links a booker's email to a student (studentId), stops showing it ('-'), or undoes that (''). */
+function adminMeetingMatch_(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 200) return { ok: false, error: 'That email doesn’t look right.' };
+  const to = String(body.studentId || '').toUpperCase();
+  if (to && to !== '-' && !findStudent_(to)) return { ok: false, error: 'That student isn’t on the roster.' };
+  return withLock_(() => {
+    const manual = meetingMatches_();
+    if (to) manual[email] = to; else delete manual[email];
+    PropertiesService.getScriptProperties().setProperty('MEETING_MATCH', JSON.stringify(manual));
+    return adminMeetings_({});
+  });
+}
+
+/**
+ * Run once from the editor after this update: Google asks you to allow WiSH to see your
+ * calendar (read-only). Then it lists the bookings it finds, so you can check.
+ */
+function allowCalendar() {
+  const list = matchBookings_(readBookings_(true));
+  Logger.log('WiSH can read your calendar. Bookings found this school year: ' + list.length);
+  list.slice(0, 20).forEach(b => Logger.log(b.lp + '  ' + new Date(b.start) + '  ' + b.who.map(w => w.name + ' <' + w.email + '>').join(', ') +
+    (b.studentIds.length ? '  -> ' + b.studentIds.join(', ') : '  (not matched)')));
 }
