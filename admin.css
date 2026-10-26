@@ -11,9 +11,10 @@
   --st-resubmitted-text: #8a6d00;
   --st-missing: transparent;
   --all-filed-bg: #e6eeff;
+  --meet-bg: #dff3fb; --meet-text: #0b5470; --meet-bar: #2a9fd0;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --st-new: #7a6a2e; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffcf3a; --st-resubmitted-text: #ffcf3a; --all-filed-bg: #1c2744; }
+  :root:not([data-theme="light"]) { --st-new: #7a6a2e; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffcf3a; --st-resubmitted-text: #ffcf3a; --all-filed-bg: #1c2744; --meet-bg: #12303d; --meet-text: #9fdcf2; --meet-bar: #4cb8e6; }
 }
 
 /* The dashboard uses the whole window; the logo lines up with the page's left edge. */
@@ -96,7 +97,10 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .counts b { color: var(--text); }
 .subjects { display: flex; flex-wrap: wrap; gap: 6px; }
 .subj { font-size: 12px; font-weight: 650; padding: 3px 10px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
-.subj.missing { background: transparent; border: 1.5px dashed var(--line); color: var(--muted); }
+/* Dashboard cards: short class names in two tight columns */
+.scard .subjects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px; align-content: start; align-items: start; }
+.scard .subj { margin: 0; line-height: 1.25; padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.subj.missing { margin: 0; background: transparent; border: 1.5px dashed var(--line); color: var(--muted); }
 .thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 .thumbs img, .thumbs .more {
   width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; background: #fff;
@@ -692,10 +696,11 @@ a.brand:hover { opacity: .9; }
 /* LP meetings (js/meetings.js) */
 .tile.meet::before { background: var(--st-finalized); }
 .tile.meet b { color: var(--st-finalized-text); }
-.scard .meet { margin-top: 8px; font-size: 13px; font-weight: 650; }
-.scard .meet.booked { color: var(--st-finalized-text); }
-.scard .meet.booked.past { color: var(--muted); font-weight: 600; }
-.scard .meet.none { color: var(--muted); font-weight: 500; }
+/* The LP meeting line on a dashboard card: a small tinted box */
+.scard .meet { font-size: 13px; font-weight: 650; padding: 6px 10px; border-radius: 10px; line-height: 1.3;
+  background: var(--meet-bg); color: var(--meet-text); border-left: 4px solid var(--meet-bar); }
+.scard .meet.booked.past { opacity: .7; }
+.scard .meet.none { background: transparent; color: var(--muted); font-weight: 500; border: 1.5px dashed var(--line); border-left-width: 1.5px; }
 .meet-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; margin-top: 4px; }
 @media (max-width: 1000px) { .meet-cols { grid-template-columns: 1fr; } }
 .meet-cal { display: flex; align-items: center; gap: 10px; }

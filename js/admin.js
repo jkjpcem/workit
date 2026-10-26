@@ -286,7 +286,7 @@
       const subjects = classes.map(c => {
         const n = mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
         const label = c.need > 1 ? ` · ${n}/${c.need}` : n ? ` · ${n}` : '';
-        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${c.need > 1 ? 'Accelerated: 2 samples per LP' : '1 sample per LP'}">${esc(c.name)}${label}</span>`;
+        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}">${esc(shortClass(c.name))}${label}</span>`;
       }).join('');
       const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
         `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
@@ -313,6 +313,27 @@
       });
       grid.appendChild(card);
     }
+  }
+
+  // Short class names for the dashboard cards ("English 10 A H" -> "Eng 10"); the full name is in the tooltip.
+  const SHORT = [
+    [/^us\s+hist/i, 'USH'], [/^world\s+hist/i, 'WH'], [/^pre-?\s?calc/i, 'PreC'], [/^ap\s+/i, ''],
+    [/^english/i, 'Eng'], [/^algebra/i, 'Alg'], [/^geometry/i, 'Geo'], [/^biology/i, 'Bio'], [/^chemistry/i, 'Chem'],
+    [/^physics/i, 'Phys'], [/^history/i, 'Hist'], [/^government|^govt/i, 'Govt'], [/^economics|^econ/i, 'Econ'],
+    [/^calculus/i, 'Calc'], [/^statistics/i, 'Stat'], [/^science/i, 'Sci'], [/^spanish/i, 'Span'], [/^french/i, 'Fren'],
+    [/^photography/i, 'Phot'], [/^automotive/i, 'Auto'], [/^marine\s+bio/i, 'MBio'], [/^physical\s+ed/i, 'PE'],
+  ];
+  function shortClass(name) {
+    let rest = String(name || '').trim().replace(/\s+(H|Honors)$/i, '').replace(/\s+[AB]$/, '');
+    rest = rest.replace(/(\d+)[AB]\b/, '$1');
+    const num = (/\b(\d+)\s*$/.exec(rest) || [])[1] || '';
+    let word = rest.replace(/\b\d+\s*$/, '').trim();
+    let short = null;
+    for (const [re, abbr] of SHORT) {
+      if (re.test(word)) { short = abbr || shortClass(word.replace(re, '')); break; }
+    }
+    if (short === null) short = word.split(/\s+/)[0].slice(0, 4);
+    return num ? `${short} ${num}` : short;
   }
 
   // ---------- One student ----------
