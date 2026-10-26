@@ -300,8 +300,8 @@
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}
-        ${subjects ? `<div class="subjects">${subjects}</div>` : ''}
-        ${Meetings.cardLine(s.id, viewLp)}`;
+        ${subjects ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
+        <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
       card.addEventListener('click', (e) => {
         const img = e.target.closest('img[data-id]');
         if (img) {
@@ -500,6 +500,7 @@
       render();
     }
     function close() {
+      if (!dropDraft()) return;
       flushSaves();
       setAnnotating(false);
       el.hidden = true;
@@ -510,6 +511,7 @@
     function go(step) {
       const n = idx + step;
       if (n < 0 || n >= list.length) return;
+      if (!dropDraft()) return;
       flushSaves();
       setAnnotating(false);
       idx = n;
@@ -590,16 +592,28 @@
       $('#t-approve').setAttribute('aria-pressed', String(!!it.approved));
       $('#t-approve').disabled = finalized;
       $('#t-approve').textContent = it.approved ? '✓ Approved' : '✓ Approve';
-      $('#t-redo').setAttribute('aria-pressed', String(!!it.redo));
+      // Redo is picked first (a draft only you see), then sent with Send back to student.
+      const redoing = !!it.redo || !!it.redoDraft;
+      $('#t-redo').setAttribute('aria-pressed', String(redoing));
       $('#t-redo').disabled = finalized;
-      $('#reasons-box').hidden = !it.redo;
+      $('#reasons-box').hidden = !redoing;
       $('#reasons').innerHTML = data.reasons.map(r => `
-        <button class="reason" aria-pressed="${(it.reasons || []).includes(r)}" data-reason="${esc(r)}">${esc(r)}</button>`).join('');
+        <button class="reason" aria-pressed="${(it.reasons || []).includes(r)}" data-reason="${esc(r)}" ${it.redo ? 'disabled' : ''}>${esc(r)}</button>`).join('');
       // Don't reset the box while it's being typed in.
       if (document.activeElement !== $('#redo-note')) $('#redo-note').value = it.redoNote || '';
+      $('#redo-note').disabled = !!it.redo;
+      $('#redo-hint').textContent = it.redo
+        ? 'This was sent back to the student. To change the reasons, click Redo to take it back, then pick Redo again.'
+        : 'Why does it need a redo? Pick all that apply, and type your own reason if you like. Nothing goes to the student until you click Send back to student.';
+      $('#t-send').hidden = !!it.redo;
+      $('#t-send').disabled = !hasReason(it);
+      $('#redo-sent').hidden = !it.redo;
+      $('#redo-sent').textContent = it.redoSentAt
+        ? `✓ Sent back to student ${new Date(it.redoSentAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+        : '✓ Sent back to student';
       // Annotate works any time except on a redo; filing needs Approve first.
-      $('#finish-row').hidden = !!it.redo;
-      $('#t-annotate').disabled = !!it.redo;
+      $('#finish-row').hidden = redoing;
+      $('#t-annotate').disabled = redoing;
       $('#t-annotate').setAttribute('aria-pressed', String(annotating));
       $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotate';
       const asExtra = finalized && it.filedAs === 'Extra';
@@ -611,7 +625,7 @@
       const n = annotatedCount(it.studentId, it.lp);
       const fs = $('#final-state');
       fs.className = `final-state ${finalized ? (it.finalStale ? 'stale' : 'done') : ''}`;
-      fs.innerHTML = it.redo ? ''
+      fs.innerHTML = redoing ? ''
         : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Export as Annotated or Export as Extra.'
         : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
           (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
@@ -628,7 +642,7 @@
       if (it.redo) it.approved = false;
       if (!it.redo) { it.reasons = []; it.redoNote = ''; }
       if (it.redo) setAnnotating(false);
-      syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote']);
+      syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
       renderReview(it);
       $('#v-save').textContent = 'Saving…';
       clearTimeout(reviewTimer);
@@ -639,10 +653,12 @@
       try {
         await call('adminReview', { studentId: it.studentId, id: it.id, approved: !!it.approved, redo: !!it.redo, reasons: it.reasons || [], note: it.redoNote || '' });
         if (item() === it) $('#v-save').textContent = 'Saved ✓';
+        return true;
       } catch (err) {
         recent.delete(it.studentId + '|' + it.id);
         if (item() === it) $('#v-save').textContent = 'Not saved';
         toast(`Couldn’t save: ${err.message}`);
+        return false;
       }
     }
     function flushSaves() {
@@ -650,26 +666,68 @@
       if (annoTimer) { clearTimeout(annoTimer); saveAnnotations(item()); }
     }
 
-    $('#t-approve').addEventListener('click', () => changeReview(i => { i.approved = !i.approved; if (i.approved) i.redo = false; }));
-    $('#t-redo').addEventListener('click', () => changeReview(i => { i.redo = !i.redo; }));
+    function hasReason(it) { return (it.reasons || []).length > 0 || !!String(it.redoNote || '').trim(); }
+    // A redo that was picked but not sent: leaving the sample drops it (after asking, if reasons were picked).
+    function dropDraft() {
+      const it = item();
+      if (!it || !it.redoDraft) return true;
+      if (hasReason(it) && !confirm('You picked redo reasons but didn’t send them. Leave without sending this back to the student?')) return false;
+      it.redoDraft = false; it.reasons = []; it.redoNote = '';
+      return true;
+    }
+
+    $('#t-approve').addEventListener('click', () => changeReview(i => {
+      i.redoDraft = false;
+      i.approved = !i.approved;
+      if (i.approved) { i.redo = false; i.redoSentAt = 0; }
+    }));
+    $('#t-redo').addEventListener('click', () => {
+      const it = item();
+      if (it.redo) {
+        if (!confirm('Take back this redo? The student won’t see it anymore.')) return;
+        return changeReview(i => { i.redo = false; i.redoSentAt = 0; }, 0);
+      }
+      it.redoDraft = !it.redoDraft;
+      it.reasons = []; it.redoNote = '';
+      if (it.redoDraft) setAnnotating(false);
+      renderReview(it);
+      if (it.redoDraft) $('#reasons-box').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
     $('#reasons').addEventListener('click', (e) => {
       const b = e.target.closest('.reason');
-      if (!b) return;
-      const r = b.dataset.reason;
-      changeReview(i => {
-        const set = new Set(i.reasons || []);
-        set.has(r) ? set.delete(r) : set.add(r);
-        i.reasons = data.reasons.filter(x => set.has(x));
-      });
+      const it = item();
+      if (!b || !it.redoDraft) return;
+      const set = new Set(it.reasons || []);
+      set.has(b.dataset.reason) ? set.delete(b.dataset.reason) : set.add(b.dataset.reason);
+      it.reasons = data.reasons.filter(x => set.has(x));
+      renderReview(it);
     });
-
-    // Typed reasons save a moment after the ES stops typing.
-    $('#redo-note').addEventListener('input', (e) => changeReview(i => { i.redoNote = e.target.value; }, 1200));
+    $('#redo-note').addEventListener('input', (e) => {
+      const it = item();
+      if (!it.redoDraft) return;
+      it.redoNote = e.target.value;
+      $('#t-send').disabled = !hasReason(it);
+    });
+    $('#t-send').addEventListener('click', async () => {
+      const it = item();
+      if (!it.redoDraft || !hasReason(it)) return;
+      clearTimeout(reviewTimer);
+      it.redoDraft = false; it.redo = true; it.approved = false; it.redoSentAt = Date.now();
+      syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
+      renderReview(it);
+      $('#t-send').disabled = true;
+      $('#v-save').textContent = 'Sending…';
+      if (!(await saveReview(it))) {
+        it.redoDraft = true; it.redo = false; it.redoSentAt = 0;
+        syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
+        if (item() === it) renderReview(it);
+      } else if (item() === it) $('#v-save').textContent = 'Sent ✓';
+    });
 
     // ----- Annotating -----
 
     function setAnnotating(on) {
-      annotating = on && !!item() && !item().redo;
+      annotating = on && !!item() && !item().redo && !item().redoDraft;
       $('#v-pages').classList.toggle('annotating', annotating);
       $('#anno-bar').hidden = !annotating;
       $('#anno-hint').hidden = !annotating;

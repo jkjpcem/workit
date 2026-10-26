@@ -73,7 +73,11 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .sw.missing { border: 1.5px dashed var(--muted); }
 
 /* Student cards */
-.student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; }
+.student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; grid-auto-rows: 1fr; }
+/* Every card is the same height; the LP meeting line sits at the bottom so they line up. */
+.scard .card-foot { margin-top: auto; display: grid; gap: 6px; }
+.scard .card-foot:empty { display: none; }
+.scard .empty-card { flex: 1; display: flex; align-items: center; justify-content: center; }
 .scard {
   background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px;
   display: flex; flex-direction: column; gap: 12px; cursor: pointer; box-shadow: var(--shadow); text-align: left; font: inherit; color: inherit;
@@ -98,7 +102,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .subjects { display: flex; flex-wrap: wrap; gap: 6px; }
 .subj { font-size: 12px; font-weight: 650; padding: 3px 10px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
 /* Dashboard cards: short class names in two tight columns */
-.scard .subjects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px; align-content: start; align-items: start; }
+.scard .subjects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), auto); grid-auto-flow: column; gap: 4px 6px; align-content: start; align-items: start; }
 .scard .subj { margin: 0; line-height: 1.25; padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .subj.missing { margin: 0; background: transparent; border: 1.5px dashed var(--line); color: var(--muted); }
 .thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
@@ -320,6 +324,12 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 /* The ES's own typed redo reason */
 .redo-note { display: grid; gap: 6px; margin-top: 12px; font-weight: 600; font-size: 14px; }
 .redo-note textarea { width: 100%; resize: vertical; min-height: 72px; font: inherit; font-weight: 400; }
+.redo-send { margin-top: 14px; }
+.redo-send-btn { width: 100%; background: var(--st-redo); border-color: var(--st-redo); color: #fff; }
+.redo-send-btn:disabled { opacity: .45; cursor: not-allowed; }
+.redo-sent { margin: 0; padding: 10px 12px; border-radius: 10px; font-weight: 700; font-size: 14px;
+  background: color-mix(in srgb, var(--st-redo) 12%, transparent); color: var(--st-redo); }
+.reason:disabled, #redo-note:disabled { cursor: default; }
 
 /* ----- First sign-in setup steps ----- */
 .setup-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }

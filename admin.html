@@ -468,11 +468,15 @@
           <p class="final-state" id="final-state"></p>
           <button class="btn ghost small trash-btn" id="t-trash">🗑 Delete</button>
           <div id="reasons-box" hidden>
-            <p class="hint">Why does it need a redo? Pick all that apply, and type your own reason if you like. The student sees it the next time they sign in.</p>
+            <p class="hint" id="redo-hint">Why does it need a redo? Pick all that apply, and type your own reason if you like. Nothing goes to the student until you click Send back to student.</p>
             <div class="reason-grid" id="reasons"></div>
             <label class="redo-note">Your own reason (optional)
               <textarea id="redo-note" rows="3" maxlength="500" placeholder="For example: The last page is cut off. Please retake it in better light."></textarea>
             </label>
+            <div class="redo-send">
+              <button class="btn redo-send-btn" type="button" id="t-send">↩ Send back to student</button>
+              <p class="redo-sent" id="redo-sent" hidden></p>
+            </div>
           </div>
         </div>
         <div class="card core-card" id="v-core" hidden></div>
