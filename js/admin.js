@@ -276,6 +276,8 @@
       const card = document.createElement('div');
       // Light blue once every class has its samples and every upload is annotated and filed.
       const classes = Classes.forLp(s, viewLp);
+      // The bar is out of the samples this LP needs, so the empty part is what's still missing.
+      const needed = classes.reduce((n, c) => n + c.need, 0);
       const allFiled = mine.length > 0 && by.finalized === mine.length &&
         classes.every(c => mine.filter(i => i.subject === c.name).length >= c.need);
       card.className = `scard ${by.redo ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${s.active === false ? 'inactive' : ''}`;
@@ -294,7 +296,7 @@
       card.innerHTML = `
         <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
         <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
-          by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
+          by[k] ? `<i class="${k}" style="width:${(by[k] / Math.max(mine.length, needed)) * 100}%"></i>` : '').join('')}</div>
         <div class="card-uploads">${mine.length ? `
           <div class="counts"><b>${mine.length}</b> upload${mine.length > 1 ? 's' : ''} ·
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
