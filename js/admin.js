@@ -1314,17 +1314,21 @@
     approved: ['student_first_name', 'lp', 'link'],
     each: ['student_first_name', 'class', 'lp', 'link'],
     received: ['student_first_name', 'class', 'lp', 'link'],
+    book: ['student_first_name', 'lp', 'booking link', 'end date', 'link'],
+    meet: ['student_first_name', 'lp', 'when', 'meeting time', 'meet link', 'booking link'],
   };
   const WEEK_NAMES = ['Week 1–2', 'Week 3', 'Week 4', 'Week 5+'];
-  const KIND_NAMES = { missing: 'Missing', redo: 'Redo', approved: 'All approved', each: 'Approved', received: 'Received', summary: 'Summary', report: 'Report', 'to you': 'To you' };
+  const KIND_NAMES = { missing: 'Missing', redo: 'Redo', approved: 'All approved', each: 'Approved', received: 'Received', book: 'Book meeting', meet: 'Meeting soon', summary: 'Summary', report: 'Report', 'to you': 'To you' };
   let rem = null;          // last adminEmailSettings answer
   let tpls = {};           // the wording being edited, for every email
   let tplKind = 'missing';
   let tplField = null;     // where Insert puts a fill-in
   let remDirty = false;
 
-  $('#rem-weeks').innerHTML = WEEK_NAMES.map((w, n) => `<div class="week" data-w="${n}"><span>${w.toUpperCase()}</span>
-    <select name="week${n}" aria-label="${w}"><option value="none">None</option><option value="once">Once</option><option value="every5">Every 5 days</option><option value="every4">Every 4 days</option><option value="every3">Every 3 days</option><option value="every2">Every 2 days</option><option value="daily">Every day</option></select></div>`).join('');
+  const weekSelects = (prefix, twice) => WEEK_NAMES.map((w, n) => `<div class="week" data-w="${n}"><span>${w.toUpperCase()}</span>
+    <select name="${prefix}${n}" aria-label="${w}"><option value="none">None</option><option value="once">Once</option>${twice ? '<option value="twice">Twice</option>' : ''}<option value="every5">Every 5 days</option><option value="every4">Every 4 days</option><option value="every3">Every 3 days</option><option value="every2">Every 2 days</option><option value="daily">Every day</option></select></div>`).join('');
+  $('#rem-weeks').innerHTML = weekSelects('week', false);
+  $('#rem-book-weeks').innerHTML = weekSelects('bookWeek', true);
 
   const remError = (err) => /unknown request/i.test(err.message) ? 'Reminders start working after the next WiSH update.' : err.message;
   function setRemDirty(on) {
@@ -1359,6 +1363,17 @@
       .forEach(k => { f[k].checked = !!s[k]; });
     ['famHour', 'onceDay', 'reportHour', 'weeklyDay'].forEach(k => { f[k].value = String(s[k]); });
     s.weeks.slice(0, WEEK_NAMES.length).forEach((w, n) => { f[`week${n}`].value = w; });
+    // LP meeting reminders arrived with a later WiSH update; older scripts don't have them.
+    const meetings = !!rem.defaults.book;
+    $('#rem-meetings').hidden = !meetings;
+    $$('#rem-tabs [data-new]').forEach(l => { l.hidden = !meetings; });
+    if (!meetings && (tplKind === 'book' || tplKind === 'meet')) tplKind = 'missing';
+    if (meetings) {
+      f.book.checked = !!s.book;
+      f.meet.checked = !!s.meet;
+      f.bookOnceDay.value = String(s.bookOnceDay);
+      s.bookWeeks.slice(0, WEEK_NAMES.length).forEach((w, n) => { f[`bookWeek${n}`].value = w; });
+    }
     $$('[data-in]', f).forEach(i => { i.checked = !!s.inReport[i.dataset.in]; });
     $$('[data-ev]', f).forEach(i => { i.checked = !!s.esEvents[i.dataset.ev]; });
     f.pauseFrom.value = s.pauseFrom || '';
@@ -1373,7 +1388,8 @@
     $('#rem-next').textContent = st.nextReminder ? `${dayName(st.nextReminder.date)} · ${hourName(st.nextReminder.hour)}` : 'None scheduled';
     $('#rem-next-sub').textContent = s.families === 'off' ? 'Family emails are off' : `${st.missingFamilies} famil${st.missingFamilies === 1 ? 'y is' : 'ies are'} missing samples`;
     $('#rem-noemail').textContent = st.noEmail ? `${st.noEmail} student${st.noEmail === 1 ? '' : 's'}` : 'None';
-    $$('.week', f).forEach((w, n) => {
+    $$('#rem-weeks .week, #rem-book-weeks .week', f).forEach(w => {
+      const n = Number(w.dataset.w);
       const now = st.week ? (st.week <= 2 ? 0 : st.week >= 5 ? 3 : st.week - 2) : -1;
       w.classList.toggle('now', n === now && st.daysLeft >= 0);
     });
@@ -1416,6 +1432,7 @@
       'days left': st.daysLeft === null || st.daysLeft === undefined ? '' : String(Math.max(0, st.daysLeft)),
       'end date': st.range ? dayName(st.range.end) : '', link: new URL('./', location.href).host + (creds.role === 'es' ? `/?es=${creds.user}` : ''),
       class: 'Biology', reasons: '  • Missing date\n  • Please add your score',
+      when: 'on Thursday', 'meeting time': 'Thursday, November 5 at 3:30 PM', 'meet link': 'https://meet.google.com/abc-defg-hij',
       'booking link': Meetings.link(st.lp) || 'calendar.app.google/…',
     };
     const put = (t) => String(t).replace(/\{([a-z_ ]+)\}/g, (m, k) => vars[k] ?? m);
@@ -1466,6 +1483,8 @@
       families, famHow: val('famHow'), report: val('report') === 'on',
       famHour: Number(f.famHour.value), onceDay: Number(f.onceDay.value), reportHour: Number(f.reportHour.value), weeklyDay: Number(f.weeklyDay.value),
       weeks: WEEK_NAMES.map((w, n) => f[`week${n}`].value),
+      bookWeeks: WEEK_NAMES.map((w, n) => f[`bookWeek${n}`].value), bookOnceDay: Number(f.bookOnceDay.value),
+      book: f.book.checked, meet: f.meet.checked,
       inReport: checks('in'), esEvents: checks('ev'),
       pauseFrom: f.pauseFrom.value, pauseTo: f.pauseTo.value,
       templates: tpls,

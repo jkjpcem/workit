@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 22;
+const WORKIT_VERSION = 23;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -1886,7 +1886,7 @@ const EMAIL_LOG = 'Email log';
 const REDO_WAIT_MINUTES = 5;    // time to finish picking redo reasons before it goes out
 const QUIET_FROM = 20;          // family emails that happen in the evening wait until morning
 const QUIET_UNTIL = 7;
-const SCHEDULE_CHOICES = ['none', 'once', 'every5', 'every4', 'every3', 'every2', 'daily'];
+const SCHEDULE_CHOICES = ['none', 'once', 'twice', 'every5', 'every4', 'every3', 'every2', 'daily'];
 
 const EMAIL_TEMPLATES = {
   missing: {
@@ -1908,6 +1908,16 @@ const EMAIL_TEMPLATES = {
     subject: '{student_first_name}’s {class} sample is approved',
     body: 'Hi {student_first_name} and family,\n\n{student_first_name}’s {class} work sample for {lp} is approved.\n\nThank you,\nYour ES',
   },
+  book: {
+    subject: 'Please book {student_first_name}’s {lp} meeting',
+    body: 'Hi {student_first_name} and family,\n\nIt’s time to book {student_first_name}’s {lp} meeting with me. Please pick a time that works for you here:\n\n{booking link}\n\n' +
+      '{lp} ends {end date}.\n\nThank you,\nYour ES',
+  },
+  meet: {
+    subject: 'Reminder: {student_first_name}’s {lp} meeting is {when}',
+    body: 'Hi {student_first_name} and family,\n\nThis is a reminder of {student_first_name}’s {lp} meeting with me {when}:\n\n  {meeting time}\n  Join with Google Meet: {meet link}\n\n' +
+      'If you need a different time, you can pick a new one here: {booking link}\n\nSee you then,\nYour ES',
+  },
   received: {
     subject: 'WiSH got {student_first_name}’s {class} sample',
     body: 'Hi {student_first_name} and family,\n\nWiSH received {student_first_name}’s {class} work sample for {lp}. Your ES will look at it soon.\n\nThank you,\nYour ES',
@@ -1922,6 +1932,10 @@ const EMAIL_DEFAULTS = {
   missing: true, redo: true, approved: true, each: false, received: false,
   weeks: ['none', 'once', 'once', 'every3'], // weeks 1-2, 3, 4, 5+
   onceDay: 1,                    // 1 = Monday ... 5 = Friday
+  book: true,                    // LP meeting not booked yet (only while a booking link is set)
+  bookWeeks: ['none', 'once', 'twice', 'every3'],
+  bookOnceDay: 3,
+  meet: true,                    // 3 days before a booked meeting, and the day before
   noWeekends: true, noHolidays: true,
   pauseFrom: '', pauseTo: '',
   report: true,
@@ -2003,6 +2017,9 @@ function adminSaveEmailSettings_(body) {
     missing: b.missing === true, redo: b.redo === true, approved: b.approved === true, each: b.each === true, received: b.received === true,
     weeks: weeks,
     onceDay: hour(b.onceDay, 1, 5, 1),
+    book: b.book === true, meet: b.meet === true,
+    bookWeeks: EMAIL_DEFAULTS.bookWeeks.map((d, n) => SCHEDULE_CHOICES.indexOf((b.bookWeeks || [])[n]) !== -1 ? b.bookWeeks[n] : d),
+    bookOnceDay: hour(b.bookOnceDay, 1, 5, 3),
     noWeekends: b.noWeekends === true, noHolidays: b.noHolidays === true,
     pauseFrom: day(b.pauseFrom), pauseTo: day(b.pauseTo),
     report: b.report === true,
@@ -2119,6 +2136,13 @@ function reminderDue_(s, range, ymd, last) {
   if (rule === 'daily') return true;
   const every = Number(rule.replace('every', ''));
   if (every) return !last || daysBetween_(last, ymd) >= every;
+  if (rule === 'twice') { // the start of the LP week and its last weekday
+    const weekStart = addDays_(range.start, (week - 1) * 7);
+    let end = addDays_(weekStart, 6);
+    while ([0, 6].indexOf(weekday_(end)) !== -1) end = addDays_(end, -1);
+    const target = ymd >= end ? end : weekStart;
+    return !(last && last >= target);
+  }
   // once: on the chosen weekday, or the first send day after it if that one was skipped
   const target = onceTarget_(s, range, week);
   return ymd >= target && !(last && lpWeek_(range, last) === week);
@@ -2237,6 +2261,8 @@ function familyEmails_(s, st, sent, hourNow, since) {
     });
   }
 
+  if ((s.book || s.meet) && atSendHour) meetingEmails_(s, st, sent, add);
+
   Object.keys(due).forEach(id => {
     const d = due[id];
     if (!recipients_(s, d.student).length && s.families === 'on') return; // listed in your report instead
@@ -2253,10 +2279,76 @@ function familyEmails_(s, st, sent, hourNow, since) {
   });
 }
 
+/**
+ * LP meetings: families with no booking this LP get the booking link on its own schedule;
+ * families with a booking hear 3 days before and the day before (with the Google Meet link).
+ */
+function meetingEmails_(s, st, sent, add) {
+  const ms = meetingSettings_();
+  const link = meetingLink_(ms, st.lp);
+  if (!link) return;
+  let bookings;
+  try { bookings = matchBookings_(readBookings_(false)); } catch (err) { return; } // calendar not allowed yet
+  const mine = (id) => bookings.filter(b => b.lp === st.lp && b.studentIds.indexOf(id) !== -1);
+
+  if (s.book && st.range) {
+    const rule = { weeks: s.bookWeeks, onceDay: s.bookOnceDay, noWeekends: s.noWeekends, noHolidays: s.noHolidays, pauseFrom: s.pauseFrom, pauseTo: s.pauseTo };
+    const last = lastReminders_(s, st.lp, sent, 'book');
+    st.students.forEach(x => {
+      if (mine(x.student.id).length) return;
+      if (reminderDue_(rule, st.range, st.today, last[x.student.id] || null)) {
+        add(x.student, 'book', 'book|' + st.lp + '|' + st.today + '|' + x.student.id, studentVars_(s, st, x));
+      }
+    });
+  }
+
+  if (s.meet) {
+    const now = Date.now();
+    bookings.forEach(b => {
+      if (b.start <= now) return;
+      const day = ymd_(new Date(b.start), st.tz);
+      const days = daysBetween_(st.today, day);
+      if (days < 1 || days > 10) return;
+      // Each reminder goes out on the last send day on or before its date (weekends and holidays
+      // move it earlier); the 3-day one always comes before the day-before one.
+      const anchor = (n, before) => {
+        for (let k = 0; k < 7; k++) {
+          const d = addDays_(day, -n - k);
+          if (sendDay_(s, d) && (!before || d < before)) return d;
+        }
+        return addDays_(day, -n);
+      };
+      const one = anchor(1);
+      const due1 = st.today >= one;
+      const due3 = !due1 && st.today >= anchor(3, one) && days >= 2;
+      if (!due1 && !due3) return;
+      b.studentIds.forEach(id => {
+        const x = st.students.filter(r => r.student.id === id)[0];
+        if (!x) return;
+        const ev = String(b.key).replace(/\s+/g, '_'); // keys in the Email log are separated by spaces
+        const k1 = 'meet1|' + ev + '|' + id, k3 = 'meet3|' + ev + '|' + id;
+        if (sent[tagged_(s, due1 ? k1 : k3)]) return;
+        const vars = Object.assign(studentVars_(s, st, x), meetingVars_(b, days, st.tz, link));
+        add(x.student, 'meet', due1 ? k1 : k3, vars);
+      });
+    });
+  }
+}
+
+function meetingVars_(b, days, tz, link) {
+  const start = new Date(b.start);
+  return {
+    when: days === 1 ? 'tomorrow' : 'on ' + Utilities.formatDate(start, tz, 'EEEE'),
+    'meeting time': Utilities.formatDate(start, tz, 'EEEE, MMMM d') + ' at ' + Utilities.formatDate(start, tz, 'h:mm a'),
+    'meet link': b.meet || '(the Google Meet link is in your calendar invitation)',
+    'booking link': link,
+  };
+}
+
 /** The last day each student got a missing-sample reminder this LP. */
-function lastReminders_(s, lp, sent) {
+function lastReminders_(s, lp, sent, kind) {
   const out = {};
-  const prefix = (s.families === 'test' ? 'test|' : '') + 'missing|' + lp + '|';
+  const prefix = (s.families === 'test' ? 'test|' : '') + (kind || 'missing') + '|' + lp + '|';
   Object.keys(sent).forEach(k => {
     if (k.indexOf(prefix) !== 0) return;
     const parts = k.slice(prefix.length).split('|'); // date | student id
@@ -2318,6 +2410,7 @@ function studentVars_(s, st, x) {
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
     'booking link': meetingLink_(meetingSettings_(), st.lp),
+    when: '', 'meeting time': '', 'meet link': '',
   };
 }
 
@@ -2555,12 +2648,42 @@ function readBookings_(fresh) {
       ev.getGuestList().forEach(g => add(g.getEmail(), g.getName()));
       const lp = meetingLp_(title, ymd_(start, tz), dates);
       if (!lp) return;
-      out.push({ key: key, lp: lp, start: start.getTime(), end: ev.getEndTime().getTime(), title: clean_(title, 200), who: who });
+      const meet = (/https:\/\/meet\.google\.com\/[a-z0-9-]+/i.exec(desc + ' ' + (ev.getLocation() || '')) || [])[0] || '';
+      out.push({ key: key, id: ev.getId(), lp: lp, start: start.getTime(), end: ev.getEndTime().getTime(), title: clean_(title, 200), who: who, meet: meet });
     });
   });
   out.sort((a, b) => a.start - b.start);
+  addMeetLinks_(out, cal.getId());
   try { cache.put('meetings', JSON.stringify(out), MEETINGS_SECONDS); } catch (err) { /* too big: read next time */ }
   return out;
+}
+
+/**
+ * Booking pages put the Google Meet link in the event's conference details, which only the
+ * Calendar API shows. Looked up once for each upcoming meeting and remembered (MEET_LINKS).
+ */
+function addMeetLinks_(bookings, calId) {
+  const props = PropertiesService.getScriptProperties();
+  const known = JSON.parse(props.getProperty('MEET_LINKS') || '{}');
+  const now = Date.now(), soon = now + 21 * 24 * 3600 * 1000;
+  let changed = false;
+  const keep = {};
+  bookings.forEach(b => {
+    if (b.meet || b.end < now) return;
+    if (known[b.key] !== undefined) { b.meet = known[b.key]; keep[b.key] = known[b.key]; return; }
+    if (b.start > soon || typeof Calendar === 'undefined') return;
+    try {
+      const found = Calendar.Events.list(calId, { iCalUID: b.id, maxResults: 1 }).items || [];
+      const ev = found[0] || {};
+      const entry = ((ev.conferenceData || {}).entryPoints || []).filter(e => e.entryPointType === 'video')[0];
+      b.meet = ev.hangoutLink || (entry && entry.uri) || '';
+    } catch (err) {
+      b.meet = '';
+    }
+    keep[b.key] = b.meet;
+    changed = true;
+  });
+  if (changed || Object.keys(keep).length !== Object.keys(known).length) props.setProperty('MEET_LINKS', JSON.stringify(keep));
 }
 
 /** Adds studentIds to each booking, from the roster emails and the links you made by hand. */

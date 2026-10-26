@@ -270,6 +270,18 @@
                   </div>
                   <p class="good"><span aria-hidden="true">✓</span> Families who have turned in every sample and have no redo waiting don’t get reminders.</p>
                 </div>
+                <div class="rem-sched" id="rem-meetings">
+                  <div class="rem-sched-head"><h3>LP meetings</h3><span>Uses the booking link on the Meetings page. Same send time, weekend and holiday rules as above.</span></div>
+                  <label class="chk"><input type="checkbox" name="book"> <span><b>Book your LP meeting</b><small>Only families who haven’t booked a meeting for this LP yet, on the schedule below. They stop as soon as a family books.</small></span></label>
+                  <div class="weeks" id="rem-book-weeks"></div>
+                  <div class="rem-row">
+                    <label class="lbl-sel">“Once” goes out on
+                      <select name="bookOnceDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option></select>
+                    </label>
+                    <span class="hint">“Twice” goes out at the start and the end of that week.</span>
+                  </div>
+                  <label class="chk"><input type="checkbox" name="meet"> <span><b>Meeting coming up</b><small>3 days before a booked meeting and the day before, with the date, time and Google Meet link.</small></span></label>
+                </div>
               </div>
             </section>
 
@@ -282,6 +294,8 @@
                   <label><input type="radio" name="tpl" value="approved"> All approved</label>
                   <label><input type="radio" name="tpl" value="each"> Each approved</label>
                   <label><input type="radio" name="tpl" value="received"> Received</label>
+                  <label data-new><input type="radio" name="tpl" value="book"> Book meeting</label>
+                  <label data-new><input type="radio" name="tpl" value="meet"> Meeting soon</label>
                 </div>
               </div>
               <div class="rem-body">
