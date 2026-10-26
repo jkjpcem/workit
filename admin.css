@@ -280,8 +280,6 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster .sid-cell b { letter-spacing: .06em; color: var(--brand); }
 .roster .why { display: block; font-size: 11px; color: var(--bad); line-height: 1.3; }
 .roster tr.bad td.num { background: var(--bad-soft); color: var(--bad); font-weight: 700; }
-.row-x { border: 0; background: none; color: var(--muted); cursor: pointer; width: 36px; height: 36px; border-radius: 8px; font-size: 14px; }
-.row-x:hover { background: var(--bad-soft); color: var(--bad); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- LP dates ---------- */
@@ -726,3 +724,26 @@ a.brand:hover { opacity: .9; }
 @media (max-width: 700px) { .meet-rows li { grid-template-columns: 1fr; gap: 4px; } }
 .meet-who .linklike { padding: 0; text-align: left; align-self: flex-start; }
 .meet-per-lp summary { cursor: pointer; font-weight: 650; font-size: 14px; margin-bottom: 8px; }
+
+/* Student Roster: columns sized for typical entries (one parent email shows whole, a second peeks in) */
+.roster.people { table-layout: fixed; width: 1350px; min-width: 1350px; }
+.roster.people th:nth-child(1) { width: 44px; }
+.roster.people th:nth-child(2) { width: 120px; }
+.roster.people th:nth-child(3) { width: 130px; }
+.roster.people th:nth-child(4) { width: 66px; }
+.roster.people th:nth-child(5) { width: 110px; }
+.roster.people th:nth-child(6) { width: 230px; }
+.roster.people th:nth-child(7) { width: 270px; }
+.roster.people th:nth-child(8) { width: 110px; }
+.roster.people th:nth-child(9) { width: 150px; }
+.roster.people th:nth-child(10) { width: 120px; }
+.roster.people td { min-width: 0 !important; width: auto; }
+.roster.people .fz1, .roster.people .fz2 { min-width: 0; }
+.roster.people .sid-cell { width: auto; overflow: hidden; text-overflow: ellipsis; }
+.roster .status-cell { padding: 0 8px; }
+.roster .status-cell select { width: 100%; padding: 6px 8px; font-size: 13px; font-weight: 650; border-radius: 8px; }
+.roster .status-cell select.on { color: var(--good); }
+.roster .status-cell select.off { color: var(--muted); background: var(--field); }
+.roster.people tr.inactive td:not(.status-cell) { opacity: .55; }
+.scard.inactive { opacity: .6; }
+.scard .sid.off { color: var(--muted); background: var(--field); margin-left: auto; margin-right: 6px; }

@@ -99,7 +99,7 @@ function AdminMeetings(ctx) {
     const matched = all.filter(b => b.studentIds.length);
     const unmatched = all.filter(b => !b.studentIds.length && !b.ignored);
     const booked = new Set(matched.flatMap(b => b.studentIds));
-    const notYet = data.students.filter(s => !booked.has(s.id))
+    const notYet = data.students.filter(s => !booked.has(s.id) && s.active !== false)
       .sort((a, b) => (a.lastName || a.name).localeCompare(b.lastName || b.name));
     const link = linkFor(lp);
     const whoText = (b) => b.who.map(w => esc(w.name || w.email) + (w.name ? ` <span class="meta">${esc(w.email)}</span>` : '')).join(', ');

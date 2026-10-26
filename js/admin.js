@@ -278,7 +278,7 @@
       const classes = Classes.forLp(s, viewLp);
       const allFiled = mine.length > 0 && by.finalized === mine.length &&
         classes.every(c => mine.filter(i => i.subject === c.name).length >= c.need);
-      card.className = `scard ${by.redo ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''}`;
+      card.className = `scard ${by.redo ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${s.active === false ? 'inactive' : ''}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter') card.click(); });
@@ -292,7 +292,7 @@
         `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
         (mine.length > 6 ? `<span class="more">+${mine.length - 5}</span>` : '');
       card.innerHTML = `
-        <div class="top"><h3>${esc(s.name)}</h3><span class="sid">Grade ${esc(s.grade)}</span></div>
+        <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
         ${mine.length ? `
           <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
             by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
@@ -1413,7 +1413,7 @@
     const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
-  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '', email: '', family: '' });
+  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '', email: '', family: '', status: 'Active' });
   // A blank Sem 2 means Sem 1 with A changed to B.
   const classList = (r, k) => k === 'classes2' && !String(r.classes2 || '').trim()
     ? Classes.sem2From(Classes.parse(r.classes)) : Classes.parse(r[k]);
@@ -1425,6 +1425,7 @@
     : '<span class="never">Never</span>';
   // Whether reminders can reach this family.
   const remCell = (r) => isEmpty(r) ? '<td class="rem-cell"></td>'
+    : r.status === 'Inactive' ? '<td class="rem-cell">Off (inactive)</td>'
     : String(r.email || '').trim() || String(r.family || '').trim() ? '<td class="rem-cell on">● On</td>' : '<td class="rem-cell">No email yet</td>';
 
   // The setup steps open the Students page too, and come back to it.
@@ -1469,12 +1470,13 @@
     $('#roster-body').innerHTML = roster.map((r, i) => {
       const id = rosterId(r);
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
-      return `<tr data-r="${i}" class="${problem ? 'bad' : ''}">
+      return `<tr data-r="${i}" class="${problem ? 'bad' : ''}${r.status === 'Inactive' ? ' inactive' : ''}">
         <td class="num fz fz0">${i + 1}</td>
         ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
-        <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
+        <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
+          <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
@@ -1556,8 +1558,13 @@
     const inp = e.target.closest('input[data-k]');
     if (!inp) return;
     const i = Number(inp.closest('tr').dataset.r);
+    const wasEmpty = isEmpty(roster[i]);
     roster[i][inp.dataset.k] = inp.value;
     setDirty(true);
+    if (wasEmpty !== isEmpty(roster[i])) {  // the Status box appears or goes with the row's content
+      $('.status-cell', inp.closest('tr')).innerHTML = isEmpty(roster[i]) ? ''
+        : '<select data-k="status" class="on" aria-label="Status"><option selected>Active</option><option>Inactive</option></select>';
+    }
     refreshIds();
     if (inp.dataset.k === 'first' || inp.dataset.k === 'last' || isEmpty(roster[i]) !== !$(`#classes-body tr[data-r="${i}"]`)) renderClasses();
   });
@@ -1611,16 +1618,16 @@
     if (next) next.focus();
   });
 
-  $('#roster-body').addEventListener('click', (e) => {
-    const x = e.target.closest('.row-x');
-    if (!x) return;
-    const i = Number(x.closest('tr').dataset.r);
-    const r = roster[i];
-    if (!isEmpty(r) && !confirm(`Remove ${r.first} ${r.last}? They won't be able to sign in. Their uploads stay in Drive.`)) return;
-    roster.splice(i, 1);
-    if (!roster.length) roster.push(blankRow());
+  // Status: an inactive student can still sign in, but can't turn in work and gets no reminders.
+  $('#roster-body').addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-k="status"]');
+    if (!sel) return;
+    const tr = sel.closest('tr');
+    roster[Number(tr.dataset.r)].status = sel.value;
+    sel.className = sel.value === 'Inactive' ? 'off' : 'on';
+    tr.classList.toggle('inactive', sel.value === 'Inactive');
     setDirty(true);
-    renderRoster();
+    refreshIds();
   });
 
   $('#roster-save').addEventListener('click', async () => {

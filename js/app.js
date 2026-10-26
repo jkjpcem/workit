@@ -143,6 +143,10 @@
     $('#greeting').textContent = session ? `Welcome, ${session.student.firstName || session.student.id}` : '';
     if (!session) return;
     renderMeeting();
+    // Inactive (set by the ES in the roster): can look, can't turn in.
+    const paused = session.student.active === false;
+    $('#paused-note').hidden = !paused;
+    $$('#step-pages, #step-review').forEach(el => el.classList.toggle('paused', paused));
     if (current === 'upload') renderWizard();
     if (current === 'history') renderHistory();
     if (current === 'me') renderMe();
