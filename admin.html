@@ -377,8 +377,15 @@
         <div id="meet-body"></div>
         <form class="card stack meet-side" id="meet-form">
           <h2>Booking pages</h2>
-          <p class="hint">In Google Calendar, make a booking page (Create → Appointment schedule) for each LP, then paste its link here. Families get a “Book your LP meeting” button in WiSH, and your reminder emails can use <code>{booking link}</code>.</p>
-          <div id="meet-links" class="meet-links"></div>
+          <p class="hint">In Google Calendar, make a booking page (Create → Appointment schedule) and paste its link here. Families get a “Book your LP meeting” button in WiSH, and your reminder emails can use <code>{booking link}</code>.</p>
+          <label>Booking page for every LP
+            <input name="ALL" id="meet-all" type="url" placeholder="https://calendar.app.google/…" spellcheck="false">
+          </label>
+          <p class="hint">One page works all year: WiSH puts each booking in an LP by its date. At the start of each LP, change the page’s available dates in Google.</p>
+          <details class="meet-per-lp">
+            <summary>A different page for one LP <span class="meta">(optional)</span></summary>
+            <div id="meet-links" class="meet-links"></div>
+          </details>
           <label>Other events to count <span class="meta">(optional)</span>
             <input name="words" placeholder="For example: LP meeting, Family conference" spellcheck="false">
           </label>

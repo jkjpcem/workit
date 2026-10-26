@@ -21,10 +21,12 @@ function AdminMeetings(ctx) {
   function reset() { res = null; $('#meet-form').dataset.filled = ''; }
 
   const active = (b) => !b.ignored;
+  // An LP's own booking link, or the one for every LP.
+  const linkFor = (lp) => (res && res.links ? res.links[lp] || res.links.ALL || '' : '');
   const forLp = (lp) => (res ? res.items : []).filter(b => b.lp === lp && active(b));
   const forStudent = (id) => (res ? res.items : []).filter(b => b.studentIds.includes(id));
   // Only shown for an LP that has a booking link or already has bookings.
-  const on = (lp) => !!res && !res.old && !res.error && (!!res.links[lp] || forLp(lp).length > 0);
+  const on = (lp) => !!res && !res.old && !res.error && (!!linkFor(lp) || forLp(lp).length > 0);
 
   function when(b, withDay = true) {
     const d = new Date(b.start);
@@ -54,7 +56,7 @@ function AdminMeetings(ctx) {
     const box = $('#student-meetings');
     if (!res || res.old || res.error) { box.hidden = true; return; }
     const mine = forStudent(s.id);
-    const lps = ctx.lps().filter(lp => res.links[lp] || mine.some(b => b.lp === lp));
+    const lps = ctx.lps().filter(lp => linkFor(lp) || mine.some(b => b.lp === lp));
     if (!lps.length) { box.hidden = true; return; }
     box.innerHTML = `<h2>LP meetings</h2><ul class="cc-list meet-list">${lps.map(lp => {
       const got = mine.filter(b => b.lp === lp);
@@ -99,7 +101,7 @@ function AdminMeetings(ctx) {
     const booked = new Set(matched.flatMap(b => b.studentIds));
     const notYet = data.students.filter(s => !booked.has(s.id))
       .sort((a, b) => (a.lastName || a.name).localeCompare(b.lastName || b.name));
-    const link = res.links[lp];
+    const link = linkFor(lp);
     const whoText = (b) => b.who.map(w => esc(w.name || w.email) + (w.name ? ` <span class="meta">${esc(w.email)}</span>` : '')).join(', ');
     const options = '<option value="">Choose a student…</option>' + data.students
       .slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
@@ -138,8 +140,9 @@ function AdminMeetings(ctx) {
     const form = $('#meet-form');
     if (form.dataset.filled) return;
     form.dataset.filled = '1';
+    $('#meet-all').value = res.links.ALL || '';
     $('#meet-links').innerHTML = ctx.data().lps.map(lp => `<label class="meet-link"><span>${lp}</span>
-      <input name="${lp}" type="url" placeholder="https://calendar.app.google/…" value="${esc(res.links[lp] || '')}" spellcheck="false"></label>`).join('');
+      <input name="${lp}" type="url" placeholder="Same as every LP" value="${esc(res.links[lp] || '')}" spellcheck="false"></label>`).join('');
     form.words.value = res.words || '';
   }
 
@@ -170,7 +173,7 @@ function AdminMeetings(ctx) {
   });
   $('#meet-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const links = {};
+    const links = { ALL: e.target.ALL.value.trim() };
     ctx.data().lps.forEach(lp => { links[lp] = e.target[lp].value.trim(); });
     busy('Saving…');
     try {
@@ -188,6 +191,6 @@ function AdminMeetings(ctx) {
   return {
     load, reset, cardLine, tile, studentCard, open,
     setLp: (lp) => { pageLp = lp; },
-    link: (lp) => res && res.links ? res.links[lp] || '' : '',
+    link: linkFor,
   };
 }

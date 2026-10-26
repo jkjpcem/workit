@@ -720,3 +720,4 @@ a.brand:hover { opacity: .9; }
 #screen-meetings .lp-head { display: flex; align-items: center; gap: 16px; }
 @media (max-width: 700px) { .meet-rows li { grid-template-columns: 1fr; gap: 4px; } }
 .meet-who .linklike { padding: 0; text-align: left; align-self: flex-start; }
+.meet-per-lp summary { cursor: pointer; font-weight: 650; font-size: 14px; margin-bottom: 8px; }

@@ -2304,7 +2304,7 @@ function studentVars_(s, st, x) {
     'missing classes': x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
-    'booking link': meetingSettings_().links[st.lp] || '',
+    'booking link': meetingLink_(meetingSettings_(), st.lp),
   };
 }
 
@@ -2314,7 +2314,7 @@ function itemVars_(s, st, student, i) {
     first: student.firstName || student.name, student_first_name: student.firstName || student.name, lp: i.lp, count: '', 'missing classes': '',
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: i.subject, reasons: why || '  • See the note on the sample',
-    'booking link': meetingSettings_().links[i.lp] || '',
+    'booking link': meetingLink_(meetingSettings_(), i.lp),
   };
 }
 
@@ -2442,8 +2442,9 @@ function recentEmails_(n) {
 
 // ---------- LP meetings: bookings from your Google Calendar ----------
 //
-// You make a Google Calendar booking page (appointment schedule) for each LP and paste its link
-// on the dashboard's Meetings page. Families book there; Google puts each booking on your
+// You make a Google Calendar booking page (appointment schedule) and paste its link on the
+// dashboard's Meetings page: one link for every LP (change its dates in Google each LP), or a
+// different link for an LP. Families book there; Google puts each booking on your
 // calendar with the family as a guest. WiSH reads those events (read-only) and matches the
 // guest's email to the Student email and Family email columns of the roster. A booking from an
 // email that isn't on the roster shows as unmatched until you link it to a student once.
@@ -2460,6 +2461,11 @@ function meetingSettings_() {
   const s = Object.assign({}, MEETINGS_DEFAULTS, saved);
   s.links = Object.assign({}, saved.links || {});
   return s;
+}
+
+/** The booking link for one LP: its own, or the one for every LP (key ALL). */
+function meetingLink_(s, lp) {
+  return s.links[lp] || s.links.ALL || '';
 }
 
 /** Emails you linked to a student by hand ('-' = not a family, don't show it). */
@@ -2577,7 +2583,9 @@ function studentBookings_(id) {
 function studentMeetings_(id) {
   const s = meetingSettings_();
   if (!Object.keys(s.links).length) return null;
-  return { links: s.links, booked: studentBookings_(id) };
+  const links = {};
+  LEARNING_PERIODS.forEach(lp => { if (meetingLink_(s, lp)) links[lp] = meetingLink_(s, lp); });
+  return { links: links, booked: studentBookings_(id) };
 }
 
 /** The Meetings page and the dashboard: links, settings and every booking with its student. */
@@ -2597,12 +2605,13 @@ function adminMeetings_(body) {
 function adminSaveMeetings_(body) {
   const links = {};
   const given = body.links || {};
-  for (let i = 0; i < LEARNING_PERIODS.length; i++) {
-    const lp = LEARNING_PERIODS[i];
+  const keys = ['ALL'].concat(LEARNING_PERIODS);
+  for (let i = 0; i < keys.length; i++) {
+    const lp = keys[i];
     const link = clean_(given[lp], 300);
     if (!link) continue;
     if (!/^https:\/\/(calendar\.app\.google|calendar\.google\.com)\/[^\s"<>]+$/.test(link)) {
-      return { ok: false, error: lp + ': paste the booking page link from Google Calendar (it starts with https://calendar.app.google/).' };
+      return { ok: false, error: (lp === 'ALL' ? 'Every LP' : lp) + ': paste the booking page link from Google Calendar (it starts with https://calendar.app.google/).' };
     }
     links[lp] = link;
   }
