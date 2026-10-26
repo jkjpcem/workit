@@ -129,7 +129,19 @@
     $('#user-btn').setAttribute('aria-expanded', String(open));
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('.user-menu')) closeUserMenu(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeUserMenu(); });
+  // Esc goes back one screen: it closes the name menu first, leaves a text box
+  // on the first press, and otherwise works like the page's "← Back" button.
+  // The sample viewer and pop-ups handle their own Esc.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (!$('#user-menu').hidden) { closeUserMenu(); return; }
+    if (!$('#viewer').hidden || document.querySelector('dialog[open]')) return;
+    const a = document.activeElement;
+    if (a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) { a.blur(); return; }
+    const screen = $$('.screen').find(s => !s.hidden);
+    const back = screen && [...screen.querySelectorAll('.back-link, #forgot-back')].find(b => b.offsetParent);
+    if (back) { e.preventDefault(); back.click(); }
+  });
 
   // WiSH in the top bar always goes back to the dashboard home.
   $('#brand-home').addEventListener('click', (e) => {

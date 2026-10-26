@@ -113,8 +113,11 @@
   // ---------- Screens & navigation ----------
 
   let current = 'login';
-  function show(name) {
+  const past = []; // screens visited, for Esc = back
+  function show(name, goingBack) {
     if (!session) name = 'login';
+    if (name === 'login') past.length = 0;
+    else if (!goingBack && name !== current && current !== 'login') past.push(current);
     if (name === 'history' && current !== 'history') historyFilter.lp = session.currentLp;
     current = name;
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
@@ -1258,7 +1261,17 @@
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('#account')) closeMenu(); });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('#account-menu').hidden) { closeMenu(); menuBtn.focus(); }
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (!$('#account-menu').hidden) { closeMenu(); menuBtn.focus(); return; }
+    // Otherwise Esc goes back: leave a text box first, then step back inside
+    // the upload, then return to the screen before this one.
+    if (document.querySelector('dialog[open]')) return;
+    const a = document.activeElement;
+    if (a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) { a.blur(); return; }
+    const step = $('#review-back');
+    if (step && step.offsetParent) { step.click(); return; }
+    while (past.length && past[past.length - 1] === current) past.pop();
+    if (past.length) show(past.pop(), true);
   });
 
   // ---------- Little helpers ----------
