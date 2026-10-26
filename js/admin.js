@@ -328,24 +328,31 @@
   let evenTimer = null;
   window.addEventListener('resize', () => { clearTimeout(evenTimer); evenTimer = setTimeout(evenUploads, 150); });
 
-  // Short class names for the dashboard cards ("English 10 A H" -> "Eng 10"); the full name is in the tooltip.
-  const SHORT = [
-    [/^us\s+hist/i, 'USH'], [/^world\s+hist/i, 'WH'], [/^pre-?\s?calc/i, 'PreC'], [/^ap\s+/i, ''],
-    [/^english/i, 'Eng'], [/^algebra/i, 'Alg'], [/^geometry/i, 'Geo'], [/^biology/i, 'Bio'], [/^chemistry/i, 'Chem'],
-    [/^physics/i, 'Phys'], [/^history/i, 'Hist'], [/^government|^govt/i, 'Govt'], [/^economics|^econ/i, 'Econ'],
-    [/^calculus/i, 'Calc'], [/^statistics/i, 'Stat'], [/^science/i, 'Sci'], [/^spanish/i, 'Span'], [/^french/i, 'Fren'],
-    [/^photography/i, 'Phot'], [/^automotive/i, 'Auto'], [/^marine\s+bio/i, 'MBio'], [/^physical\s+ed/i, 'PE'],
-  ];
+  // Short class names for the cards: about 4 letters of each of the first two words
+  // ("Functional Algebra 1" -> "Func Alg 1", "World History" -> "Wor Hist"). Full name in the tooltip.
+  const WORD_SHORT = {
+    english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'Hist',
+    government: 'Govt', economics: 'Econ', calculus: 'Calc', statistics: 'Stat', science: 'Sci', spanish: 'Span', french: 'Fren',
+    world: 'Wor', functional: 'Func', mathematics: 'Math', physical: 'Phys', education: 'Ed', marine: 'Mar', literature: 'Lit',
+    language: 'Lang', integrated: 'Int', environmental: 'Env', american: 'Amer', precalculus: 'PreCalc', photography: 'Photo',
+  };
+  const SKIP_WORDS = /^(and|of|the|&|for|to|in)$/i;
+  function shortWord(w) {
+    if (/^(us|ap|pe|ib)$/i.test(w)) return w.toUpperCase();
+    if (/^pre-?calc/i.test(w)) return 'PreCalc';
+    const known = WORD_SHORT[w.toLowerCase()];
+    if (known) return known;
+    const t = w.slice(0, 4);
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
   function shortClass(name) {
-    let rest = String(name || '').trim().replace(/\s+(H|Honors)$/i, '').replace(/\s+[AB]$/, '');
+    let rest = String(name || '').trim().replace(/\s+(H|Honors)$/i, '').replace(/\s+[AB]$/, '').replace(/\s*\(.*?\)\s*/g, ' ').trim();
     rest = rest.replace(/(\d+)[AB]\b/, '$1');
     const num = (/\b(\d+)\s*$/.exec(rest) || [])[1] || '';
-    let word = rest.replace(/\b\d+\s*$/, '').trim();
-    let short = null;
-    for (const [re, abbr] of SHORT) {
-      if (re.test(word)) { short = abbr || shortClass(word.replace(re, '')); break; }
-    }
-    if (short === null) short = word.split(/\s+/)[0].slice(0, 4);
+    const words = rest.replace(/\b\d+\s*$/, '').trim().split(/\s+/).filter(w => w && !SKIP_WORDS.test(w));
+    // "AP" counts as extra, so "AP World History" -> "AP Wor Hist".
+    const lead = words.length > 2 && /^(ap|ib|us)$/i.test(words[0]) ? 3 : 2;
+    const short = words.slice(0, lead).map(shortWord).join(' ');
     return num ? `${short} ${num}` : short;
   }
 
