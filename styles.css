@@ -254,6 +254,12 @@ fieldset.pair legend { font-weight: 600; font-size: 15px; margin-bottom: 6px; pa
 .lp-banner.off .linklike { color: inherit; }
 .lp-text { flex: 1; min-width: 0; }
 .lp-dates { font-weight: 400; white-space: nowrap; }
+/* LP meeting with the ES: booked time, or a button to Google's booking page */
+.meeting { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 14px; margin-bottom: 14px;
+  font-size: 15px; background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent); }
+.meeting > span:not(.meet-icon) { flex: 1; min-width: 0; }
+.meeting .meet-icon { font-size: 20px; }
+.meeting .btn { white-space: nowrap; }
 .change-lp-btn { margin-left: auto; min-height: 30px; padding: 4px 12px; font-size: 13px; font-weight: 500;
   color: var(--muted); background: transparent; border-color: var(--line); box-shadow: none; }
 .change-lp-btn:hover { color: var(--brand); border-color: var(--brand); }

@@ -44,7 +44,7 @@
     try {
       const asked = Date.now();
       const res = await Api.call('login', { studentId: id });
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {} });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, meetings: res.meetings || null });
       showAlerts(res.alerts);
       loginForm.reset();
       resetWizard();
@@ -74,7 +74,7 @@
       const res = await Api.call('login', { studentId: session.student.id });
       // Follow the new current LP unless the student deliberately picked another one.
       if (wiz.lp === session.currentLp) wiz.lp = res.currentLp;
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {} });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, meetings: res.meetings || null });
       showAlerts(res.alerts);
       renderAll();
       if (res.items) applyItems(res.items, asked, res.trash); else syncHistory(true);
@@ -142,9 +142,34 @@
     if (!session) closeMenu();
     $('#greeting').textContent = session ? `Welcome, ${session.student.firstName || session.student.id}` : '';
     if (!session) return;
+    renderMeeting();
     if (current === 'upload') renderWizard();
     if (current === 'history') renderHistory();
     if (current === 'me') renderMe();
+  }
+
+  // ---------- LP meeting ----------
+  // When the ES has a Google Calendar booking page for the current LP: the family's booked
+  // time, or a button to book one. The booking itself happens on Google's page.
+
+  function renderMeeting() {
+    const m = session.meetings;
+    const lp = session.currentLp;
+    const link = m && m.links && m.links[lp];
+    const booked = m ? (m.booked || []).filter(b => b.lp === lp && b.end > Date.now()) : [];
+    const html = !link && !booked.length ? '' : booked.length
+      ? `<span class="meet-icon" aria-hidden="true">📅</span><span>Your ${esc(lp)} meeting with your ES: <strong>${booked.map(b => esc(meetingTime(b.start))).join(' and ')}</strong></span>`
+      : `<span class="meet-icon" aria-hidden="true">📅</span><span>Book your ${esc(lp)} meeting with your ES.</span>
+         <a class="btn small primary" href="${esc(link)}" target="_blank" rel="noopener">Book a time</a>`;
+    for (const id of ['#meeting-upload', '#meeting-history']) {
+      $(id).innerHTML = html;
+      $(id).className = `meeting ${booked.length ? 'booked' : ''}`;
+      $(id).hidden = !html;
+    }
+  }
+  function meetingTime(ms) {
+    const d = new Date(ms);
+    return `${d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   }
 
   // ---------- Upload steps ----------
