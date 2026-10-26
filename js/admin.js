@@ -1438,20 +1438,28 @@
   }
 
   // ----- Classes: one tag per class, Sem 1 and Sem 2 side by side -----
+  let classSem = 'classes'; // the Sem 1 or Sem 2 tab
+  $$('.sem-tabs [data-sem]').forEach(b => b.addEventListener('click', () => {
+    classSem = b.dataset.sem;
+    $$('.sem-tabs [data-sem]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+    $('#classes-th').className = classSem === 'classes' ? 'sem1' : 'sem2';
+    $('#classes-th').innerHTML = classSem === 'classes' ? 'Sem 1 classes <span>LP1–4</span>' : 'Sem 2 classes <span>LP5–8</span>';
+    renderClasses();
+  }));
   function renderClasses() {
     const rows = roster.map((r, i) => ({ r, i })).filter(x => !isEmpty(x.r));
     $('#classes-body').innerHTML = rows.length ? rows.map(({ r, i }) => `<tr data-r="${i}">
         <td class="cls-who">${esc(`${r.first} ${r.last}`.trim() || '(no name)')}</td>
-        ${['classes', 'classes2'].map(k => {
+        ${[classSem].map(k => {
           const derived = k === 'classes2' && !String(r.classes2 || '').trim();
           const list = classList(r, k);
           return `<td class="cls-cell${derived ? ' derived' : ''}" data-k="${k}">
             ${derived && list.length ? '<span class="cls-note">Same as Sem 1, A → B:</span>' : ''}
-            ${list.map((c, n) => `<span class="cls${c.need === 2 ? ' accel' : ''}"><button type="button" class="cls-name" data-acc="${n}" title="Click to switch Accel on or off">${esc(c.name)}${c.need === 2 ? '<b>Accel</b>' : ''}</button><button type="button" class="cls-x" data-del="${n}" aria-label="Remove ${esc(c.name)}">×</button></span>`).join('')}
-            <input class="cls-add" placeholder="${list.length ? '＋ Add' : '＋ Add a class'}" aria-label="Add a ${k === 'classes' ? 'Sem 1' : 'Sem 2'} class for ${esc(r.first)}">
+            <div class="cls-grid">${list.map((c, n) => `<span class="cls${c.need === 2 ? ' accel' : ''}"><button type="button" class="cls-name" data-acc="${n}" title="Click to switch Accel on or off">${esc(c.name)}${c.need === 2 ? '<b>Accel</b>' : ''}</button><button type="button" class="cls-x" data-del="${n}" aria-label="Remove ${esc(c.name)}">×</button></span>`).join('')}
+<input class="cls-add" placeholder="＋ Add a class" aria-label="Add a ${k === 'classes' ? 'Sem 1' : 'Sem 2'} class for ${esc(r.first)}"></div>
           </td>`;
         }).join('')}
-      </tr>`).join('') : '<tr><td colspan="3" class="cls-empty">Add students above, then their classes show here.</td></tr>';
+      </tr>`).join('') : '<tr><td colspan="2" class="cls-empty">Add students above, then their classes show here.</td></tr>';
   }
   function setClasses(i, k, list) {
     roster[i][k] = classText(list);
