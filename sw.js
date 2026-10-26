@@ -1,9 +1,9 @@
 // Keeps the app working offline. Bump VERSION whenever you change app files.
-const VERSION = 'workit-v66';
+const VERSION = 'workit-v67';
 const FILES = [
   './', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
   'js/app.js', 'js/notes.js', 'js/classes.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js', 'js/move.js',
-  'icons/icon.svg', 'icons/logo.svg', 'icons/logo-dark.svg', 'icons/icon-192.png', 'icons/icon-512.png',
+  'icons/icon.svg', 'icons/logo.svg', 'icons/logo-dark.svg', 'icons/wish-mark-dark.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 
 // A page that came through a redirect (Cloudflare turns admin.html into /admin) can't be handed

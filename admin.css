@@ -20,7 +20,13 @@
 main.wide { max-width: none; padding: 26px var(--page-gutter) 40px; }
 body.admin { --page-gutter: clamp(16px, 3vw, 48px); }
 body.admin .topbar { padding: calc(16px + env(safe-area-inset-top)) var(--page-gutter) 16px; }
-body.admin .brand img.brand-logo { height: 58px; }
+/* Logo lockup: WiSH, a thin divider, "Work Sample Herder" stacked, and the slogan underneath */
+.brand.lockup { flex-direction: column; align-items: flex-start; gap: 8px; }
+.lockup-row { display: flex; align-items: flex-end; gap: 14px; }
+.brand img.brand-mark { height: 60px; width: auto; display: block; border-radius: 0; box-shadow: none; }
+.lockup-div { width: 1px; align-self: stretch; margin: 6px 0 4px; background: rgba(255, 255, 255, .25); }
+.lockup-name { color: #b9c7f5; font-size: 15px; font-weight: 400; line-height: 1.15; letter-spacing: 0; padding-bottom: 4px; }
+.lockup-slogan { color: #ffd166; font-size: 13px; font-weight: 300; font-style: italic; letter-spacing: 0; white-space: nowrap; }
 .narrow { max-width: 420px; margin: 0 auto; }
 .admin-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 label.inline { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
