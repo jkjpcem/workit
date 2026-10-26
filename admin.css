@@ -85,8 +85,6 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
   transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s;
 }
 .scard:hover, .scard:focus-visible { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); outline: none; }
-.scard.has-redo { box-shadow: inset 4px 0 0 var(--st-redo), var(--shadow); }
-.scard.has-redo:hover { box-shadow: inset 4px 0 0 var(--st-redo), var(--shadow-lg); }
 .scard.all-filed { background: var(--all-filed-bg); border-color: color-mix(in srgb, var(--st-finalized) 30%, var(--line)); }
 .scard .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .scard h3 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
