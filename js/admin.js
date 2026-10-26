@@ -287,7 +287,7 @@
       // Sem 1 classes for LP1-4, Sem 2 for LP5-8; an accelerated class needs 2 samples.
       const subjects = classes.map(c => {
         const n = mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
-        const label = c.need > 1 ? ` · ${n}/${c.need}` : n ? ` · ${n}` : '';
+        const label = ''; // no counts on the class names; the color shows done, partly done or missing
         return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
       }).join('');
       const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
