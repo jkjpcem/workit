@@ -1308,6 +1308,7 @@ function adminItem_(i) {
   p.finalUrl = i.finalUrl;
   p.filedAs = i.filedAs;
   p.redoSentAt = i.redo ? i.redoMarkedAt : 0;
+  p.approvedAt = i.approved ? i.approvedAt : 0;
   return p;
 }
 

@@ -293,13 +293,13 @@
         (mine.length > 6 ? `<span class="more">+${mine.length - 5}</span>` : '');
       card.innerHTML = `
         <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
+        <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
+          by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
         <div class="card-uploads">${mine.length ? `
-          <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
-            by[k] ? `<i class="${k}" style="width:${(by[k] / mine.length) * 100}%"></i>` : '').join('')}</div>
           <div class="counts"><b>${mine.length}</b> upload${mine.length > 1 ? 's' : ''} ·
             ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
-        : `<div class="empty-card">No uploads in ${esc(viewLp)} yet.</div>`}</div>
+        : `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`}</div>
         ${subjects ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
         <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
       card.addEventListener('click', (e) => {
@@ -320,7 +320,7 @@
   function evenUploads() {
     const boxes = $$('#student-grid .card-uploads');
     boxes.forEach(b => { b.style.minHeight = ''; });
-    const h = Math.max(0, ...boxes.filter(b => !b.querySelector('.empty-card')).map(b => b.offsetHeight));
+    const h = Math.max(0, ...boxes.map(b => b.offsetHeight));
     boxes.forEach(b => { b.style.minHeight = h ? h + 'px' : ''; });
   }
   let evenTimer = null;
@@ -602,10 +602,13 @@
       const finalized = !!it.finalizedAt;
       $('#t-approve').setAttribute('aria-pressed', String(!!it.approved));
       $('#t-approve').disabled = finalized;
-      $('#t-approve').textContent = it.approved ? '✓ Approved' : '✓ Approve';
+      $('#t-approve').innerHTML = it.approved
+        ? `✓ Approved${it.approvedAt ? `<small>${esc(stamp(it.approvedAt))}</small>` : ''}` : '✓ Approve';
       // Redo is picked first (a draft only you see), then sent with Send back to student.
       const redoing = !!it.redo || !!it.redoDraft;
       $('#t-redo').setAttribute('aria-pressed', String(redoing));
+      $('#t-redo').innerHTML = it.redo
+        ? `↺ Sent back${it.redoSentAt ? `<small>${esc(daysAgo(it.redoSentAt))} · ${esc(stamp(it.redoSentAt))}</small>` : ''}` : '↺ Redo';
       $('#t-redo').disabled = finalized;
       $('#reasons-box').hidden = !redoing;
       $('#reasons').innerHTML = data.reasons.map(r => `
@@ -618,9 +621,6 @@
         : 'Why does it need a redo? Pick all that apply, and type your own reason if you like. Nothing goes to the student until you click Send back to student.';
       $('#t-send').hidden = !!it.redo;
       $('#t-send').disabled = !hasReason(it);
-      $('#redo-sent').hidden = !it.redo;
-      $('#redo-sent').textContent = it.redoSentAt ? `✓ Sent back to student ${daysAgo(it.redoSentAt)}` : '✓ Sent back to student';
-      $('#redo-sent').title = it.redoSentAt ? new Date(it.redoSentAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
       // Annotate works any time except on a redo; filing needs Approve first.
       $('#finish-row').hidden = redoing;
       $('#t-annotate').disabled = redoing;
@@ -652,7 +652,7 @@
       if (it.redo) it.approved = false;
       if (!it.redo) { it.reasons = []; it.redoNote = ''; }
       if (it.redo) setAnnotating(false);
-      syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
+      syncCaches(it, ['approved', 'approvedAt', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
       renderReview(it);
       $('#v-save').textContent = 'Saving…';
       clearTimeout(reviewTimer);
@@ -682,6 +682,9 @@
       const n = Math.round((day(Date.now()) - day(ms)) / 86400000);
       return n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`;
     }
+    function stamp(ms) {
+      return new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
     function hasReason(it) { return (it.reasons || []).length > 0 || !!String(it.redoNote || '').trim(); }
     // A redo that was picked but not sent: leaving the sample drops it (after asking, if reasons were picked).
     function dropDraft() {
@@ -695,6 +698,7 @@
     $('#t-approve').addEventListener('click', () => changeReview(i => {
       i.redoDraft = false;
       i.approved = !i.approved;
+      i.approvedAt = i.approved ? Date.now() : 0;
       if (i.approved) { i.redo = false; i.redoSentAt = 0; }
     }));
     $('#t-redo').addEventListener('click', () => {
@@ -728,7 +732,7 @@
       const it = item();
       if (!it.redoDraft || !hasReason(it)) return;
       clearTimeout(reviewTimer);
-      it.redoDraft = false; it.redo = true; it.approved = false; it.redoSentAt = Date.now();
+      it.redoDraft = false; it.redo = true; it.approved = false; it.approvedAt = 0; it.redoSentAt = Date.now();
       syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
       renderReview(it);
       $('#t-send').disabled = true;

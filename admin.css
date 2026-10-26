@@ -185,8 +185,8 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
   transition: transform .15s var(--ease), box-shadow .15s, background .15s, border-color .15s;
 }
 .toggle:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow); }
-.toggle.approved:hover:not(:disabled) { border-color: var(--st-finalized); color: var(--st-finalized); }
-.toggle.redo:hover:not(:disabled) { border-color: var(--st-redo); color: var(--st-redo); }
+.toggle.approved:not([aria-pressed="true"]):hover:not(:disabled) { border-color: var(--st-finalized); color: var(--st-finalized); }
+.toggle.redo:not([aria-pressed="true"]):hover:not(:disabled) { border-color: var(--st-redo); color: var(--st-redo); }
 .toggle.approved[aria-pressed="true"] { background: linear-gradient(180deg, #1fae6a, var(--st-finalized)); border-color: transparent; color: #fff; box-shadow: 0 6px 18px rgba(20, 135, 79, .35); }
 .toggle:disabled { opacity: .45; cursor: not-allowed; }
 .toggle.redo[aria-pressed="true"] { background: linear-gradient(180deg, #e2504a, var(--st-redo)); border-color: transparent; color: #fff; box-shadow: 0 6px 18px rgba(208, 52, 44, .35); }
@@ -328,8 +328,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .redo-send { margin-top: 14px; }
 .redo-send-btn { width: 100%; background: var(--st-redo); border-color: var(--st-redo); color: #fff; }
 .redo-send-btn:disabled { opacity: .45; cursor: not-allowed; }
-.redo-sent { margin: 0; padding: 10px 12px; border-radius: 10px; font-weight: 700; font-size: 14px;
-  background: color-mix(in srgb, var(--st-redo) 12%, transparent); color: var(--st-redo); }
+.toggle small { display: block; font-size: 12px; font-weight: 500; opacity: .9; margin-top: 2px; }
 .reason:disabled, #redo-note:disabled { cursor: default; }
 
 /* ----- First sign-in setup steps ----- */
