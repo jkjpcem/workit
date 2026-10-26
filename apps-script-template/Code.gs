@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 21;
+const WORKIT_VERSION = 22;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -42,7 +42,8 @@ const ANNOTATED_NEEDED = 2;
 const SEM2_FIRST_LP = 5;
 const STUDENT_HEADERS = ['First name', 'Last name', 'Grade', 'City', 'Student ID',
   'Sem 1 classes (comma separated; add (Accel) after an accelerated class)',
-  'Sem 2 classes (leave blank to use Sem 1 with A changed to B)', 'Student email', 'Family email (more than one: separate with commas)'];
+  'Sem 2 classes (leave blank to use Sem 1 with A changed to B)', 'Student email', 'Family email (more than one: separate with commas)',
+  'Status (Active or Inactive)'];
 const LEARNING_PERIODS = ['LP1', 'LP2', 'LP3', 'LP4', 'LP5', 'LP6', 'LP7', 'LP8'];
 const GRADES = ['8', '9', '10', '11', '12'];
 const REDO_REASONS = ['Missing name', 'Missing date', 'Missing subject', 'Missing score/grade/feedback'];
@@ -276,6 +277,7 @@ function ackAlerts_(body) {
 function upload_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: 'Your account was not found. Ask your ES.' };
+  if (student.active === false) return { ok: false, error: 'Turning in work is paused on your account. Ask your ES.' };
   if (LEARNING_PERIODS.indexOf(body.lp) === -1) return { ok: false, error: 'Unknown Learning Period.' };
   if (!clean_(body.subject, 60)) return { ok: false, error: 'Pick a subject.' };
   const source = SOURCES.indexOf(body.source) !== -1 ? body.source : 'scan';
@@ -1141,6 +1143,7 @@ function adminRoster_() {
     const row = {
       first: text_(v[0]).trim(), last: text_(v[1]).trim(), grade: String(v[2]).trim(), city: text_(v[3]).trim(),
       classes: text_(v[5]).trim(), classes2: text_(v[6]).trim(), email: String(v[7] || '').trim(), family: String(v[8] || '').trim(),
+      status: /^\s*inactive/i.test(String(v[9] || '')) ? 'Inactive' : 'Active',
     };
     row.lastSignIn = seen[makeId_(row.first, row.grade, row.city)] || 0;
     if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family) rows.push(row);
@@ -1159,7 +1162,7 @@ function adminSaveRoster_(body) {
     const row = {
       first: clean_(r.first, 60), last: clean_(r.last, 60), grade: clean_(r.grade, 2),
       city: clean_(r.city, 60), classes: clean_(r.classes, 500), classes2: clean_(r.classes2, 500),
-      email: clean_(r.email, 120), family: clean_(r.family, 300),
+      email: clean_(r.email, 120), family: clean_(r.family, 300), status: r.status === 'Inactive' ? 'Inactive' : 'Active',
     };
     if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family) return;
     const id = makeId_(row.first, row.grade, row.city);
@@ -1179,12 +1182,12 @@ function adminSaveRoster_(body) {
     const last = sheet.getLastRow();
     if (last > 1) {
       sheet.getRange(2, 1, last - 1, 4).clearContent();
-      sheet.getRange(2, 6, last - 1, 4).clearContent();
+      sheet.getRange(2, 6, last - 1, 5).clearContent();
     }
     studentHeaders_();
     if (rows.length) {
       sheet.getRange(2, 1, rows.length, 4).setValues(rows.map(r => [cell_(r.first), cell_(r.last), r.grade, cell_(r.city)]));
-      sheet.getRange(2, 6, rows.length, 4).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family]));
+      sheet.getRange(2, 6, rows.length, 5).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status]));
     }
     return { ok: true, count: rows.length };
   } finally {
@@ -1428,6 +1431,8 @@ function getStudents_() {
     st.classes = st.sem1.map(c => c.name); // older app versions read this
     st.email = String(v[7] || '').trim();
     st.familyEmails = String(v[8] || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean);
+    // Inactive: can still sign in and see their work, but can't upload and gets no reminders.
+    st.active = !/^\s*inactive/i.test(String(v[9] || ''));
   }
   memoPut_('students', out);
   return out;
@@ -1466,7 +1471,7 @@ function semesterB_(name) {
 /** Names the Sem 1 / Sem 2 class columns on the Students tab (older sheets had one Classes column). */
 function studentHeaders_() {
   const sheet = getSheet_('Students');
-  sheet.getRange(1, 6, 1, 4).setValues([STUDENT_HEADERS.slice(5)]).setFontWeight('bold');
+  sheet.getRange(1, 6, 1, 5).setValues([STUDENT_HEADERS.slice(5)]).setFontWeight('bold');
   sheet.setColumnWidth(7, 320);
 }
 
@@ -2132,7 +2137,7 @@ function emailState_() {
   const tz = Session.getScriptTimeZone();
   const today = ymd_(new Date(), tz);
   const daysLeft = range ? daysBetween_(today, range.end) : null;
-  const students = getStudents_();
+  const students = getStudents_().filter(x => x.active !== false);  // inactive students get no reminders
   const byId = {};
   students.forEach(x => { byId[x.id] = x; });
   const subs = readSubs_();

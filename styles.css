@@ -524,3 +524,7 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 .trash-box summary { cursor: pointer; font-weight: 650; color: var(--muted); }
 .trash-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .trash-row .meta { display: block; }
+
+/* Inactive account: the ES paused turning in work */
+.paused-note { margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--warn-soft); color: var(--warn); font-weight: 600; font-size: 15px; }
+.step.paused { opacity: .45; pointer-events: none; }
