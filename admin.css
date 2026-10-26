@@ -16,7 +16,11 @@
   :root:not([data-theme="light"]) { --st-new: #7a6a2e; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffcf3a; --st-resubmitted-text: #ffcf3a; --all-filed-bg: #1c2744; }
 }
 
-main.wide { max-width: 1240px; padding-top: 26px; }
+/* The dashboard uses the whole window; the logo lines up with the page's left edge. */
+main.wide { max-width: none; padding: 26px var(--page-gutter) 40px; }
+body.admin { --page-gutter: clamp(16px, 3vw, 48px); }
+body.admin .topbar { padding: calc(16px + env(safe-area-inset-top)) var(--page-gutter) 16px; }
+body.admin .brand img.brand-logo { height: 58px; }
 .narrow { max-width: 420px; margin: 0 auto; }
 .admin-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 label.inline { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
