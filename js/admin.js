@@ -288,7 +288,7 @@
       const subjects = classes.map(c => {
         const n = mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
         const label = c.need > 1 ? ` · ${n}/${c.need}` : n ? ` · ${n}` : '';
-        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}">${esc(shortClass(c.name))}${label}</span>`;
+        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
       }).join('');
       const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
         `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
@@ -315,6 +315,7 @@
       });
       grid.appendChild(card);
     }
+    fitClasses();
     evenUploads();
   }
 
@@ -326,34 +327,37 @@
     boxes.forEach(b => { b.style.minHeight = h ? h + 'px' : ''; });
   }
   let evenTimer = null;
-  window.addEventListener('resize', () => { clearTimeout(evenTimer); evenTimer = setTimeout(evenUploads, 150); });
+  window.addEventListener('resize', () => { clearTimeout(evenTimer); evenTimer = setTimeout(() => { fitClasses(); evenUploads(); }, 150); });
 
-  // Short class names for the cards: about 4 letters of each of the first two words
-  // ("Functional Algebra 1" -> "Func Alg 1", "World History" -> "Wor Hist"). Full name in the tooltip.
+  // Class names on the cards: the full name ("8th Grade English H"; the A/B semester part left off).
+  // Only a name that doesn't fit is shortened, word by word ("8th Gr Eng H"). Full name in the tooltip.
   const WORD_SHORT = {
     english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'Hist',
     government: 'Govt', economics: 'Econ', calculus: 'Calc', statistics: 'Stat', science: 'Sci', spanish: 'Span', french: 'Fren',
     world: 'Wor', functional: 'Func', mathematics: 'Math', physical: 'Phys', education: 'Ed', marine: 'Mar', literature: 'Lit',
     language: 'Lang', integrated: 'Int', environmental: 'Env', american: 'Amer', precalculus: 'PreCalc', photography: 'Photo',
+    grade: 'Gr', honors: 'H', technology: 'Tech',
   };
-  const SKIP_WORDS = /^(and|of|the|&|for|to|in)$/i;
+  function className(name) {
+    return String(name || '').trim().replace(/\s+[AB]$/, '').replace(/(\d+)[AB]\b/, '$1').replace(/\s+[AB](\s+H)$/, '$1');
+  }
   function shortWord(w) {
-    if (/^(us|ap|pe|ib)$/i.test(w)) return w.toUpperCase();
+    if (/^\d/.test(w) || w.length <= 4 || w === w.toUpperCase()) return w;
     if (/^pre-?calc/i.test(w)) return 'PreCalc';
     const known = WORD_SHORT[w.toLowerCase()];
     if (known) return known;
-    const t = w.slice(0, 4);
-    return t.charAt(0).toUpperCase() + t.slice(1);
+    return w.charAt(0).toUpperCase() + w.slice(1, 4);
   }
   function shortClass(name) {
-    let rest = String(name || '').trim().replace(/\s+(H|Honors)$/i, '').replace(/\s+[AB]$/, '').replace(/\s*\(.*?\)\s*/g, ' ').trim();
-    rest = rest.replace(/(\d+)[AB]\b/, '$1');
-    const num = (/\b(\d+)\s*$/.exec(rest) || [])[1] || '';
-    const words = rest.replace(/\b\d+\s*$/, '').trim().split(/\s+/).filter(w => w && !SKIP_WORDS.test(w));
-    // "AP" counts as extra, so "AP World History" -> "AP Wor Hist".
-    const lead = words.length > 2 && /^(ap|ib|us)$/i.test(words[0]) ? 3 : 2;
-    const short = words.slice(0, lead).map(shortWord).join(' ');
-    return num ? `${short} ${num}` : short;
+    return className(name).replace(/\s*\(.*?\)/g, '').split(/\s+/).filter(w => !/^(and|of|the|&)$/i.test(w)).map(shortWord).join(' ');
+  }
+  // After the cards are drawn: shorten only the class names that don't fit their space.
+  function fitClasses() {
+    $$('#student-grid .subj[data-short]').forEach(el => {
+      if (!el.dataset.full) el.dataset.full = el.textContent;
+      el.textContent = el.dataset.full;
+      if (el.scrollWidth > el.clientWidth + 1) el.textContent = el.dataset.short;
+    });
   }
 
   // ---------- One student ----------
