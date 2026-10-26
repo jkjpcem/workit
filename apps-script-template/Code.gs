@@ -239,6 +239,7 @@ function doPost(e) {
 function login_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: "We couldn't find you. Did you enter all the letters correctly?" };
+  noteSignIn_(student.id);
   // Redo requests the student hasn't seen yet are shown once, right after sign-in.
   const all = readSubs_().items.filter(i => i.studentId === student.id);
   const mine = all.filter(i => !i.trashedAt);
@@ -247,6 +248,17 @@ function login_(body) {
   // The student's uploads come along, so the app doesn't have to ask a second time.
   return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), alerts: alerts,
     items: mine.map(publicItem_), trash: studentTrash_(all) };
+}
+
+/** Remembers when each student last signed in (shown in the Student Roster). Kept apart from the
+ *  Students tab so saving the roster never erases it. */
+function noteSignIn_(id) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const seen = JSON.parse(props.getProperty('LAST_SIGNIN') || '{}');
+    seen[id] = Date.now();
+    props.setProperty('LAST_SIGNIN', JSON.stringify(seen));
+  } catch (e) { /* never block a sign-in over this */ }
 }
 
 function ackAlerts_(body) {
@@ -1121,6 +1133,7 @@ const MAX_STUDENTS = 500;
 /** Every row of the Students tab, as typed. */
 function adminRoster_() {
   const values = getSheet_('Students').getDataRange().getValues();
+  const seen = JSON.parse(PropertiesService.getScriptProperties().getProperty('LAST_SIGNIN') || '{}');
   const rows = [];
   for (let r = 1; r < values.length; r++) {
     const v = values[r];
@@ -1128,6 +1141,7 @@ function adminRoster_() {
       first: text_(v[0]).trim(), last: text_(v[1]).trim(), grade: String(v[2]).trim(), city: text_(v[3]).trim(),
       classes: text_(v[5]).trim(), classes2: text_(v[6]).trim(), email: String(v[7] || '').trim(), family: String(v[8] || '').trim(),
     };
+    row.lastSignIn = seen[makeId_(row.first, row.grade, row.city)] || 0;
     if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family) rows.push(row);
   }
   return { ok: true, grades: GRADES, rows: rows };

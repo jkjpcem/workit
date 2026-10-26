@@ -1379,6 +1379,10 @@
     ? Classes.sem2From(Classes.parse(r.classes)) : Classes.parse(r[k]);
   const classText = (list) => list.map(c => c.name + (c.need === 2 ? ' (Accel)' : '')).join(', ');
   const isEmpty = (r) => COLS.every(k => !String(r[k] || '').trim());
+  // Last sign-in, or what stops this row from signing in.
+  const sidCell = (r, problem) => problem ? `<span class="why">${esc(problem)}</span>` : isEmpty(r) ? ''
+    : r.lastSignIn ? esc(new Date(r.lastSignIn).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))
+    : '<span class="never">Never</span>';
   // Whether reminders can reach this family.
   const remCell = (r) => isEmpty(r) ? '<td class="rem-cell"></td>'
     : String(r.email || '').trim() || String(r.family || '').trim() ? '<td class="rem-cell on">● On</td>' : '<td class="rem-cell">No email yet</td>';
@@ -1429,7 +1433,7 @@
         <td class="num fz fz0">${i + 1}</td>
         ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
         ${remCell(r)}
-        <td class="sid-cell" title="${esc(problem)}">${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}</td>
+        <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td><button class="row-x" type="button" title="Remove row" aria-label="Remove row ${i + 1}">✕</button></td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
@@ -1526,7 +1530,7 @@
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       tr.classList.toggle('bad', !!problem);
       $('.rem-cell', tr).outerHTML = remCell(r);
-      $('.sid-cell', tr).innerHTML = `${id && !problem ? '<b class="ok">✓</b>' : ''}${problem ? `<span class="why">${esc(problem)}</span>` : ''}`;
+      $('.sid-cell', tr).innerHTML = sidCell(r, problem);
     });
     $('#roster-count').textContent = `${roster.filter(r => !isEmpty(r)).length}`;
   }

@@ -260,7 +260,9 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .roster input:focus { background: var(--card); box-shadow: inset 0 0 0 2px var(--brand); }
 .roster td:nth-child(4) { width: 70px; }
 .roster td:nth-child(6) { min-width: 240px; }
-.roster .sid-cell { width: 150px; padding: 6px 10px; font-variant-numeric: tabular-nums; }
+.roster .sid-cell { width: 150px; padding: 6px 10px; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.roster .sid-cell .why { white-space: normal; }
+.roster .sid-cell .never { color: var(--muted); }
 .roster .sid-cell b { letter-spacing: .06em; color: var(--brand); }
 .roster .why { display: block; font-size: 11px; color: var(--bad); line-height: 1.3; }
 .roster tr.bad td.num { background: var(--bad-soft); color: var(--bad); font-weight: 700; }
