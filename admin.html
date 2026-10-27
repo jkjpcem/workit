@@ -244,22 +244,15 @@
                     <label class="inline"><input type="checkbox" name="parents"> Parents</label>
                     <label class="inline"><input type="checkbox" name="students"> Students</label>
                   </fieldset>
-                  <fieldset><legend>How they hear from WiSH</legend>
-                    <label class="inline"><input type="radio" name="famHow" value="event"> <span><b>As things happen</b> (one email per event)</span></label>
-                    <label class="inline"><input type="radio" name="famHow" value="daily"> <span><b>One daily summary</b> (everything in one email)</span></label>
-                  </fieldset>
                   <label class="lbl-sel">Send at
                     <select name="famHour"><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="15">3 PM</option><option value="18">6 PM</option></select>
                   </label>
                 </div>
                 <h3>What they get emailed about</h3>
-                <label class="chk"><input type="checkbox" name="missing"> <span><b>Missing samples</b><small>Which classes still need a sample this LP. Follows the schedule below.</small></span></label>
-                <label class="chk"><input type="checkbox" name="redo"> <span><b>Redo needed</b><small>A few minutes after you mark Redo, with your reasons and note.</small></span></label>
-                <label class="chk"><input type="checkbox" name="approved"> <span><b>All samples approved for the LP</b><small>Once per LP, when everything is in and approved.</small></span></label>
-                <label class="chk"><input type="checkbox" name="each"> <span><b>Each sample approved</b><small>A short note every time you approve one.</small></span></label>
-                <label class="chk"><input type="checkbox" name="received"> <span><b>Upload received</b><small>A receipt when a sample arrives.</small></span></label>
+                <label class="chk"><input type="checkbox" name="missing"> <span><b>Still to do</b><small>One email with the classes still missing a sample and the samples you sent back for a redo, with your reasons. Follows the schedule below.</small></span></label>
+                <label class="chk"><input type="checkbox" name="approved"> <span><b>All done</b><small>Once per LP: a congratulations email when every sample is in and nothing needs a redo.</small></span></label>
                 <div class="rem-sched">
-                  <div class="rem-sched-head"><h3>Missing-sample schedule</h3><span>Weeks count from the LP’s start date. Most LPs are 5 weeks.</span></div>
+                  <div class="rem-sched-head"><h3>Still-to-do schedule</h3><span>Weeks count from the LP’s start date. Most LPs are 5 weeks.</span></div>
                   <div class="weeks" id="rem-weeks"></div>
                   <div class="rem-row">
                     <label class="lbl-sel">“Once” goes out on
@@ -268,7 +261,7 @@
                     <label class="inline"><input type="checkbox" name="noWeekends"> Don’t send on weekends</label>
                     <label class="inline"><input type="checkbox" name="noHolidays"> Don’t send on major holidays</label>
                   </div>
-                  <p class="good"><span aria-hidden="true">✓</span> Families who have turned in every sample and have no redo waiting don’t get reminders.</p>
+                  <p class="good"><span aria-hidden="true">✓</span> Families who have turned in every sample and have no redo waiting don’t get these. They get the All done email instead.</p>
                 </div>
                 <div class="rem-sched" id="rem-meetings">
                   <div class="rem-sched-head"><h3>LP meetings</h3><span>Uses the booking link on the Meetings page. Same send time, weekend and holiday rules as above.</span></div>
@@ -289,11 +282,8 @@
               <div class="rem-head plain">
                 <div><h2>Email wording</h2><span>Change what each email says. WiSH fills in the words in {curly brackets} for each family.</span></div>
                 <div class="seg" role="radiogroup" aria-label="Which email" id="rem-tabs">
-                  <label><input type="radio" name="tpl" value="missing" checked> Missing samples</label>
-                  <label><input type="radio" name="tpl" value="redo"> Redo</label>
-                  <label><input type="radio" name="tpl" value="approved"> All approved</label>
-                  <label><input type="radio" name="tpl" value="each"> Each approved</label>
-                  <label><input type="radio" name="tpl" value="received"> Received</label>
+                  <label><input type="radio" name="tpl" value="missing" checked> Still to do</label>
+                  <label><input type="radio" name="tpl" value="approved"> All done</label>
                   <label data-new><input type="radio" name="tpl" value="book"> Book meeting</label>
                   <label data-new><input type="radio" name="tpl" value="meet"> Meeting soon</label>
                 </div>

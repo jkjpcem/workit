@@ -1321,7 +1321,7 @@
 
   const remForm = $('#rem-form');
   const TPL_FILLS = {
-    missing: ['student_first_name', 'lp', 'count', 'missing classes', 'days left', 'end date', 'link', 'booking link'],
+    missing: ['student_first_name', 'lp', 'to do', 'count', 'days left', 'end date', 'link', 'booking link'],
     redo: ['student_first_name', 'class', 'lp', 'reasons', 'link'],
     approved: ['student_first_name', 'lp', 'link'],
     each: ['student_first_name', 'class', 'lp', 'link'],
@@ -1330,7 +1330,7 @@
     meet: ['student_first_name', 'lp', 'when', 'meeting time', 'meet link', 'booking link'],
   };
   const WEEK_NAMES = ['Week 1–2', 'Week 3', 'Week 4', 'Week 5+'];
-  const KIND_NAMES = { missing: 'Missing', redo: 'Redo', approved: 'All approved', each: 'Approved', received: 'Received', book: 'Book meeting', meet: 'Meeting soon', summary: 'Summary', report: 'Report', 'to you': 'To you' };
+  const KIND_NAMES = { missing: 'Still to do', redo: 'Redo', approved: 'All done', each: 'Approved', received: 'Received', book: 'Book meeting', meet: 'Meeting soon', summary: 'Summary', report: 'Report', 'to you': 'To you' };
   let rem = null;          // last adminEmailSettings answer
   let tpls = {};           // the wording being edited, for every email
   let tplKind = 'missing';
@@ -1369,9 +1369,8 @@
     const s = rem.settings, f = remForm;
     const radio = (name, v) => $$(`input[name="${name}"]`, f).forEach(r => { r.checked = r.value === String(v); });
     radio('families', s.families);
-    radio('famHow', s.famHow);
     radio('report', s.report ? 'on' : 'off');
-    ['parents', 'students', 'missing', 'redo', 'approved', 'each', 'received', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
+    ['parents', 'students', 'missing', 'approved', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
       .forEach(k => { f[k].checked = !!s[k]; });
     ['famHour', 'onceDay', 'reportHour', 'weeklyDay'].forEach(k => { f[k].value = String(s[k]); });
     s.weeks.slice(0, WEEK_NAMES.length).forEach((w, n) => { f[`week${n}`].value = w; });
@@ -1398,7 +1397,7 @@
     $('#rem-lp').textContent = st.week && st.week > 0 ? `${st.lp} · Week ${Math.min(st.week, st.weeks)} of ${st.weeks}` : st.lp;
     $('#rem-lp-sub').textContent = st.range ? `${dayName(st.range.start)} to ${dayName(st.range.end)}${st.daysLeft >= 0 ? ` · ${st.daysLeft} day${st.daysLeft === 1 ? '' : 's'} left` : ' · ended'}` : 'No LP dates set in Settings';
     $('#rem-next').textContent = st.nextReminder ? `${dayName(st.nextReminder.date)} · ${hourName(st.nextReminder.hour)}` : 'None scheduled';
-    $('#rem-next-sub').textContent = s.families === 'off' ? 'Family emails are off' : `${st.missingFamilies} famil${st.missingFamilies === 1 ? 'y is' : 'ies are'} missing samples`;
+    $('#rem-next-sub').textContent = s.families === 'off' ? 'Family emails are off' : `${st.missingFamilies} famil${st.missingFamilies === 1 ? 'y has' : 'ies have'} something still to do`;
     $('#rem-noemail').textContent = st.noEmail ? `${st.noEmail} student${st.noEmail === 1 ? '' : 's'}` : 'None';
     $$('#rem-weeks .week, #rem-book-weeks .week', f).forEach(w => {
       const n = Number(w.dataset.w);
@@ -1439,11 +1438,12 @@
     const sample = rem.sample || { first: 'Maya', to: [], missing: ['Algebra 2 (1 of 2 turned in)', 'Biology'] };
     const st = rem.status;
     const vars = {
-      first: sample.first, student_first_name: sample.first, lp: st.lp, count: `${sample.missing.length || 1} work sample${sample.missing.length === 1 ? '' : 's'}`,
+      first: sample.first, student_first_name: sample.first, lp: st.lp, count: sample.count || `${sample.missing.length || 1} work sample${sample.missing.length === 1 ? '' : 's'}`,
       'missing classes': (sample.missing.length ? sample.missing : ['Biology']).map(m => `  • ${m}`).join('\n'),
       'days left': st.daysLeft === null || st.daysLeft === undefined ? '' : String(Math.max(0, st.daysLeft)),
       'end date': st.range ? dayName(st.range.end) : '', link: new URL('./', location.href).host + (creds.role === 'es' ? `/?es=${creds.user}` : ''),
       class: 'Biology', reasons: '  • Missing date\n  • Please add your score',
+      'to do': sample.todo || 'Still missing:\n  • Biology\n\nNeeds a redo (open My uploads and tap Resubmit):\n  • Algebra 2: Missing date',
       when: 'on Thursday', 'meeting time': 'Thursday, November 5 at 3:30 PM', 'meet link': 'https://meet.google.com/abc-defg-hij',
       'booking link': Meetings.link(st.lp) || 'calendar.app.google/…',
     };
@@ -1492,7 +1492,7 @@
     }
     const checks = (attr) => Object.fromEntries($$(`[data-${attr}]`, f).map(i => [i.dataset[attr], i.checked]));
     const settings = {
-      families, famHow: val('famHow'), report: val('report') === 'on',
+      families, report: val('report') === 'on',
       famHour: Number(f.famHour.value), onceDay: Number(f.onceDay.value), reportHour: Number(f.reportHour.value), weeklyDay: Number(f.weeklyDay.value),
       weeks: WEEK_NAMES.map((w, n) => f[`week${n}`].value),
       bookWeeks: WEEK_NAMES.map((w, n) => f[`bookWeek${n}`].value), bookOnceDay: Number(f.bookOnceDay.value),
@@ -1502,8 +1502,10 @@
       templates: tpls,
       link: new URL('./', location.href).href + (creds.role === 'es' ? `?es=${encodeURIComponent(creds.user)}` : ''),
     };
-    ['parents', 'students', 'missing', 'redo', 'approved', 'each', 'received', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
+    ['parents', 'students', 'missing', 'approved', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
       .forEach(k => { settings[k] = f[k].checked; });
+    // Families now get only Still to do and All done (redos are in Still to do).
+    Object.assign(settings, { redo: false, each: false, received: false, famHow: 'daily' });
     busy('Saving…');
     try {
       rem = await call('adminSaveEmailSettings', { settings });

@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 23;
+const WORKIT_VERSION = 24;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -1890,9 +1890,9 @@ const SCHEDULE_CHOICES = ['none', 'once', 'twice', 'every5', 'every4', 'every3',
 
 const EMAIL_TEMPLATES = {
   missing: {
-    subject: '{student_first_name} still needs {count} for {lp}',
-    body: 'Hi {student_first_name} and family,\n\n{student_first_name} still needs to turn in work samples for these classes in {lp}:\n\n{missing classes}\n\n' +
-      '{lp} ends {end date} ({days left} days left). Turn them in at {link}\n\nThank you,\nYour ES',
+    subject: '{student_first_name}’s {lp} work samples: {count} still to do',
+    body: 'Hi {student_first_name} and family,\n\nHere is what {student_first_name} still needs to do for {lp}:\n\n{to do}\n\n' +
+      '{lp} ends {end date} ({days left} days left). Turn work in at {link}\n\nThank you,\nYour ES',
   },
   redo: {
     subject: 'Please redo {student_first_name}’s {class} sample ({lp})',
@@ -1900,8 +1900,8 @@ const EMAIL_TEMPLATES = {
       'Sign in at {link}, open My uploads, and tap Resubmit on that sample.\n\nThank you,\nYour ES',
   },
   approved: {
-    subject: 'All of {student_first_name}’s {lp} work samples are approved',
-    body: 'Hi {student_first_name} and family,\n\nGood news: every work sample {student_first_name} needs for {lp} is turned in and approved. ' +
+    subject: 'Congratulations! {student_first_name} is all done for {lp}',
+    body: 'Hi {student_first_name} and family,\n\nCongratulations! {student_first_name} has turned in every work sample needed for {lp}, and nothing needs a redo. ' +
       'Nothing else is needed for {lp}.\n\nThank you,\nYour ES',
   },
   each: {
@@ -1972,9 +1972,9 @@ function adminEmailSettings_() {
   let running = false;
   try { running = timerOn_(); } catch (e) { /* not allowed yet */ }
   const st = emailState_();
-  const missingFamilies = st.students.filter(x => x.missing.length).length;
+  const missingFamilies = st.students.filter(x => x.missing.length || x.redos.length).length;
   const noEmail = st.students.filter(x => !recipients_(Object.assign({}, s, { parents: true, students: true }), x.student).length).length;
-  const sample = st.students.filter(x => x.missing.length)[0] || st.students[0] || null;
+  const sample = st.students.filter(x => x.missing.length && x.redos.length)[0] || st.students.filter(x => x.missing.length || x.redos.length)[0] || st.students[0] || null;
   return {
     ok: true, settings: s, defaults: EMAIL_TEMPLATES, running: running, quota: MailApp.getRemainingDailyQuota(),
     status: {
@@ -1985,6 +1985,7 @@ function adminEmailSettings_() {
       first: sample.student.firstName || sample.student.name,
       to: recipients_(s, sample.student),
       missing: sample.missing.map(m => m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')),
+      todo: toDo_(sample), count: toDoCount_(sample),
     },
     recent: recentEmails_(8),
     logUrl: getAdmin_().getUrl() + '#gid=' + emailLogSheet_().getSheetId(),
@@ -2188,6 +2189,7 @@ function emailState_() {
       live.every(i => i.approved || i.finalizedAt);
     return {
       student: student, uploads: mine.length, missing: missing, redos: redos, allApproved: allApproved,
+      allIn: classes.length > 0 && !missing.length && !redos.length,
       toReview: live.filter(i => !i.approved && !i.finalizedAt && !i.redo).length,
       needed: classes.reduce((n, c) => n + c.need, 0),
     };
@@ -2234,27 +2236,16 @@ function familyEmails_(s, st, sent, hourNow, since) {
   const daytime = hourNow >= QUIET_UNTIL && hourNow < QUIET_FROM;
   const now = Date.now();
 
-  // Things that just happened: right away in the daytime, or in the daily summary.
-  const events = s.famHow === 'daily' ? atSendHour : daytime;
-  if (events) {
-    st.items.forEach(i => {
-      const x = st.byId[i.studentId];
-      if (!x) return;
-      if (s.redo && i.redo && !i.replacedBy && i.redoMarkedAt > since && now - i.redoMarkedAt >= REDO_WAIT_MINUTES * 60000) {
-        add(x, 'redo', 'redo|' + i.id + '|' + i.redoMarkedAt, itemVars_(s, st, x, i));
-      }
-      if (s.each && i.approved && i.approvedAt > since) add(x, 'each', 'each|' + i.id, itemVars_(s, st, x, i));
-      if (s.received && i.receivedAt > since) add(x, 'received', 'received|' + i.id, itemVars_(s, st, x, i));
-    });
-    if (s.approved) st.students.filter(x => x.allApproved).forEach(x => {
-      add(x.student, 'approved', 'approved|' + st.lp + '|' + x.student.id, studentVars_(s, st, x));
-    });
-  }
+  // Families get two kinds of email about samples (since version 24):
+  //  - "still to do" on the schedule: what's missing and what needs a redo, in one email;
+  //  - "all done" once per LP, when every sample is in and nothing needs a redo.
+  if (s.approved && atSendHour) st.students.filter(x => x.allIn).forEach(x => {
+    add(x.student, 'approved', 'done|' + st.lp + '|' + x.student.id, studentVars_(s, st, x));
+  });
 
-  // Missing samples: on the schedule, at the send time. Families with everything in aren't emailed.
   if (s.missing && atSendHour && st.range) {
     const last = lastReminders_(s, st.lp, sent);
-    st.students.filter(x => x.missing.length).forEach(x => {
+    st.students.filter(x => x.missing.length || x.redos.length).forEach(x => {
       if (reminderDue_(s, st.range, st.today, last[x.student.id] || null)) {
         add(x.student, 'missing', 'missing|' + st.lp + '|' + st.today + '|' + x.student.id, studentVars_(s, st, x));
       }
@@ -2266,7 +2257,7 @@ function familyEmails_(s, st, sent, hourNow, since) {
   Object.keys(due).forEach(id => {
     const d = due[id];
     if (!recipients_(s, d.student).length && s.families === 'on') return; // listed in your report instead
-    if (s.famHow === 'daily' && d.list.length > 1) {
+    if (d.list.length > 1) {
       const first = d.student.firstName || d.student.name;
       const mail = {
         subject: 'WiSH update for ' + first + ' (' + st.lp + ')',
@@ -2405,13 +2396,43 @@ function dashLink_(s) {
 function studentVars_(s, st, x) {
   return {
     first: x.student.firstName || x.student.name, student_first_name: x.student.firstName || x.student.name, lp: st.lp,
-    count: x.missing.length + ' work sample' + (x.missing.length === 1 ? '' : 's'),
+    count: toDoCount_(x),
     'missing classes': x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
+    'to do': toDo_(x),
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
     'booking link': meetingLink_(meetingSettings_(), st.lp),
     when: '', 'meeting time': '', 'meet link': '',
   };
+}
+
+/** Missing classes, less the ones already listed as a redo. */
+function toDoMissing_(x) {
+  return x.missing.filter(m => !(m.have === 0 && x.redos.some(i => i.subject === m.name)));
+}
+
+function toDoCount_(x) {
+  const n = toDoMissing_(x).length + x.redos.length;
+  return n + ' sample' + (n === 1 ? '' : 's');
+}
+
+/** What's missing and what needs a redo, as one list for the "still to do" email. */
+function toDo_(x) {
+  const out = [];
+  const missing = toDoMissing_(x);
+  if (missing.length) {
+    out.push('Still missing:');
+    missing.forEach(m => out.push('  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')));
+  }
+  if (x.redos.length) {
+    if (out.length) out.push('');
+    out.push('Needs a redo (open My uploads and tap Resubmit):');
+    x.redos.forEach(i => {
+      const why = i.reasons.concat(i.redoNote ? [i.redoNote] : []);
+      out.push('  • ' + i.subject + (why.length ? ': ' + why.join('; ') : ''));
+    });
+  }
+  return out.join('\n');
 }
 
 function itemVars_(s, st, student, i) {
