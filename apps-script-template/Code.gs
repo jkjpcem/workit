@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 24;
+const WORKIT_VERSION = 25;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -2505,10 +2505,198 @@ function sendReport_(s, st, days, key) {
   if (s.families === 'test') lines.push('Family emails are in Test mode: they come to you instead of families.', '');
   lines.push('Open the dashboard: ' + dashLink_(s));
   MailApp.sendEmail({
-    to: s.me, name: 'WiSH', body: lines.join('\n'),
+    to: s.me, name: 'WiSH', body: lines.join('\n'), htmlBody: reportHtml_(s, st, days, fresh, on),
     subject: (days > 1 ? 'WiSH week: ' : 'WiSH ') + st.lp + ': ' + toReview + ' to review' + (left ? ', ' + left : ''),
   });
   logEmail_(s.me, '', 'report', days > 1 ? 'Weekly summary' : 'Daily report', key);
+}
+
+// ----- The report as a colorful email (the plain text above goes along for mail apps without HTML) -----
+
+const REPORT_COLORS = {
+  fil: { bg: '#1f2f6b', fg: '#ffffff', name: 'Filed' },
+  app: { bg: '#bfe8c4', fg: '#14532d', name: 'Approved' },
+  res: { bg: '#f2c200', fg: '#1c2340', name: 'Resubmitted' },
+  rev: { bg: '#fff1a8', fg: '#5c4a00', name: 'To review' },
+  redo: { bg: '#e5484d', fg: '#ffffff', name: 'Redo' },
+  miss: { bg: '#ffffff', fg: '#7a829e', name: 'Missing' },
+};
+const REPORT_ORDER = ['fil', 'app', 'res', 'rev', 'redo', 'miss'];
+const REPORT_WORDS = {
+  english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'Hist',
+  government: 'Govt', economics: 'Econ', calculus: 'Calc', statistics: 'Stat', science: 'Sci', spanish: 'Span', french: 'Fren',
+  world: 'Wor', functional: 'Func', mathematics: 'Math', physical: 'Phys', education: 'Ed', marine: 'Mar', literature: 'Lit',
+  language: 'Lang', integrated: 'Int', environmental: 'Env', american: 'Amer', precalculus: 'PreCalc', photography: 'Photo',
+  grade: 'Gr', honors: 'H', technology: 'Tech',
+};
+
+/** "Functional Algebra B" -> "Func Alg" (the same short names as the dashboard cards). */
+function shortClass_(name) {
+  const word = (w) => {
+    if (/^\d/.test(w) || w.length <= 4 || w === w.toUpperCase()) return w;
+    if (/^pre-?calc/i.test(w)) return 'PreCalc';
+    return REPORT_WORDS[w.toLowerCase()] || w.charAt(0).toUpperCase() + w.slice(1, 4);
+  };
+  return String(name || '').trim().replace(/\s+[AB]$/, '').replace(/(\d+)[AB]\b/, '$1').replace(/\s+[AB](\s+H)$/, '$1')
+    .replace(/\s*\(.*?\)/g, '').split(/\s+/).filter(w => w && !/^(and|of|the|&)$/i.test(w)).map(word).join(' ');
+}
+
+function itemStatus_(i) {
+  if (i.redo) return 'redo';
+  if (i.finalizedAt) return 'fil';
+  if (i.approved) return 'app';
+  return i.resubmitOf ? 'res' : 'rev';
+}
+
+/** Each student's classes this LP with one status each (the least finished sample decides). */
+function reportGrid_(st) {
+  const worst = ['redo', 'res', 'rev', 'app', 'fil'];
+  return st.students.map(x => {
+    const classes = Number(st.lp.replace(/\D/g, '')) >= 5 ? x.student.sem2 : x.student.sem1;
+    const live = st.items.filter(i => i.studentId === x.student.id && !(i.redo && i.replacedBy));
+    return {
+      x: x,
+      cells: classes.map(c => {
+        const mine = live.filter(i => i.subject === c.name);
+        const status = mine.length ? worst.filter(k => mine.some(i => itemStatus_(i) === k))[0] : 'miss';
+        return { name: c.name, short: shortClass_(c.name), status: status, have: mine.length, need: c.need };
+      }),
+    };
+  }).sort((a, b) => (a.x.student.lastName || a.x.student.name).localeCompare(b.x.student.lastName || b.x.student.name));
+}
+
+function reportHtml_(s, st, days, fresh, on) {
+  const F = 'font-family:Arial,Helvetica,sans-serif;';
+  const grid = reportGrid_(st);
+  const tot = { fil: 0, app: 0, res: 0, rev: 0, redo: 0, miss: 0 };
+  grid.forEach(g => g.cells.forEach(c => {
+    const mine = st.items.filter(i => i.studentId === g.x.student.id && i.subject === c.name && !(i.redo && i.replacedBy));
+    mine.forEach(i => { tot[itemStatus_(i)]++; });
+    tot.miss += Math.max(0, c.need - mine.length);
+  }));
+  const all = REPORT_ORDER.reduce((n, k) => n + tot[k], 0);
+  const inN = all - tot.miss;
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const names = (list, max) => list.length <= max ? list.join(', ') : list.slice(0, max).join(', ') + ' and ' + (list.length - max) + ' more';
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const section = (t) => '<div style="' + F + 'font-size:12px;font-weight:bold;color:#5f78c8;letter-spacing:1px;text-transform:uppercase;padding:18px 0 8px">' + esc_(t) + '</div>';
+  const bar = (parts, h) => '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #c9d0e4"><tr>' +
+    parts.filter(p => p.n > 0).map(p => '<td width="' + p.w + '%" height="' + h + '" style="background:' + p.bg + ';font-size:0;line-height:0">&nbsp;</td>').join('') + '</tr></table>';
+  const statusBar = (h) => bar(REPORT_ORDER.map(k => ({ n: tot[k], w: (tot[k] / Math.max(1, all) * 100).toFixed(1), bg: k === 'miss' ? '#eef0f6' : REPORT_COLORS[k].bg })), h);
+  const legend = REPORT_ORDER.map(k => '<span style="display:inline-block;margin:0 12px 4px 0;' + F + 'font-size:12px;color:#4a5272;white-space:nowrap">' +
+    '<span style="display:inline-block;width:10px;height:10px;background:' + (k === 'miss' ? '#ffffff' : REPORT_COLORS[k].bg) + ';border:1px ' + (k === 'miss' ? 'dashed' : 'solid') + ' #b9c1da;vertical-align:-1px"></span> ' +
+    REPORT_COLORS[k].name + ' ' + tot[k] + '</span>').join('');
+  const rows = [];
+
+  // Header
+  rows.push('<tr><td style="background:#1f2f6b;padding:18px 22px"><span style="' + F + 'font-size:24px;font-weight:bold;color:#ffffff;letter-spacing:.5px">W<span style="color:#f2b705">i</span>SH</span>' +
+    '<span style="' + F + 'font-size:13px;color:#b9c6f2;padding-left:10px">' + (days > 1 ? 'Weekly summary' : 'Daily report') + ' · ' + esc_(niceDay_(st.today)) + '</span></td></tr>');
+
+  // LP progress
+  if (on.daysLeft) {
+    let lpHtml = '<div style="' + F + 'font-size:14px;color:#1c2340;padding-bottom:6px"><b>' + esc_(st.lp) + '</b>';
+    if (st.range) {
+      const total = Math.max(1, daysBetween_(st.range.start, st.range.end) + 1);
+      const used = Math.min(total, Math.max(0, daysBetween_(st.range.start, st.today) + 1));
+      const left = st.daysLeft > 0 ? plural(st.daysLeft, 'day') + ' left' : st.daysLeft === 0 ? 'ends today' : 'ended';
+      lpHtml += ' · ' + esc_(niceDay_(st.range.start)) + ' to ' + esc_(niceDay_(st.range.end)) +
+        ' <span style="color:#2442b8;font-weight:bold">· ' + left + '</span></div>' +
+        bar([{ n: used, w: pct(used, total), bg: '#2442b8' }, { n: total - used, w: 100 - pct(used, total), bg: '#dfe5f6' }], 10) +
+        '<div style="' + F + 'font-size:12px;color:#6b7393;padding-top:4px">' + pct(used, total) + '% of the LP is over · samples in: <b style="color:#1c2340">' + inN + ' of ' + all + '</b> (' + pct(inN, all) + '%)</div>';
+    } else {
+      lpHtml += ': no dates set</div>';
+    }
+    rows.push('<tr><td style="padding:18px 22px 4px">' + lpHtml + '</td></tr>');
+  }
+
+  // Number tiles
+  const tile = (n, label, bg, fg, note) => '<td width="25%" style="padding:4px;vertical-align:top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' + bg + ';border-radius:10px"><tr><td style="padding:12px 6px;text-align:center;' + F + '">' +
+    '<div style="font-size:30px;font-weight:bold;color:' + fg + ';line-height:1">' + n + '</div><div style="font-size:12px;color:' + fg + ';padding-top:4px;font-weight:bold">' + label + '</div>' +
+    '<div style="font-size:11px;color:' + fg + '">' + note + '</div></td></tr></table></td>';
+  const tiles = [];
+  if (on.waiting) {
+    tiles.push(tile(tot.rev + tot.res, 'To review', '#fff1a8', '#5c4a00', tot.res ? 'incl. ' + plural(tot.res, 'resubmit') : 'new samples'));
+    tiles.push(tile(tot.app, 'Approved', '#bfe8c4', '#14532d', 'not exported yet'));
+    tiles.push(tile(tot.redo, 'Redos out', '#fde2e2', '#9b1c1f', 'waiting on students'));
+  }
+  if (on.uploads) tiles.push(tile(fresh.length, 'New uploads', '#dfe5f6', '#1f2f6b', days > 1 ? 'this week' : 'since yesterday'));
+  if (tiles.length) rows.push('<tr><td style="padding:10px 18px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>' + tiles.join('') + '</tr></table></td></tr>');
+
+  // All samples bar
+  rows.push('<tr><td style="padding:4px 22px">' + section('All samples this LP') + statusBar(22) + '<div style="padding-top:8px">' + legend + '</div></td></tr>');
+
+  // Quick read: a few plain sentences worked out from the numbers
+  const read = [];
+  const nothing = grid.filter(g => g.cells.length && g.cells.every(c => c.status === 'miss')).map(g => esc_(g.x.student.name));
+  if (nothing.length) read.push('<b>' + names(nothing, 4) + '</b> ' + (nothing.length === 1 ? 'has' : 'have') + ' nothing in yet' + (st.daysLeft > 0 ? ' with ' + plural(st.daysLeft, 'day') + ' left' : '') + '.');
+  const oldRedos = st.items.filter(i => i.redo && !i.replacedBy && i.redoMarkedAt && Date.now() - i.redoMarkedAt > 3 * 864e5)
+    .sort((a, b) => a.redoMarkedAt - b.redoMarkedAt);
+  if (oldRedos.length) read.push(oldRedos.slice(0, 3).map(i => '<b>' + esc_(i.name) + '</b>’s ' + esc_(shortClass_(i.subject)) + ' redo has been out ' + Math.floor((Date.now() - i.redoMarkedAt) / 864e5) + ' days').join('; ') + (oldRedos.length > 3 ? '; and ' + (oldRedos.length - 3) + ' more' : '') + '.');
+  const fullyIn = st.students.filter(x => x.allIn).length;
+  const filed = grid.filter(g => g.cells.length && g.cells.every(c => c.status === 'fil' && c.have >= c.need)).length;
+  read.push('<b>' + fullyIn + ' of ' + st.students.length + '</b> students have every sample in' + (filed ? '; <b>' + filed + '</b> ' + (filed === 1 ? 'is' : 'are') + ' completely filed' : '') + '.');
+  if (st.daysLeft !== null && st.daysLeft >= 0 && st.daysLeft <= 7) {
+    const behind = st.students.filter(x => x.missing.length).length;
+    if (behind) read.push('<b>' + plural(behind, 'student') + '</b> still ' + (behind === 1 ? 'needs' : 'need') + ' samples and the LP ends ' + (st.daysLeft === 0 ? 'today' : 'in ' + plural(st.daysLeft, 'day')) + '.');
+  }
+  if (on.uploads) {
+    const span = days * 864e5, now = Date.now();
+    const before = st.subs.items.filter(i => !i.trashedAt && i.receivedAt > now - 2 * span && i.receivedAt <= now - span).length;
+    read.push('Uploads: <b>' + fresh.length + '</b> ' + (days > 1 ? 'this week' : 'since yesterday') + ', ' + before + ' the ' + (days > 1 ? 'week' : 'day') + ' before.');
+  }
+  let booked = null;
+  const ms = meetingSettings_();
+  if (meetingLink_(ms, st.lp)) {
+    try {
+      booked = {};
+      matchBookings_(readBookings_(false)).filter(b => b.lp === st.lp).forEach(b => b.studentIds.forEach(id => { if (!booked[id] || b.start < booked[id]) booked[id] = b.start; }));
+      const n = st.students.filter(x => booked[x.student.id]).length;
+      read.push('<b>' + n + ' of ' + st.students.length + '</b> families have booked their ' + esc_(st.lp) + ' meeting.');
+    } catch (err) { booked = null; } // calendar not allowed yet
+  }
+  rows.push('<tr><td style="padding:0 22px">' + section('Quick read') +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fc;border-left:4px solid #2442b8"><tr><td style="padding:10px 14px;' + F + 'font-size:13px;color:#1c2340;line-height:1.6">' +
+    read.map(r => '• ' + r).join('<br>') + '</td></tr></table></td></tr>');
+
+  // Every student, every class
+  if (on.families && grid.length) {
+    const chip = (c) => {
+      const k = REPORT_COLORS[c.status];
+      const part = c.need > 1 && c.have > 0 && c.have < c.need ? ' (' + c.have + '/' + c.need + ')' : '';
+      return '<span title="' + esc_(c.name + ': ' + k.name) + '" style="display:inline-block;margin:2px 4px 2px 0;padding:0 7px;height:22px;line-height:22px;border-radius:5px;' + F + 'font-size:11px;font-weight:bold;white-space:nowrap;background:' + k.bg + ';color:' + k.fg + ';border:1.5px ' + (c.status === 'miss' ? 'dashed #b9c1da' : 'solid ' + k.bg) + '">' + esc_(c.short) + part + '</span>';
+    };
+    const tz = st.tz;
+    const lines = grid.map(g => {
+      let meet = '';
+      if (booked) {
+        const at = booked[g.x.student.id];
+        meet = '<br><span style="font-size:11px;color:' + (at ? '#5f6a8a' : '#9b1c1f') + '">' + (at ? '📅 ' + Utilities.formatDate(new Date(at), tz, 'MMM d') : 'no meeting') + '</span>';
+      }
+      return '<tr><td style="' + F + 'font-size:12px;color:#1c2340;padding:4px 8px 4px 0;vertical-align:top;width:120px">' + esc_(g.x.student.name) + meet + '</td>' +
+        '<td style="padding:2px 0;vertical-align:top">' + (g.cells.length ? g.cells.map(chip).join('') : '<span style="' + F + 'font-size:11px;color:#7a829e">no classes listed</span>') + '</td></tr>';
+    });
+    rows.push('<tr><td style="padding:0 22px">' + section('Every student, every class') + '<div style="padding-bottom:8px">' + legend + '</div>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">' + lines.join('') + '</table></td></tr>');
+  }
+
+  // Family emails sent, button, footer
+  const notes = [];
+  if (on.sent) {
+    const after = Date.now() - days * 864e5;
+    const kinds = {};
+    recentEmails_(200).filter(e => e.at > after && e.kind !== 'report' && e.kind !== 'to you').forEach(e => { kinds[e.kind] = (kinds[e.kind] || 0) + 1; });
+    notes.push('Emails sent to families: ' + (Object.keys(kinds).length ? Object.keys(kinds).map(k => kinds[k] + ' ' + esc_(k)).join(', ') : 'none') + '.');
+  }
+  const noEmail = st.students.filter(x => !recipients_(s, x.student).length).map(x => esc_(x.student.name));
+  if (noEmail.length && s.families !== 'off') notes.push('No email on file (add one in the Student Roster): ' + noEmail.join(', ') + '.');
+  if (notes.length) rows.push('<tr><td style="padding:14px 22px 0;' + F + 'font-size:12px;color:#4a5272;line-height:1.6">' + notes.join('<br>') + '</td></tr>');
+  rows.push('<tr><td style="padding:20px 22px 18px;text-align:center"><table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto"><tr><td style="background:#2442b8;border-radius:8px;padding:12px 26px">' +
+    '<a href="' + esc_(dashLink_(s)) + '" style="' + F + 'font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none">Open the dashboard</a></td></tr></table></td></tr>');
+  rows.push('<tr><td style="padding:14px 22px 20px;' + F + 'font-size:11px;color:#8a92b0;text-align:center;border-top:1px solid #e3e7f2">' +
+    (s.families === 'test' ? 'Family emails are in Test mode, so they come to you. ' : '') + 'Change what this report shows on the Reminders page in WiSH.</td></tr>');
+
+  return '<div style="background:#eef1f8;padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border-collapse:separate">' +
+    rows.join('') + '</table></div>';
 }
 
 /** Sends to the student and family, or to you in Test mode. keys: remembered so nothing is sent twice. */
