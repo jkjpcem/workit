@@ -13,9 +13,8 @@ function AdminSetup(ctx) {
     { title: 'Share with students' },
   ];
   const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec$/;
-  const appBase = () => new URL('./', location.href).href;
   const adminUrl = () => new URL('admin.html', location.href).href;
-  const studentLink = (user) => appBase() + (user ? `?es=${encodeURIComponent(user)}` : '');
+  const studentLink = (user) => Api.studentLink(user);
 
   let at = 1;  // step on screen
 

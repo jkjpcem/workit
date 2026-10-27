@@ -1,5 +1,5 @@
 // Keeps the app working offline. Bump VERSION whenever you change app files.
-const VERSION = 'workit-v83';
+const VERSION = 'workit-v84';
 const FILES = [
   './', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
   'js/app.js', 'js/notes.js', 'js/classes.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js', 'js/move.js',
@@ -39,6 +39,8 @@ self.addEventListener('fetch', (e) => {
         caches.open(VERSION).then(c => c.put(e.request, copy));
         return res;
       })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }))
+      // Offline: the saved copy, or the app itself for an ES's link like /smith.
+      .catch(() => caches.match(e.request, { ignoreSearch: true })
+        .then(hit => hit || (e.request.mode === 'navigate' ? caches.match('index.html') : undefined)))
   );
 });

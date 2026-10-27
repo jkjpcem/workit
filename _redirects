@@ -1,0 +1,2 @@
+# An ES student link with a slash at the end (worksample.app/smith/) goes to the one without.
+/:name/  /:name  301

@@ -1441,7 +1441,7 @@
       first: sample.first, student_first_name: sample.first, lp: st.lp, count: sample.count || `${sample.missing.length || 1} work sample${sample.missing.length === 1 ? '' : 's'}`,
       'missing classes': (sample.missing.length ? sample.missing : ['Biology']).map(m => `  • ${m}`).join('\n'),
       'days left': st.daysLeft === null || st.daysLeft === undefined ? '' : String(Math.max(0, st.daysLeft)),
-      'end date': st.range ? dayName(st.range.end) : '', link: new URL('./', location.href).host + (creds.role === 'es' ? `/?es=${creds.user}` : ''),
+      'end date': st.range ? dayName(st.range.end) : '', link: Api.studentLink(creds.role === 'es' ? creds.user : '').replace(/^https:\/\//, ''),
       class: 'Biology', reasons: '  • Missing date\n  • Please add your score',
       'to do': sample.todo || 'Still missing:\n  • Biology\n\nNeeds a redo (open My uploads and tap Resubmit):\n  • Algebra 2: Missing date',
       when: 'on Thursday', 'meeting time': 'Thursday, November 5 at 3:30 PM', 'meet link': 'https://meet.google.com/abc-defg-hij',
@@ -1500,7 +1500,7 @@
       inReport: checks('in'), esEvents: checks('ev'),
       pauseFrom: f.pauseFrom.value, pauseTo: f.pauseTo.value,
       templates: tpls,
-      link: new URL('./', location.href).href + (creds.role === 'es' ? `?es=${encodeURIComponent(creds.user)}` : ''),
+      link: Api.studentLink(creds.role === 'es' ? creds.user : ''),
     };
     ['parents', 'students', 'missing', 'approved', 'noWeekends', 'noHolidays', 'daily', 'weekly', 'live']
       .forEach(k => { settings[k] = f[k].checked; });

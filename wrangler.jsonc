@@ -2,5 +2,6 @@
 {
   "name": "workit",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "." }
+  // Any address that isn't a file (an ES's student link, like worksample.app/smith) opens the student app.
+  "assets": { "directory": ".", "not_found_handling": "single-page-application" }
 }

@@ -666,6 +666,9 @@ function readEs_() {
   return { sheet: sheet, list: list };
 }
 
+// An ES's username is also their student link (worksample.app/smith), so it can't be a name the site uses.
+const ES_RESERVED = ['admin', 'index', 'workit', 'icons', 'js', 'api', 'setup', 'help'];
+
 function findEs_(user) {
   const all = readEs_();
   const u = String(user || '').trim().toLowerCase();
@@ -891,10 +894,10 @@ function superEsAdd_(body) {
     if (!user && email) {
       const base = email.split('@')[0].replace(/[^a-z0-9._-]/g, '').slice(0, 26) || 'es';
       user = base.length < 3 ? base + 'es' : base;
-      for (let n = 2; findEs_(user).es || user === ADMIN_USERNAME.toLowerCase(); n++) user = base + n;
+      for (let n = 2; findEs_(user).es || user === ADMIN_USERNAME.toLowerCase() || ES_RESERVED.indexOf(user) !== -1; n++) user = base + n;
     }
     if (!/^[a-z0-9._-]{3,30}$/.test(user)) return { ok: false, error: 'Usernames are 3 to 30 letters or numbers, with no spaces.' };
-    if (user === ADMIN_USERNAME.toLowerCase()) return { ok: false, error: 'That username is taken.' };
+    if (user === ADMIN_USERNAME.toLowerCase() || ES_RESERVED.indexOf(user) !== -1) return { ok: false, error: 'That username is taken.' };
     const found = findEs_(user);
     if (found.es) return { ok: false, error: 'That username is taken.' };
     if (email && readEs_().list.some(e => e.email.toLowerCase() === email)) return { ok: false, error: 'There is already an account for ' + email + '.' };

@@ -1,6 +1,7 @@
 // Talks to the ES's Google Apps Script (Code.gs).
-// SCRIPT_URL in config.js is the main copy. A student link like .../?es=smith points the app
-// at that ES's own copy instead; the main copy says where it is (esLookup).
+// SCRIPT_URL in config.js is the main copy. A student link like worksample.app/smith (or the
+// older .../?es=smith) points the app at that ES's own copy instead; the main copy says where
+// it is (esLookup).
 
 const Api = (() => {
   const home = () => (window.WORKIT_CONFIG || {}).SCRIPT_URL;
@@ -10,7 +11,11 @@ const Api = (() => {
   // { es, name, url } for the ES this device's students belong to, or null for the main copy.
   let es = null;
   try { es = JSON.parse(localStorage.getItem(ES_KEY)) || null; } catch { es = null; }
-  const param = new URLSearchParams(location.search).get('es');
+  // The ES is the last part of the address (worksample.app/smith), or ?es=smith on older links.
+  const RESERVED = ['', 'index', 'index.html', 'admin', 'admin.html', 'workit'];
+  const last = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '').toLowerCase();
+  const fromPath = /^[a-z0-9._-]{3,30}$/.test(last) && !RESERVED.includes(last) ? last : '';
+  const param = new URLSearchParams(location.search).get('es') || fromPath;
   if (!isAdminPage && param) {
     const id = param.trim().toLowerCase();
     if (!es || es.es !== id) {
@@ -94,9 +99,18 @@ const Api = (() => {
     return send(es ? es.url : home(), { action, ...payload });
   }
 
+  // The link an ES gives their students: worksample.app/smith. The old GitHub address can't
+  // open made-up paths, so there it stays .../?es=smith.
+  function studentLink(user) {
+    const base = new URL('./', location.href).href;
+    if (!user) return base;
+    return location.hostname === 'jkjpcem.github.io' ? `${base}?es=${encodeURIComponent(user)}` : base + encodeURIComponent(user);
+  }
+
   return {
     call,
     ready,
+    studentLink,
     configured: () => !!home(),
     esName: () => (es && es.name) || '',
   };
