@@ -326,7 +326,8 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .redo-send { margin-top: 14px; }
 .redo-send-btn { width: 100%; background: var(--st-redo); border-color: var(--st-redo); color: #fff; }
 .redo-send-btn:disabled { opacity: .45; cursor: not-allowed; }
-.toggle small { display: block; font-size: 12px; font-weight: 500; opacity: .9; margin-top: 2px; }
+.toggle small, #t-finalize small, #t-extra small { display: block; font-size: 12px; font-weight: 500; opacity: .9; margin-top: 2px; }
+#t-finalize:has(small), #t-extra:has(small) { flex-direction: column; gap: 0; }
 .reason:disabled, #redo-note:disabled { cursor: default; }
 
 /* ----- First sign-in setup steps ----- */

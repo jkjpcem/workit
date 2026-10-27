@@ -641,8 +641,9 @@
       $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotate';
       const asExtra = finalized && it.filedAs === 'Extra';
       const asAnnotated = finalized && !asExtra;
-      $('#t-finalize').textContent = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '🏁 Save annotated again') : '🏁 Export as Annotated';
-      $('#t-extra').textContent = asExtra ? '✓ Exported as Extra' : '📁 Export as Extra';
+      const filed = it.finalizedAt ? `<small>${esc(stamp(it.finalizedAt))}</small>` : '';
+      $('#t-finalize').innerHTML = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '✓ Exported as Annotated') + filed : '🏁 Export as Annotated';
+      $('#t-extra').innerHTML = asExtra ? '✓ Exported as Extra' + filed : '📁 Export as Extra';
       $('#t-extra').disabled = asExtra || !it.approved;
       $('#t-finalize').disabled = !it.approved;
       const n = annotatedCount(it.studentId, it.lp);
@@ -652,7 +653,7 @@
         : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Export as Annotated or Export as Extra.'
         : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
           (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
-          : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : `✓ Filed in ${esc(it.lp)} ${asExtra ? 'Extra' : 'Annotated'} ${esc(new Date(it.finalizedAt).toLocaleDateString())}.`}
+          : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : ''}
            ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}`);
       Core.panel(it);
     }
