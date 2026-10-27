@@ -2,7 +2,7 @@
 // An accelerated class, typed with "(Accel)" after its name, is finished in one
 // semester, so it needs 2 samples per LP instead of 1. These match Code.gs.
 const Classes = (() => {
-  const ACCEL = /\(\s*accel(erated)?\s*\)/ig;
+  const ACCEL = /\(\s*accel(erated)?\s*\)|\baccel\b/ig; // "(Accel)" or a bare "Accel" word
 
   const semOf = (lp) => (Number(String(lp || '').replace(/\D/g, '')) >= 5 ? 2 : 1);
 

@@ -332,16 +332,18 @@
   // Class names on the cards: the full name ("8th Grade English H"; the A/B semester part left off).
   // Only a name that doesn't fit is shortened, word by word ("8th Gr Eng H"). Full name in the tooltip.
   const WORD_SHORT = {
-    english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'Hist',
+    english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'His',
     government: 'Govt', economics: 'Econ', calculus: 'Calc', statistics: 'Stat', science: 'Sci', spanish: 'Span', french: 'Fren',
     world: 'Wor', functional: 'Func', mathematics: 'Math', physical: 'Phys', education: 'Ed', marine: 'Mar', literature: 'Lit',
     language: 'Lang', integrated: 'Int', environmental: 'Env', american: 'Amer', precalculus: 'PreCalc', photography: 'Photo',
     grade: 'Gr', honors: 'H', technology: 'Tech',
   };
+  // Course Catalog titles are used as they are (A/B semester letter included).
   function className(name) {
-    return String(name || '').trim().replace(/\s+[AB]$/, '').replace(/(\d+)[AB]\b/, '$1').replace(/\s+[AB](\s+H)$/, '$1');
+    return String(name || '').trim();
   }
   function shortWord(w) {
+    if (/^a-?g$/i.test(w)) return 'ag';
     if (/^\d/.test(w) || w.length <= 4 || w === w.toUpperCase()) return w;
     if (/^pre-?calc/i.test(w)) return 'PreCalc';
     const known = WORD_SHORT[w.toLowerCase()];
@@ -349,7 +351,7 @@
     return w.charAt(0).toUpperCase() + w.slice(1, 4);
   }
   function shortClass(name) {
-    return className(name).replace(/\s*\(.*?\)/g, '').split(/\s+/).filter(w => !/^(and|of|the|&)$/i.test(w)).map(shortWord).join(' ');
+    return className(name).replace(/\s*\(.*?\)/g, '').replace(/american sign language/i, 'ASL').split(/\s+/).filter(w => !/^(and|of|the|&)$/i.test(w)).map(shortWord).join(' ');
   }
   // After the cards are drawn: shorten only the class names that don't fit their space.
   function fitClasses() {

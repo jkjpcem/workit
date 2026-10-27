@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 25;
+const WORKIT_VERSION = 26;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -1451,8 +1451,8 @@ function getStudents_() {
 function parseClasses_(text) {
   const seen = {};
   return String(text || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean).map(s => {
-    const accel = /\(\s*accel(erated)?\s*\)/i.test(s);
-    const name = s.replace(/\(\s*accel(erated)?\s*\)/ig, '').replace(/\s+/g, ' ').trim();
+    const accel = /\(\s*accel(erated)?\s*\)|\baccel\b/i.test(s); // "(Accel)" or a bare "Accel" word
+    const name = s.replace(/\(\s*accel(erated)?\s*\)|\baccel\b/ig, '').replace(/\s+/g, ' ').trim();
     return { name: name, need: accel ? 2 : 1 };
   }).filter(c => c.name && !seen[c.name.toLowerCase()] && (seen[c.name.toLowerCase()] = true));
 }
@@ -2523,22 +2523,22 @@ const REPORT_COLORS = {
 };
 const REPORT_ORDER = ['fil', 'app', 'res', 'rev', 'redo', 'miss'];
 const REPORT_WORDS = {
-  english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'Hist',
+  english: 'Eng', algebra: 'Alg', geometry: 'Geo', biology: 'Bio', chemistry: 'Chem', physics: 'Phys', history: 'His',
   government: 'Govt', economics: 'Econ', calculus: 'Calc', statistics: 'Stat', science: 'Sci', spanish: 'Span', french: 'Fren',
   world: 'Wor', functional: 'Func', mathematics: 'Math', physical: 'Phys', education: 'Ed', marine: 'Mar', literature: 'Lit',
   language: 'Lang', integrated: 'Int', environmental: 'Env', american: 'Amer', precalculus: 'PreCalc', photography: 'Photo',
   grade: 'Gr', honors: 'H', technology: 'Tech',
 };
 
-/** "Functional Algebra B" -> "Func Alg" (the same short names as the dashboard cards). */
+/** "a-g World History Honors A" -> "ag Wor His H A" (the same short names as the dashboard cards). */
 function shortClass_(name) {
   const word = (w) => {
+    if (/^a-?g$/i.test(w)) return 'ag';
     if (/^\d/.test(w) || w.length <= 4 || w === w.toUpperCase()) return w;
     if (/^pre-?calc/i.test(w)) return 'PreCalc';
     return REPORT_WORDS[w.toLowerCase()] || w.charAt(0).toUpperCase() + w.slice(1, 4);
   };
-  return String(name || '').trim().replace(/\s+[AB]$/, '').replace(/(\d+)[AB]\b/, '$1').replace(/\s+[AB](\s+H)$/, '$1')
-    .replace(/\s*\(.*?\)/g, '').split(/\s+/).filter(w => w && !/^(and|of|the|&)$/i.test(w)).map(word).join(' ');
+  return String(name || '').trim().replace(/\s*\(.*?\)/g, '').replace(/american sign language/i, 'ASL').split(/\s+/).filter(w => w && !/^(and|of|the|&)$/i.test(w)).map(word).join(' ');
 }
 
 function itemStatus_(i) {
