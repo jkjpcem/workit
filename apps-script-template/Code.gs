@@ -1058,9 +1058,10 @@ function adminReview_(body) {
     const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
     if (!item) return { ok: false, error: 'Upload not found.' };
     const redo = body.redo === true;
-    if (redo && item.finalizedAt) return { ok: false, error: 'This is already finalized, so it can’t be sent back for a redo.' };
     const approved = !redo && body.approved === true;
-    if (!approved && item.finalizedAt) return { ok: false, error: 'This is already finalized.' };
+    // Taking back the approval (or sending it back for a redo) un-files an exported sample:
+    // the filed copy goes to Drive's trash and the sample counts as not done again.
+    if (item.finalizedAt && !approved) unfile_(subs, item);
     const reasons = redo ? (body.reasons || []).map(r => clean_(r, 60)).filter(Boolean).join('; ') : '';
     // The ES's own typed reason. Older dashboards don't send one, so keep what's there.
     const note = !redo ? '' : body.note === undefined ? item.redoNote : clean_(body.note, 500);
@@ -1077,6 +1078,16 @@ function adminReview_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Moves the exported copy to Drive's trash (it can be restored there) and clears the export. Annotations stay. */
+function unfile_(subs, item) {
+  if (item.finalId) {
+    try { DriveApp.getFileById(item.finalId).setTrashed(true); } catch (ignored) {}
+  }
+  subs.sheet.getRange(item.row, SUB.FINALIZED, 1, 3).setValues([['', '', '']]);
+  subs.sheet.getRange(item.row, SUB.FILED_AS).setValue('');
+  item.finalizedAt = 0; item.finalUrl = ''; item.finalId = ''; item.filedAs = '';
 }
 
 /** Saves the text boxes so you can come back to them before finalizing. */

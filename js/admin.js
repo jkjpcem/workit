@@ -616,7 +616,6 @@
     function renderReview(it) {
       const finalized = !!it.finalizedAt;
       $('#t-approve').setAttribute('aria-pressed', String(!!it.approved));
-      $('#t-approve').disabled = finalized;
       $('#t-approve').innerHTML = it.approved
         ? `✓ Approved${it.approvedAt ? `<small>${esc(stamp(it.approvedAt))}</small>` : ''}` : '✓ Approve';
       // Redo is picked first (a draft only you see), then sent with Send back to student.
@@ -624,7 +623,6 @@
       $('#t-redo').setAttribute('aria-pressed', String(redoing));
       $('#t-redo').innerHTML = it.redo
         ? `↺ Sent back${it.redoSentAt ? `<small>${esc(daysAgo(it.redoSentAt))} · ${esc(stamp(it.redoSentAt))}</small>` : ''}` : '↺ Redo';
-      $('#t-redo').disabled = finalized;
       $('#reasons-box').hidden = !redoing;
       $('#reasons').innerHTML = data.reasons.map(r => `
         <button class="reason" aria-pressed="${(it.reasons || []).includes(r)}" data-reason="${esc(r)}" ${it.redo ? 'disabled' : ''}>${esc(r)}</button>`).join('');
@@ -711,18 +709,35 @@
       return true;
     }
 
-    $('#t-approve').addEventListener('click', () => changeReview(i => {
+    // An exported sample can still be taken back: un-approving or sending it back for a redo
+    // moves the exported copy to Drive's trash (Code.gs unfile_). The annotations stay.
+    const exportedAs = (it) => `${it.lp} ${it.filedAs === 'Extra' ? 'Extra' : 'Annotated'}`;
+    function unfiled(it) {
+      Object.assign(it, { finalizedAt: 0, finalUrl: '', filedAs: '', finalStale: false });
+      syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'finalStale']);
+      Core.filed({ ...it, finalizedAt: 0 });
+    }
+    $('#t-approve').addEventListener('click', () => {
+      const it = item();
+      if (it.finalizedAt && it.approved) {
+        if (!confirm(`Take back the approval? The exported copy in Approved › ${exportedAs(it)} moves to Google Drive’s trash, and this goes back to To review. Your annotations stay.`)) return;
+        unfiled(it);
+        return changeReview(i => { i.redoDraft = false; i.approved = false; i.approvedAt = 0; }, 0);
+      }
+      changeReview(i => {
       i.redoDraft = false;
       i.approved = !i.approved;
       i.approvedAt = i.approved ? Date.now() : 0;
       if (i.approved) { i.redo = false; i.redoSentAt = 0; }
-    }));
+      });
+    });
     $('#t-redo').addEventListener('click', () => {
       const it = item();
       if (it.redo) {
         if (!confirm('Take back this redo? The student won’t see it anymore.')) return;
         return changeReview(i => { i.redo = false; i.redoSentAt = 0; }, 0);
       }
+      if (!it.redoDraft && it.finalizedAt && !confirm(`This was exported to Approved › ${exportedAs(it)}. Send it back for a redo? When you click Send back to student, the exported copy moves to Google Drive’s trash. Your annotations stay.`)) return;
       it.redoDraft = !it.redoDraft;
       it.reasons = []; it.redoNote = '';
       if (it.redoDraft) setAnnotating(false);
@@ -748,6 +763,8 @@
       const it = item();
       if (!it.redoDraft || !hasReason(it)) return;
       clearTimeout(reviewTimer);
+      const wasFiled = it.finalizedAt ? { finalizedAt: it.finalizedAt, finalUrl: it.finalUrl, filedAs: it.filedAs, approved: it.approved, approvedAt: it.approvedAt } : null;
+      if (wasFiled) unfiled(it);
       it.redoDraft = false; it.redo = true; it.approved = false; it.approvedAt = 0; it.redoSentAt = Date.now();
       syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
       renderReview(it);
@@ -755,6 +772,7 @@
       $('#v-save').textContent = 'Sending…';
       if (!(await saveReview(it))) {
         it.redoDraft = true; it.redo = false; it.redoSentAt = 0;
+        if (wasFiled) { Object.assign(it, wasFiled); syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'approvedAt']); Core.filed(it); }
         syncCaches(it, ['approved', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
         if (item() === it) renderReview(it);
       } else if (item() === it) $('#v-save').textContent = 'Sent ✓';
