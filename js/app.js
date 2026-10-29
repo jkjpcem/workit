@@ -267,20 +267,22 @@
     inp.max = max;
     inp.min = r ? r.start : '';
     $('#date-hint').textContent = r
-      ? `A weekday from ${niceDate(r.start)} to ${niceDate(r.end)}`
-      : 'A weekday (Monday to Friday)';
-    if (!inp.value || dateProblem(inp.value, wiz.lp)) {
-      // Start from the most recent day that's allowed.
-      let d = new Date(`${max}T12:00:00`), pick = '';
-      for (let i = 0; i < 7 && !pick; i++) {
-        const y = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        if (r && y < r.start) break;
-        if (!isWeekend(y) && !holidayOn(y)) pick = y;
-        d.setDate(d.getDate() - 1);
-      }
-      inp.value = pick;
-    }
+      ? `A school day from ${niceDate(r.start)} to ${niceDate(r.end)} (no weekends or holidays).`
+      : 'A school day (no weekends or holidays).';
+    // Left blank on purpose so the student types the date from the assignment.
+    if (inp.value && dateProblem(inp.value, wiz.lp)) inp.value = '';
   }
+
+  // Submit stays off until all three boxes are checked.
+  function syncConfirm() {
+    $('#upload-btn').disabled = !$$('#confirm-box input[type=checkbox]').every(c => c.checked);
+  }
+  $('#confirm-box').addEventListener('change', syncConfirm);
+  $('#step-review').dateCompleted.addEventListener('change', (e) => {
+    const bad = e.target.value && dateProblem(e.target.value, wiz.lp);
+    $('#date-hint').classList.toggle('bad', !!bad);
+    if (bad) toast(bad);
+  });
 
   function go(step) {
     wiz.step = step;
@@ -632,21 +634,20 @@
       if (!res) return { pageDate: '', pageCheck: 'not checked' };
       wiz.check = { key, res, warned: false };
     }
-    const typed = $('#page-date') ? $('#page-date').value : '';
-    const typedProblem = typed ? dateProblem(typed, wiz.lp, 'The date on your page') : '';
+    // The date they entered is the assignment's date; when WiSH can't read one, it's taken as typed.
+    const typed = $('#step-review').dateCompleted.value;
     const lines = [];
     let stop = false;
     if (res.date && res.dateProblem) {
       stop = true;
       lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(res.dateProblem)} Fix the date at the top of page 1, then take the picture again.</p>`);
+    } else if (res.date && res.date !== typed) {
+      stop = true;
+      lines.push(`<p class="pc-bad">✗ The date on your assignment is <b>${esc(niceDate(res.date))}</b>, but you entered <b>${esc(niceDate(typed))}</b>. Fix the date above, or retake the picture.</p>`);
     } else if (res.date) {
-      lines.push(`<p class="pc-ok">✓ Date on your page: ${esc(niceDate(res.date))}</p>`);
+      lines.push(`<p class="pc-ok">✓ Date on your page matches: ${esc(niceDate(res.date))}</p>`);
     } else {
-      if (!typed || typedProblem) stop = true;
-      lines.push(`<label class="pc-ask"><span>${res.read ? 'WiSH couldn’t read a date at the top of page 1.' : 'WiSH couldn’t read the top of page 1.'} Type the date written there:</span>
-        <input type="date" id="page-date" value="${esc(typed)}"></label>` +
-        (typedProblem ? `<p class="pc-bad">✗ ${esc(typedProblem)}</p>` : '') +
-        '<p class="meta">No date at the top? Write the date there, then take the picture again.</p>');
+      lines.push(`<p class="pc-warn">⚠ ${res.read ? 'WiSH couldn’t read a date at the top of page 1' : 'WiSH couldn’t read the top of page 1'}, so your ES will check that it says ${esc(niceDate(typed))}.</p>`);
     }
     const missing = [res.name === false && 'your full name', res.subject === false && 'the subject'].filter(Boolean);
     if (res.read && missing.length) {
@@ -660,7 +661,6 @@
     if (stop || warnOnly) {
       if (warnOnly) { wiz.check.warned = true; $('#upload-btn').textContent = 'Submit anyway'; }
       box.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      if ($('#page-date') && !typed) $('#page-date').focus();
       return null;
     }
     const date = res.date || typed;
@@ -675,6 +675,7 @@
     const n = wiz.pages.length;
     $('#details-title').textContent = `${subject} details`;
     $('#upload-btn').textContent = `Submit to ${wiz.lp}`;
+    syncConfirm();
     $('#summary-line').innerHTML = `<strong>${esc(subject)}</strong> · ${wiz.doc ? esc(docLabel()) : `${n} page${n > 1 ? 's' : ''}`} · ${esc(wiz.lp)}`;
     setDateLimits();
     if (!wiz.check || wiz.check.key !== pageKey()) { wiz.check = null; $('#page-check').hidden = true; $('#page-check').innerHTML = ''; }
@@ -688,8 +689,10 @@
     const f = e.target;
     const minutes = Number(f.minutes.value);
     if (!(minutes >= 1 && minutes <= 600 && Number.isInteger(minutes))) { f.minutes.focus(); return toast('Enter the minutes you spent (1 to 600).'); }
+    if (!f.dateCompleted.value) { f.dateCompleted.focus(); return toast('Enter the date you completed the assignment.'); }
     const badDate = dateProblem(f.dateCompleted.value, wiz.lp);
     if (badDate) { f.dateCompleted.focus(); return toast(badDate); }
+    if (!$$('#confirm-box input[type=checkbox]').every(c => c.checked)) return toast('Check all three boxes first.');
     if (!f.score.value.trim()) { f.score.focus(); return toast('Enter your grade or score.'); }
     const page = await checkPage();
     if (!page) return;

@@ -111,15 +111,14 @@
         <div class="review-strip" id="review-pages"></div>
         <div class="card stack">
           <h2 id="details-title">Details</h2>
-          <div class="field-row">
-            <label><span>Minutes spent <span class="req" aria-hidden="true">*</span></span>
-              <input name="minutes" type="number" inputmode="numeric" min="1" max="600" step="1" required placeholder="e.g. 45">
-            </label>
-            <label><span>Date completed <span class="req" aria-hidden="true">*</span></span>
-              <input name="dateCompleted" type="date" required aria-describedby="date-hint">
-              <span class="field-hint" id="date-hint"></span>
-            </label>
-          </div>
+          <label><span>Minutes spent <span class="req" aria-hidden="true">*</span></span>
+            <input name="minutes" type="number" inputmode="numeric" min="1" max="600" step="1" required placeholder="e.g. 45">
+          </label>
+          <label><span>When did you complete the assignment? <span class="req" aria-hidden="true">*</span></span>
+            <input name="dateCompleted" type="date" required aria-describedby="date-note date-hint">
+            <span class="field-hint date-note" id="date-note">Use the date written at the top of your assignment. It has to match.</span>
+            <span class="field-hint" id="date-hint"></span>
+          </label>
           <label><span>Grade / Score <span class="req" aria-hidden="true">*</span></span>
             <input name="score" required maxlength="40" placeholder="e.g. 18/20, 92%, A-">
           </label>
@@ -129,8 +128,14 @@
           <p class="meta"><span class="req">*</span> Required</p>
         </div>
         <div class="card stack page-check" id="page-check" hidden aria-live="polite"></div>
+        <fieldset class="card stack confirm-box" id="confirm-box">
+          <legend>Before you submit, check each box</legend>
+          <label class="check"><input type="checkbox" name="ok1" required> Assignment has my full name</label>
+          <label class="check"><input type="checkbox" name="ok2" required> Date of assignment is not on a weekend or holiday</label>
+          <label class="check"><input type="checkbox" name="ok3" required> Assignment has a score, grade or feedback</label>
+        </fieldset>
         <p class="summary-line" id="summary-line"></p>
-        <button class="btn primary big wide" type="submit" id="upload-btn">Submit</button>
+        <button class="btn primary big wide" type="submit" id="upload-btn" disabled>Submit</button>
         <button class="btn ghost back" type="button" id="review-back">← Change pages</button>
       </form>
 

@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 29;
+const WORKIT_VERSION = 30;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -292,6 +292,10 @@ function upload_(body) {
   const pageDate = clean_(body.pageDate, 10);
   const pageProblem = pageDate ? checkDate_(body.lp, pageDate, 'The date on your page') : '';
   if (pageProblem) return { ok: false, error: pageProblem };
+  // Date completed is the date of the assignment, so it has to match the date WiSH read on the page.
+  if (pageDate && /^date read/.test(String(body.pageCheck || '')) && pageDate !== clean_(body.dateCompleted, 20)) {
+    return { ok: false, error: 'The date on your assignment is ' + niceDay_(pageDate) + ', but you entered ' + niceDay_(clean_(body.dateCompleted, 20)) + '. Fix the date, or retake the picture.' };
+  }
   const uploadId = /^[A-Za-z0-9_-]{1,60}$/.test(String(body.uploadId || '')) ? String(body.uploadId) : '';
   const resubmitOf = clean_(body.resubmitOf, 60);
 
