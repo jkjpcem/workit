@@ -88,26 +88,71 @@
   }
 
   // ---------- Redo alerts ----------
+  // New redos show at the top of Turn in ("To do"), so the alert only needs marking as seen.
 
-  const alertDialog = $('#alert-dialog');
-  let alertIds = [];
-  function showAlerts(alerts) {
-    if (!alerts || !alerts.length || alertDialog.open) return;
-    alertIds = alerts.map(a => a.id);
-    $('#alert-list').innerHTML = alerts.map(a => `
-      <div class="alert-item">
-        <strong>${esc(a.subject)}</strong> <span class="meta">${esc(a.lp)} · ${esc(niceDate(a.dateCompleted))}</span>
-        ${a.reasons.length ? `<ul>${a.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
-        ${a.redoNote ? `<p class="redo-note-text">${esc(a.redoNote)}</p>` : ''}
-      </div>`).join('') +
-      '<p class="hint">Find it in My uploads and tap Resubmit.</p>';
-    alertDialog.showModal();
+  async function showAlerts(alerts) {
+    if (!alerts || !alerts.length) return;
+    try { await Api.call('ackAlerts', { studentId: session.student.id, ids: alerts.map(a => a.id) }); } catch { /* fine */ }
   }
-  alertDialog.addEventListener('close', async () => {
-    const ids = alertIds;
-    alertIds = [];
-    show('history');
-    try { await Api.call('ackAlerts', { studentId: session.student.id, ids }); } catch { /* shown again next time */ }
+
+  // ---------- To do (top of Turn in) ----------
+  // Right after signing in: redos first, then the classes still missing samples this LP,
+  // each with a button that goes straight to turning it in. Hidden once they start an upload.
+
+  async function renderTodo() {
+    const box = $('#todo');
+    if (!session || current !== 'upload' || wiz.resubmit || wiz.pages.length || wiz.doc || wiz.step !== 'pages'
+      || session.student.active === false) { box.hidden = true; return; }
+    const mine = (await Store.all()).filter(i => i.studentId === session.student.id);
+    const redos = mine.filter(i => i.status === 'sent' && i.redo && !i.resubmitted && !i.approved);
+    const lp = session.currentLp;
+    const found = missingFor(mine, lp);
+    const { classes, have } = found;
+    // A class whose sample is waiting on its redo shows only under the redo.
+    const missing = found.missing.filter(c => have(c) + redos.filter(i => i.lp === lp && i.subject === c.name).length < c.need);
+    if (!redos.length && !missing.length) {
+      box.hidden = !classes.length;
+      box.innerHTML = `<div class="card todo-done">✓ You’re all caught up for ${esc(lp)}. You can still turn in more work below.</div>`;
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = (redos.length ? `
+      <div class="card stack todo-redo">
+        <h2>↺ Your ES asked you to redo ${redos.length > 1 ? `${redos.length} samples` : 'a sample'}</h2>
+        ${redos.map(i => `
+          <div class="todo-item">
+            <div class="todo-text"><strong>${esc(i.subject)}</strong> <span class="meta">${esc(i.lp)} · ${esc(niceDate(i.dateCompleted))}</span>
+              ${i.reasons && i.reasons.length ? `<ul class="reasons">${i.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+              ${i.redoNote ? `<p class="redo-note-text"><b>From your ES:</b> ${esc(i.redoNote)}</p>` : ''}
+            </div>
+            <button class="btn primary" type="button" data-todo-redo="${esc(i.id)}">↺ Resubmit</button>
+          </div>`).join('')}
+      </div>` : '') + (missing.length ? `
+      <div class="card stack missing">
+        <h2>Still needed for ${esc(lp)} <span class="count">${missing.length} of ${classes.length} subjects</span></h2>
+        <ul class="missing-list">${missing.map(c => `<li><span>${esc(c.name)}${c.need > 1
+          ? ` <span class="need">${have(c)} of ${c.need} · accelerated</span>` : ''}</span>
+          <button class="btn small primary" type="button" data-turnin="${esc(c.name)}" data-lp="${esc(lp)}">Turn in</button></li>`).join('')}</ul>
+      </div>` : '') +
+      '<p class="hint todo-or">Or turn in other work below.</p>';
+  }
+  $('#todo').addEventListener('click', async (e) => {
+    const r = e.target.closest('[data-todo-redo]');
+    const t = e.target.closest('[data-turnin]');
+    if (r) {
+      const item = await Store.get(r.dataset.todoRedo);
+      if (!item) return;
+      resetWizard();
+      wiz.lp = item.lp;
+      wiz.resubmit = { id: item.id, subject: item.subject, dateCompleted: item.dateCompleted };
+      renderAll();
+    } else if (t) {
+      resetWizard();
+      wiz.lp = t.dataset.lp;
+      wiz.presetSubject = t.dataset.turnin;
+      renderAll();
+    } else return;
+    window.scrollTo(0, 0);
   });
 
   // ---------- Screens & navigation ----------
@@ -253,6 +298,7 @@
 
   function renderWizard() {
     if (!wiz.lp) wiz.lp = session.currentLp;
+    renderTodo();
     const isCurrent = wiz.lp === session.currentLp;
     $('#lp-banner').className = `lp-banner ${isCurrent ? '' : 'off'}`;
     $('#lp-banner').innerHTML = `<span class="lp-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><span class="lp-text">${isCurrent
@@ -1050,6 +1096,7 @@
       });
     }
     if (current === 'history') renderHistory();
+    if (current === 'upload') renderTodo();
   }
 
   // ---------- My uploads ----------
@@ -1103,14 +1150,17 @@
 
   // Every class needs one sample per LP, and an accelerated class needs two.
   // An upload waiting on a redo doesn't count yet.
-  function renderMissing(items) {
-    const lp = historyFilter.lp === 'all' ? session.currentLp : historyFilter.lp;
+  function missingFor(items, lp) {
     const classes = Classes.forLp(session.student, lp);
-    const box = $('#missing');
-    if (!classes.length) { box.hidden = true; return; }
     const inLp = items.filter(i => i.lp === lp);
     const have = (c) => inLp.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
-    const missing = classes.filter(c => have(c) < c.need);
+    return { classes, have, missing: classes.filter(c => have(c) < c.need) };
+  }
+  function renderMissing(items) {
+    const lp = historyFilter.lp === 'all' ? session.currentLp : historyFilter.lp;
+    const { classes, have, missing } = missingFor(items, lp);
+    const box = $('#missing');
+    if (!classes.length) { box.hidden = true; return; }
     const accel = classes.some(c => c.need > 1);
     box.hidden = false;
     box.className = `card stack missing ${missing.length ? '' : 'all-done'}`;

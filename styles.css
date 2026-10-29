@@ -550,3 +550,17 @@ svg.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: vis
 .page-check .pc-warn { color: var(--warn); background: var(--warn-soft); padding: 10px 12px; border-radius: 10px; }
 .page-check .pc-ask { display: grid; gap: 6px; font-weight: 600; }
 .page-check .btn.small { justify-self: start; }
+
+/* To do at the top of Turn in: redos first, then missing classes */
+.todo { margin-bottom: 18px; }
+.todo .missing { margin-bottom: 0; }
+.todo-redo { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); background: var(--bad-soft); }
+.todo-redo h2 { color: var(--bad); }
+.todo-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 12px; background: var(--card); }
+.todo-text { flex: 1 1 200px; min-width: 0; }
+.todo-text .reasons { margin: 6px 0 0; padding-left: 18px; }
+.todo-text .redo-note-text { margin: 6px 0 0; }
+.todo-item .btn { white-space: nowrap; }
+.todo-done { padding: 12px 16px; font-weight: 650; color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--line)); }
+.todo-or { margin: 0; text-align: center; }

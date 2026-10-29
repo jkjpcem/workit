@@ -74,6 +74,7 @@
       <p class="greeting" id="greeting"></p>
       <p class="paused-note" id="paused-note" hidden>Turning in work is paused on your account. You can still see your uploads. Ask your ES if this is a mistake.</p>
       <div class="meeting" id="meeting-upload" hidden></div>
+      <div class="todo stack" id="todo" hidden></div>
       <div class="lp-banner" id="lp-banner"></div>
 
       <div class="step stack" id="step-pages">
@@ -228,15 +229,6 @@
   </dialog>
 
   <!-- Redo requests from the ES, shown once after sign-in -->
-  <dialog id="alert-dialog">
-    <form method="dialog" class="stack">
-      <div class="warn-icon">📝</div>
-      <h2 class="center">Your ES asked you to redo</h2>
-      <div id="alert-list" class="alert-list"></div>
-      <button class="btn primary" value="ok">Got it</button>
-    </form>
-  </dialog>
-
   <!-- Shows an upload's pages inside WiSH, instead of a new tab -->
   <dialog id="view-dialog" class="viewer">
     <div class="viewer-head">
