@@ -663,7 +663,10 @@
         : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
           (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
           : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : ''}
-           ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}`);
+           ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}
+           <button type="button" class="btn small undo-export" data-unfile>↶ Undo export</button>`) +
+        (it.oldExports || []).map(x => `<span class="old-export">↶ Taken back: the ${esc(x.filedAs)} copy${x.exportedAt ? ` from ${esc(stamp(x.exportedAt))}` : ''}.
+          <button type="button" class="btn small" data-putback="${esc(x.fileId)}">Put it back</button></span>`).join('');
       Core.panel(it);
     }
 
@@ -729,7 +732,7 @@
     $('#t-approve').addEventListener('click', () => {
       const it = item();
       if (it.finalizedAt && it.approved) {
-        if (!confirm(`Take back the approval? The exported copy in Approved › ${exportedAs(it)} moves to Google Drive’s trash, and this goes back to To review. Your annotations stay.`)) return;
+        if (!confirm(`Take back the approval? The exported copy in Approved › ${exportedAs(it)} moves to WiSH’s Trash (you can put it back for 60 days), and this goes back to To review. Your annotations stay.`)) return;
         unfiled(it);
         return changeReview(i => { i.redoDraft = false; i.approved = false; i.approvedAt = 0; }, 0);
       }
@@ -746,7 +749,7 @@
         if (!confirm('Take back this redo? The student won’t see it anymore.')) return;
         return changeReview(i => { i.redo = false; i.redoSentAt = 0; }, 0);
       }
-      if (!it.redoDraft && it.finalizedAt && !confirm(`This was exported to Approved › ${exportedAs(it)}. Send it back for a redo? When you click Send back to student, the exported copy moves to Google Drive’s trash. Your annotations stay.`)) return;
+      if (!it.redoDraft && it.finalizedAt && !confirm(`This was exported to Approved › ${exportedAs(it)}. Send it back for a redo? When you click Send back to student, the exported copy moves to WiSH’s Trash, where you can put it back for 60 days. Your annotations stay.`)) return;
       it.redoDraft = !it.redoDraft;
       it.reasons = []; it.redoNote = '';
       if (it.redoDraft) setAnnotating(false);
@@ -1173,13 +1176,45 @@
     $('#t-extra').addEventListener('click', async () => {
       const it = item();
       if (!it.approved || (it.finalizedAt && it.filedAs === 'Extra')) return;
-      if (it.finalizedAt && !confirm(`Move this from ${it.lp} Annotated to ${it.lp} Extra? The annotated copy is removed.`)) return;
+      if (it.finalizedAt && !confirm(`Move this from ${it.lp} Annotated to ${it.lp} Extra? The annotated copy goes to WiSH’s Trash, where you can put it back for 60 days.`)) return;
       flushSaves();
       busy(`Saving to ${it.lp} Extra…`);
       try {
         filed(it, await call('adminFinalize', { studentId: it.studentId, id: it.id, filedAs: 'Extra' }));
       } catch (err) {
         toast(`Couldn’t file it: ${err.message}`);
+      } finally {
+        busy(false);
+      }
+    });
+
+    // Undo export: the exported copy goes to WiSH's Trash and the sample stays approved, ready to
+    // export again. A taken-back copy can be put back from here or from the Trash page.
+    function applyExport(it, x) {
+      Object.assign(it, {
+        finalizedAt: x.finalizedAt || 0, finalUrl: x.finalUrl || '', filedAs: x.filedAs || '',
+        approved: !!x.approved, oldExports: x.oldExports || [], finalStale: false,
+      });
+      syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'approved', 'oldExports', 'finalStale']);
+      Core.filed(it);
+      renderReview(it);
+    }
+    $('#final-state').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-unfile], [data-putback]');
+      const it = item();
+      if (!b || !it) return;
+      const undo = b.hasAttribute('data-unfile');
+      if (undo && !confirm(`Undo the export? The copy in Approved › ${exportedAs(it)} moves to WiSH’s Trash, where you can put it back for 60 days. The sample stays approved, so you can export it again.`)) return;
+      flushSaves();
+      busy(undo ? 'Taking back the export…' : 'Putting it back…');
+      try {
+        const res = undo
+          ? await call('adminUnfile', { studentId: it.studentId, id: it.id })
+          : await call('adminRestoreExport', { studentId: it.studentId, id: it.id, fileId: b.dataset.putback });
+        applyExport(it, res.item);
+        toast(undo ? 'Export taken back. The copy is in the Trash.' : `✓ Back in ${exportedAs(it)}.`);
+      } catch (err) {
+        toast(/unknown request/i.test(err.message) ? 'This needs the newest WiSH update first.' : err.message);
       } finally {
         busy(false);
       }
@@ -1211,7 +1246,8 @@
 
     function filed(it, res) {
       Object.assign(it, { finalizedAt: res.finalizedAt, finalUrl: res.finalUrl, filedAs: res.filedAs || 'Annotated', finalStale: false, approved: true });
-      syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'finalStale', 'approved']);
+      if (res.oldExports) it.oldExports = res.oldExports;
+      syncCaches(it, ['finalizedAt', 'finalUrl', 'filedAs', 'finalStale', 'approved', 'oldExports']);
       Core.filed(it);
       setAnnotating(false);
       renderReview(it);
@@ -1325,15 +1361,29 @@
       return;
     }
     trashItems = res.items;
+    trashExports = res.exports || [];
     renderTrash();
   }
-  let trashItems = [];
+  let trashItems = [], trashExports = [];
   function renderTrash() {
     const grid = $('#trash-grid');
-    if (!trashItems.length) { grid.innerHTML = '<div class="empty">The Trash is empty.</div>'; return; }
+    if (!trashItems.length && !trashExports.length) { grid.innerHTML = '<div class="empty">The Trash is empty.</div>'; return; }
     const day = (ms) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
     const nameOf = (i) => (data.students.find(s => s.id === i.studentId) || {}).name || i.name || i.studentId;
-    grid.innerHTML = trashItems.map((i, n) => `
+    grid.innerHTML = trashExports.map((i, n) => `
+      <div class="card trash-item">
+        ${i.thumb ? `<img src="${esc(i.thumb)}" alt="">` : '<div class="noimg">📄</div>'}
+        <div class="trash-info">
+          <strong>${esc(nameOf(i))}</strong>
+          <span>${esc(i.subject)} · ${esc(i.lp)} · exported copy (${esc(i.oldExport.filedAs)})</span>
+          <span class="meta">Export taken back on ${esc(day(i.oldExport.takenAt))}</span>
+          <span class="meta">Deleted for good on <b>${esc(day(i.oldExport.deletesOn))}</b></span>
+        </div>
+        <div class="trash-actions">
+          <button class="btn small primary" data-act="putback" data-n="${n}">Put back</button>
+          <button class="btn small ghost" data-act="xnow" data-n="${n}">Delete now</button>
+        </div>
+      </div>`).join('') + trashItems.map((i, n) => `
       <div class="card trash-item">
         ${i.thumb ? `<img src="${esc(i.thumb)}" alt="">` : '<div class="noimg">📄</div>'}
         <div class="trash-info">
@@ -1351,6 +1401,7 @@
   $('#trash-grid').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
+    if (b.dataset.act === 'putback' || b.dataset.act === 'xnow') return trashExport(b.dataset.act, trashExports[Number(b.dataset.n)]);
     const it = trashItems[Number(b.dataset.n)];
     if (!it) return;
     if (b.dataset.act === 'now' && !confirm(`Delete this ${it.subject} sample for good? This can’t be undone.`)) return;
@@ -1374,6 +1425,32 @@
       busy(false);
     }
   });
+  // An exported copy the ES took back: put it back in its Approved folder, or delete it for good.
+  async function trashExport(act, it) {
+    if (!it) return;
+    const x = it.oldExport;
+    if (act === 'xnow' && !confirm(`Delete this exported ${it.subject} copy for good? The sample itself stays.`)) return;
+    busy(act === 'xnow' ? 'Deleting…' : 'Putting it back…');
+    try {
+      if (act === 'xnow') {
+        await call('adminDeleteExport', { studentId: it.studentId, id: it.id, fileId: x.fileId });
+        toast('Deleted for good.');
+      } else {
+        const res = await call('adminRestoreExport', { studentId: it.studentId, id: it.id, fileId: x.fileId });
+        delete studentCache[it.studentId];
+        const mine = data.items.find(i => i.id === it.id && i.studentId === it.studentId);
+        if (mine) Object.assign(mine, res.item);
+        Core.filed(res.item);
+        toast(`✓ Back in Approved › ${res.item.lp} ${res.item.filedAs}.`);
+      }
+      // Putting one back may send the copy it replaced to the Trash, so ask again.
+      openTrash();
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      busy(false);
+    }
+  }
   $('#open-trash').addEventListener('click', openTrash);
   $('#trash-back').addEventListener('click', () => {
     renderDash();

@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 30;
+const WORKIT_VERSION = 31;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -56,13 +56,13 @@ const SUB = {
   FEEDBACK: 8, COMMENTS: 9, PAGES: 10, FILE: 11, FAVORITE: 12, UPLOAD_ID: 13, FILE_ID: 14, THUMB: 15,
   APPROVED: 16, REDO: 17, REASONS: 18, NOTIFIED: 19, REPLACED_BY: 20, RESUBMIT_OF: 21,
   ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30, TRASHED: 31, TRASHED_BY: 32, REDO_MARKED: 33, APPROVED_AT: 34,
-  PAGE_DATE: 35, PAGE_CHECK: 36,
+  PAGE_DATE: 35, PAGE_CHECK: 36, OLD_EXPORTS: 37,
 };
 const SUB_HEADERS = ['Received', 'Student ID', 'Student name', 'LP', 'Subject', 'Date completed',
   'Grade / score', 'Feedback', 'Comments', 'Pages', 'File', 'Favorite', 'Upload ID', 'File ID', 'Thumbnail',
   'Approved', 'Redo', 'Redo reasons', 'Student saw redo', 'Resubmitted as', 'Resubmission of',
   'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by', 'Redo marked', 'Approved at',
-  'Date on page', 'Page check'];
+  'Date on page', 'Page check', 'Taken-back exports'];
 // Where each LP's start and end dates live on the Settings tab (header row, then LP1..LP8).
 const LP_DATES_ROW = 5;
 const SOURCES = ['scan', 'photo', 'pdf', 'docx', 'gdoc', 'mixed'];
@@ -211,6 +211,7 @@ function doPost(e) {
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
+      adminUnfile: adminUnfile_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
     };
@@ -545,7 +546,7 @@ function restoreItem_(subs, item) {
 
 /** Removes a trashed sample for good: its files go to Google's own trash and its row is deleted. */
 function deleteItem_(sheet, item) {
-  [item.fileId, item.finalId].forEach(id => {
+  [item.fileId, item.finalId].concat((item.oldExports || []).map(x => x.fileId)).forEach(id => {
     if (!id) return;
     try { DriveApp.getFileById(id).setTrashed(true); } catch (err) { /* already gone */ }
   });
@@ -574,7 +575,18 @@ function emptyTrashDaily_() {
       const v = values[r];
       const at = v[SUB.TRASHED - 1] instanceof Date ? v[SUB.TRASHED - 1].getTime() : (Date.parse(v[SUB.TRASHED - 1]) || 0);
       if (!at || at > cutoff) continue;
-      deleteItem_(sheet, { row: r + 1, fileId: String(v[SUB.FILE_ID - 1] || ''), finalId: String(v[SUB.FINAL_ID - 1] || '') });
+      deleteItem_(sheet, { row: r + 1, fileId: String(v[SUB.FILE_ID - 1] || ''), finalId: String(v[SUB.FINAL_ID - 1] || ''), oldExports: parseJson_(v[SUB.OLD_EXPORTS - 1]) });
+      removed++;
+    }
+    // Taken-back exports past their TRASH_DAYS.
+    const old = sheet.getRange(1, SUB.OLD_EXPORTS, sheet.getLastRow(), 1).getValues();
+    for (let r = 1; r < old.length; r++) {
+      const list = parseJson_(old[r][0]);
+      if (!list.length) continue;
+      const keep = list.filter(x => x.takenAt > cutoff);
+      if (keep.length === list.length) continue;
+      list.filter(x => x.takenAt <= cutoff).forEach(x => { try { DriveApp.getFileById(x.fileId).setTrashed(true); } catch (gone) { /* gone */ } });
+      sheet.getRange(r + 1, SUB.OLD_EXPORTS).setValue(keep.length ? JSON.stringify(keep) : '');
       removed++;
     }
     return removed > 0;
@@ -1039,7 +1051,18 @@ function adminTrashList_() {
     p.deletesOn = deletesOn_(i);
     return p;
   });
-  return { ok: true, days: TRASH_DAYS, items: items };
+  // Exports the ES took back, from samples that are still around.
+  const exports = [];
+  readSubs_().items.forEach(i => {
+    if (i.trashedAt) return;
+    (i.oldExports || []).forEach(x => {
+      const p = adminItem_(i);
+      p.oldExport = oldExport_(x);
+      exports.push(p);
+    });
+  });
+  exports.sort((a, b) => b.oldExport.takenAt - a.oldExport.takenAt);
+  return { ok: true, days: TRASH_DAYS, items: items, exports: exports };
 }
 
 function adminRestore_(body) {
@@ -1100,14 +1123,78 @@ function adminReview_(body) {
   }
 }
 
-/** Moves the exported copy to Drive's trash (it can be restored there) and clears the export. Annotations stay. */
+/**
+ * Takes back the exported copy: it moves to WiSH's Trash, where the ES can put it back for
+ * TRASH_DAYS days (adminRestoreExport_), and the export is cleared. Annotations stay.
+ */
 function unfile_(subs, item) {
-  if (item.finalId) {
-    try { DriveApp.getFileById(item.finalId).setTrashed(true); } catch (ignored) {}
-  }
+  stashExport_(subs, item);
   subs.sheet.getRange(item.row, SUB.FINALIZED, 1, 3).setValues([['', '', '']]);
   subs.sheet.getRange(item.row, SUB.FILED_AS).setValue('');
   item.finalizedAt = 0; item.finalUrl = ''; item.finalId = ''; item.filedAs = '';
+}
+
+function stashExport_(subs, item) {
+  if (!item.finalId) return;
+  try { DriveApp.getFileById(item.finalId).moveTo(trashFolder_()); } catch (gone) { return; }
+  const list = (item.oldExports || []).filter(x => x.fileId !== item.finalId);
+  list.push({ fileId: item.finalId, filedAs: item.filedAs || 'Annotated', exportedAt: item.finalizedAt || 0, takenAt: Date.now() });
+  item.oldExports = list;
+  subs.sheet.getRange(item.row, SUB.OLD_EXPORTS).setValue(JSON.stringify(list));
+}
+
+/** Undo export: the sample stays approved, and its exported copy moves to WiSH's Trash. */
+function adminUnfile_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
+    if (!item) return { ok: false, error: 'Upload not found.' };
+    if (item.finalizedAt) unfile_(subs, item);
+    return { ok: true, item: adminItem_(item) };
+  });
+}
+
+/**
+ * Puts a taken-back export back in Approved / LP# / Annotated or Extra and makes it the
+ * sample's export again. Whatever is exported now goes to WiSH's Trash in its place.
+ */
+function adminRestoreExport_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
+    if (!item) return { ok: false, error: 'That sample was deleted. Restore it from the Trash first.' };
+    const old = (item.oldExports || []).filter(x => x.fileId === String(body.fileId || ''))[0];
+    if (!old) return { ok: false, error: 'That copy isn’t in the Trash any more.' };
+    let file;
+    try { file = DriveApp.getFileById(old.fileId); } catch (gone) { return { ok: false, error: 'That copy was deleted for good.' }; }
+    if (item.finalizedAt) unfile_(subs, item);
+    file.moveTo(getApprovedFolder_(item.lp, old.filedAs));
+    const list = (item.oldExports || []).filter(x => x.fileId !== old.fileId);
+    item.oldExports = list;
+    const now = new Date();
+    subs.sheet.getRange(item.row, SUB.APPROVED, 1, 2).setValues([[true, false]]);
+    if (!item.approved) subs.sheet.getRange(item.row, SUB.APPROVED_AT).setValue(now);
+    subs.sheet.getRange(item.row, SUB.FINALIZED, 1, 3).setValues([[now, file.getUrl(), file.getId()]]);
+    subs.sheet.getRange(item.row, SUB.FILED_AS).setValue(old.filedAs);
+    subs.sheet.getRange(item.row, SUB.OLD_EXPORTS).setValue(list.length ? JSON.stringify(list) : '');
+    Object.assign(item, { approved: true, redo: false, finalizedAt: now.getTime(), finalUrl: file.getUrl(), finalId: file.getId(), filedAs: old.filedAs });
+    return { ok: true, item: adminItem_(item) };
+  });
+}
+
+/** Deletes a taken-back export for good (it goes to Google's own trash). */
+function adminDeleteExport_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60), true);
+    if (!item) return { ok: true };
+    const id = String(body.fileId || '');
+    if (!(item.oldExports || []).some(x => x.fileId === id)) return { ok: true };
+    try { DriveApp.getFileById(id).setTrashed(true); } catch (gone) { /* already gone */ }
+    const list = item.oldExports.filter(x => x.fileId !== id);
+    subs.sheet.getRange(item.row, SUB.OLD_EXPORTS).setValue(list.length ? JSON.stringify(list) : '');
+    return { ok: true };
+  });
 }
 
 /** Saves the text boxes so you can come back to them before finalizing. */
@@ -1152,7 +1239,10 @@ function adminFinalize_(body) {
     if (filedAs === 'Extra' && !item.approved) return { ok: false, error: 'Approve it first.' };
     const student = findStudent_(item.studentId) || { firstName: item.name, lastName: '' };
     const folder = getApprovedFolder_(item.lp, filedAs);
-    if (item.finalId) {
+    // Switching between Annotated and Extra: the earlier copy waits in WiSH's Trash, in case it
+    // was right. Updating an annotated copy just replaces it.
+    if (item.finalId && item.filedAs !== filedAs) stashExport_(subs, item);
+    else if (item.finalId) {
       try { DriveApp.getFileById(item.finalId).setTrashed(true); } catch (ignored) {}
     }
     const name = uniqueName_(folder, workName_(student, item.lp, item.subject));
@@ -1165,7 +1255,7 @@ function adminFinalize_(body) {
     subs.sheet.getRange(item.row, SUB.APPROVED).setValue(true);
     subs.sheet.getRange(item.row, SUB.ANNOTATIONS, 1, 4).setValues([[json.length > 45000 ? '' : json, now, file.getUrl(), file.getId()]]);
     subs.sheet.getRange(item.row, SUB.FILED_AS).setValue(filedAs);
-    return { ok: true, finalUrl: file.getUrl(), finalizedAt: now.getTime(), name: name, filedAs: filedAs };
+    return { ok: true, finalUrl: file.getUrl(), finalizedAt: now.getTime(), name: name, filedAs: filedAs, oldExports: (item.oldExports || []).map(oldExport_) };
   } finally {
     lock.releaseLock();
   }
@@ -1319,6 +1409,7 @@ function readSubs_() {
       filedAs: FILED_AS.indexOf(String(v[SUB.FILED_AS - 1])) !== -1 ? String(v[SUB.FILED_AS - 1]) : (v[SUB.FINALIZED - 1] ? 'Annotated' : ''),
       pageDate: dateText_(v[SUB.PAGE_DATE - 1] || ''),
       pageCheck: String(v[SUB.PAGE_CHECK - 1] || ''),
+      oldExports: parseJson_(v[SUB.OLD_EXPORTS - 1]),
     });
   }
   memoPut_('subs', items);
@@ -1358,7 +1449,13 @@ function adminItem_(i) {
   p.approvedAt = i.approved ? i.approvedAt : 0;
   p.pageDate = i.pageDate;
   p.pageCheck = i.pageCheck;
+  p.oldExports = (i.oldExports || []).map(oldExport_);
   return p;
+}
+
+// An exported copy the ES took back: it waits in WiSH's Trash for TRASH_DAYS days.
+function oldExport_(x) {
+  return { fileId: x.fileId, filedAs: x.filedAs, exportedAt: x.exportedAt, takenAt: x.takenAt, deletesOn: x.takenAt + TRASH_DAYS * 24 * 3600 * 1000 };
 }
 
 function fileData_(item) {

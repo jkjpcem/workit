@@ -62,6 +62,10 @@ const Notes = (() => {
     if (bar && !bar.dataset.built) buildBar(bar);
     pagesEl.onclick = onPageClick;
     pagesEl.onpointerdown = onPenDown;
+    pagesEl.onpointermove = onGestureMove;
+    pagesEl.onpointerup = pagesEl.onpointercancel = onGestureEnd;
+    touches.clear();
+    gesture = null;
     hist = { stack: [], last: JSON.stringify(notes), t: 0, sel: -2 };
     setPen(false);
     render();
@@ -121,7 +125,7 @@ const Notes = (() => {
     const hint = document.getElementById('notes-hint');
     if (hint) {
       hint.textContent = pen
-        ? 'Write on the page with your finger, pen or mouse. Tap ✏️ Pen again to stop writing and scroll.'
+        ? 'Write with one finger, a stylus or the mouse. Pinch with two fingers (or tap ＋ at the bottom) to zoom in. Tap ✏️ Pen again to stop writing and scroll.'
         : 'Tap a page to add a text box, or tap ✏️ Pen to write by hand. Tap a box or mark, then ✕, to delete it.';
     }
     if (pen && document.activeElement && document.activeElement.isContentEditable) document.activeElement.blur();
@@ -129,17 +133,53 @@ const Notes = (() => {
     syncBar();
   }
 
+  // With the pen on, one finger writes and two fingers pinch to zoom and drag to move around.
+  // Once an Apple Pencil (or other stylus) has written, fingers only move and zoom.
+  const touches = new Map();
+  let live = null, stylus = false, gesture = null, hooks = null;
   function onPenDown(e) {
     if (!editing || !pen || e.button > 0) return;
     const layer = e.target.closest('.nlayer');
     if (!layer) return;
+    if (e.pointerType === 'pen') stylus = true;
+    if (e.pointerType === 'touch') {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size > 1 || stylus) {
+        e.preventDefault();
+        if (live) { live.cancel(); live = null; }
+        gesture = gestureOf();
+        return;
+      }
+    }
     const page = Number(layer.closest('.npage').dataset.page);
-    Ink.capture(e, layer, { color: style.color, width: PEN_PT }, (stroke) => {
+    live = Ink.capture(e, layer, { color: style.color, width: PEN_PT }, (stroke) => {
+      live = null;
       notes.push({ ...stroke, page });
       selected = -1;
       render();
       changed();
     });
+  }
+
+  function gestureOf() {
+    const pts = [...touches.values()];
+    const mid = { x: pts.reduce((t, p) => t + p.x, 0) / pts.length, y: pts.reduce((t, p) => t + p.y, 0) / pts.length };
+    const dist = pts.length > 1 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : 0;
+    return { mid, dist, n: pts.length };
+  }
+  function onGestureMove(e) {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesture || !hooks) return;
+    const g = gestureOf();
+    if (g.n !== gesture.n) { gesture = g; return; }
+    hooks.pan(gesture.mid.x - g.mid.x, gesture.mid.y - g.mid.y);
+    if (g.n > 1 && gesture.dist > 10) hooks.zoom(g.dist / gesture.dist, g.mid.x, g.mid.y);
+    gesture = g;
+  }
+  function onGestureEnd(e) {
+    touches.delete(e.pointerId);
+    gesture = touches.size && gesture ? gestureOf() : null;
   }
 
   function removeSelected() {
@@ -299,5 +339,5 @@ const Notes = (() => {
     if (onChange) onChange(notes.filter(a => Ink.is(a) || String(a.text || '').trim()));
   }
 
-  return { mount, setEditing, isEditing: () => editing };
+  return { mount, setEditing, isEditing: () => editing, setGestures: (h) => { hooks = h; } };
 })();

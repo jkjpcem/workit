@@ -780,3 +780,5 @@ a.brand:hover { opacity: .9; }
 .info-grid .page-flag, .page-flag { color: var(--warn, #9a5b00); }
 .ink-tag { position: absolute; transform: translateY(-115%); font: 700 10px/1.4 system-ui, sans-serif; color: #fff; background: #e07a00; padding: 0 5px; border-radius: 4px; letter-spacing: .02em; pointer-events: none; }
 .off-day { color: var(--st-redo, #c8322f); font-weight: 700; }
+.final-state .undo-export { display: block; margin-top: 8px; }
+.final-state .old-export { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--muted); font-weight: 500; }

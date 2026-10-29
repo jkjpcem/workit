@@ -1273,6 +1273,7 @@
     $('#view-save').textContent = '';
     Notes.mount($('#view-pages'), $('#notes-bar'), item ? item.familyNotes : [], item ? saveNotesSoon : null);
     setNotesEditing(canEdit && startEditing);
+    setZoom(1);
     const dlg = $('#view-dialog');
     dlg.onclose = () => {
       const saving = flushNotes();
@@ -1287,6 +1288,34 @@
   }
 
   const canAnnotate = (item) => item.status === 'sent' && !item.approved && !item.finalized;
+
+  // Zoom in on the pages (handy for writing with the pen on a phone). The text boxes and pen
+  // marks scale with the page, so nothing moves on the page itself.
+  const ZOOMS = [1, 1.5, 2, 3, 4];
+  let zoom = 1;
+  // ax, ay: the point on screen to keep still (the fingers, or the middle for the buttons).
+  function setZoom(z, ax, ay) {
+    const box = $('#view-pages');
+    z = Math.min(4, Math.max(1, z));
+    const r = box.getBoundingClientRect();
+    const ox = ax == null ? box.clientWidth / 2 : ax - r.left, oy = ay == null ? box.clientHeight / 2 : ay - r.top;
+    const fx = (box.scrollLeft + ox) / Math.max(1, box.scrollWidth), fy = (box.scrollTop + oy) / Math.max(1, box.scrollHeight);
+    zoom = z;
+    box.classList.toggle('zoomed', z > 1);
+    $$('.npage', box).forEach(p => { p.style.width = `${z * 100}%`; });
+    box.scrollLeft = fx * box.scrollWidth - ox;
+    box.scrollTop = fy * box.scrollHeight - oy;
+    $('#zoom-fit').textContent = z > 1 ? `${Math.round(z * 100)}% · Fit` : '100%';
+    $('#zoom-out').disabled = z <= 1;
+    $('#zoom-in').disabled = z >= 4;
+  }
+  $('#zoom-in').addEventListener('click', () => setZoom(ZOOMS.find(z => z > zoom + 0.01) || 4));
+  $('#zoom-out').addEventListener('click', () => setZoom([...ZOOMS].reverse().find(z => z < zoom - 0.01) || 1));
+  $('#zoom-fit').addEventListener('click', () => setZoom(1));
+  Notes.setGestures({
+    pan: (dx, dy) => { const b = $('#view-pages'); b.scrollLeft += dx; b.scrollTop += dy; },
+    zoom: (f, x, y) => setZoom(zoom * f, x, y),
+  });
 
   function setNotesEditing(on) {
     Notes.setEditing(on);

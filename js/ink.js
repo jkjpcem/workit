@@ -128,7 +128,8 @@ const Ink = (() => {
 
   /**
    * Draws a stroke from a pointerdown on a page layer. When the pen lifts, done(stroke) gets the
-   * finished stroke (page is left for the caller to fill in).
+   * finished stroke (page is left for the caller to fill in). Returns { cancel } for when a
+   * second finger turns it into a pinch.
    */
   function capture(e, layer, st, done) {
     e.preventDefault();
@@ -149,24 +150,31 @@ const Ink = (() => {
     const draw = () => live.setAttribute('d', pathD(pts, MAX / r.width, MAX / r.height));
     add(e);
     draw();
-    layer.setPointerCapture(e.pointerId);
+    try { layer.setPointerCapture(e.pointerId); } catch (e2) { /* still draws while over the page */ }
+    const id = e.pointerId;
+    const stop = () => {
+      layer.removeEventListener('pointermove', move);
+      layer.removeEventListener('pointerup', up);
+      layer.removeEventListener('pointercancel', up);
+      live.remove();
+    };
     const move = (ev) => {
+      if (ev.pointerId !== id) return;
       const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [];
       (evs.length ? evs : [ev]).forEach(add);
       draw();
     };
     const up = (ev) => {
-      layer.removeEventListener('pointermove', move);
-      layer.removeEventListener('pointerup', up);
-      layer.removeEventListener('pointercancel', up);
+      if (ev.pointerId !== id) return;
+      stop();
       if (ev.type === 'pointerup' && pts.length > 1) pts.push(at(ev)); // end where the pen lifted
-      live.remove();
       const kept = simplify(pts, Math.max(0.35, r.width / 2000)).map(([x, y]) => [x / r.width, y / r.height]);
       done({ type: 'ink', color: st.color, width: st.width, d: encode(kept.slice(0, 1500)) });
     };
     layer.addEventListener('pointermove', move);
     layer.addEventListener('pointerup', up);
     layer.addEventListener('pointercancel', up);
+    return { cancel: () => { stop(); try { layer.releasePointerCapture(id); } catch (e2) { /* fine */ } } };
   }
 
   /** Draws a stroke onto a W x H canvas (for the exported PDF). */
