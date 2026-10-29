@@ -528,3 +528,12 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 /* Inactive account: the ES paused turning in work */
 .paused-note { margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--warn-soft); color: var(--warn); font-weight: 600; font-size: 15px; }
 .step.paused { opacity: .45; pointer-events: none; }
+
+/* Page check on step 3 (name, subject and date at the top of page 1) */
+.page-check h2 { margin: 0; font-size: 17px; }
+.page-check p { margin: 0; }
+.page-check .pc-ok { color: var(--good); font-weight: 600; }
+.page-check .pc-bad { color: var(--bad); background: var(--bad-soft); padding: 10px 12px; border-radius: 10px; }
+.page-check .pc-warn { color: var(--warn); background: var(--warn-soft); padding: 10px 12px; border-radius: 10px; }
+.page-check .pc-ask { display: grid; gap: 6px; font-weight: 600; }
+.page-check .btn.small { justify-self: start; }

@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 26;
+const WORKIT_VERSION = 27;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -56,11 +56,13 @@ const SUB = {
   FEEDBACK: 8, COMMENTS: 9, PAGES: 10, FILE: 11, FAVORITE: 12, UPLOAD_ID: 13, FILE_ID: 14, THUMB: 15,
   APPROVED: 16, REDO: 17, REASONS: 18, NOTIFIED: 19, REPLACED_BY: 20, RESUBMIT_OF: 21,
   ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30, TRASHED: 31, TRASHED_BY: 32, REDO_MARKED: 33, APPROVED_AT: 34,
+  PAGE_DATE: 35, PAGE_CHECK: 36,
 };
 const SUB_HEADERS = ['Received', 'Student ID', 'Student name', 'LP', 'Subject', 'Date completed',
   'Grade / score', 'Feedback', 'Comments', 'Pages', 'File', 'Favorite', 'Upload ID', 'File ID', 'Thumbnail',
   'Approved', 'Redo', 'Redo reasons', 'Student saw redo', 'Resubmitted as', 'Resubmission of',
-  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by', 'Redo marked', 'Approved at'];
+  'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by', 'Redo marked', 'Approved at',
+  'Date on page', 'Page check'];
 // Where each LP's start and end dates live on the Settings tab (header row, then LP1..LP8).
 const LP_DATES_ROW = 5;
 const SOURCES = ['scan', 'photo', 'pdf', 'docx', 'gdoc', 'mixed'];
@@ -201,7 +203,7 @@ function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const student = {
-      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_,
+      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_, checkPage: checkPage_,
     };
     const admin = {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
@@ -221,6 +223,7 @@ function doPost(e) {
     // Requests that only read use the remembered copy of the sheet; anything else reads the
     // sheet itself and makes the next request read it fresh too.
     MEMO_GEN_ = null;
+    HOLIDAYS_ = null;
     FRESH_ = READ_ONLY_ACTIONS.indexOf(body.action) === -1;
     // Once a day, the first request empties samples that have been in the Trash for 60 days.
     if (emptyTrashDaily_()) { memoClear_(); FRESH_ = true; }
@@ -249,7 +252,7 @@ function login_(body) {
   const alerts = mine.filter(i => i.redo && !i.notified && !i.replacedBy)
     .map(i => ({ id: i.id, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted, reasons: i.reasons, redoNote: i.redoNote }));
   // The student's uploads come along, so the app doesn't have to ask a second time.
-  return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), alerts: alerts,
+  return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), holidays: allHolidays_(), alerts: alerts,
     items: mine.map(publicItem_), trash: studentTrash_(all), meetings: studentMeetings_(student.id) };
 }
 
@@ -285,6 +288,10 @@ function upload_(body) {
   if (source === 'gdoc' ? !body.link : !body.data) return { ok: false, error: 'No file was attached.' };
   const dateProblem = checkDate_(body.lp, clean_(body.dateCompleted, 20));
   if (dateProblem) return { ok: false, error: dateProblem };
+  // The date written on page 1, read by the page check or typed by the student (see checkPage_).
+  const pageDate = clean_(body.pageDate, 10);
+  const pageProblem = pageDate ? checkDate_(body.lp, pageDate, 'The date on your page') : '';
+  if (pageProblem) return { ok: false, error: pageProblem };
   const uploadId = /^[A-Za-z0-9_-]{1,60}$/.test(String(body.uploadId || '')) ? String(body.uploadId) : '';
   const resubmitOf = clean_(body.resubmitOf, 60);
 
@@ -363,6 +370,8 @@ function upload_(body) {
     row[SUB.FINAL_ID - 1] = '';
     row[SUB.MINUTES - 1] = minutes_(body.minutes);
     row[SUB.SOURCE - 1] = source;
+    row[SUB.PAGE_DATE - 1] = pageDate;
+    row[SUB.PAGE_CHECK - 1] = cell_(clean_(body.pageCheck, 120));
     subs.sheet.appendRow(row);
     if (original) subs.sheet.getRange(original.row, SUB.REPLACED_BY).setValue(uploadId);
     return { ok: true, fileUrl: file.getUrl() };
@@ -974,7 +983,7 @@ function superEsSetActive_(body) {
 /** Your LP dates and current LP. Every ES copy follows the dates (they're the same for everyone). */
 function schoolDates_() {
   if (!isMain_()) return { ok: false, error: 'Unknown request' };
-  return { ok: true, lpDates: getLpDates_(), currentLp: getCurrentLp_() };
+  return { ok: true, lpDates: getLpDates_(), currentLp: getCurrentLp_(), holidays: getHolidays_() };
 }
 
 /** Every student, plus every upload in one LP, for the dashboard grid. */
@@ -988,6 +997,7 @@ function adminOverview_(body) {
     lps: LEARNING_PERIODS,
     reasons: REDO_REASONS,
     lpDates: getLpDates_(),
+    holidays: getHolidays_(),
     students: getStudents_(),
     items: readSubs_().items.filter(i => i.lp === lp && !i.trashedAt).map(adminItem_),
   };
@@ -1212,6 +1222,10 @@ function adminSaveRoster_(body) {
 
 /** Saves each LP's start and end dates (yyyy-mm-dd; blank means no limit). */
 function adminSetLpDates_(body) {
+  if (Array.isArray(body.holidays)) {
+    const bad = setHolidays_(body.holidays);
+    if (bad) return { ok: false, error: bad };
+  }
   const dates = body.dates || {};
   const rows = [];
   for (let i = 0; i < LEARNING_PERIODS.length; i++) {
@@ -1227,7 +1241,7 @@ function adminSetLpDates_(body) {
   sheet.getRange(LP_DATES_ROW, 1, 1, 3).setValues([['LP', 'Start date', 'End date']]);
   sheet.getRange(LP_DATES_ROW + 1, 2, rows.length, 2).setNumberFormat('@');
   sheet.getRange(LP_DATES_ROW + 1, 1, rows.length, 3).setValues(rows);
-  return { ok: true, lpDates: getLpDates_() };
+  return { ok: true, lpDates: getLpDates_(), holidays: getHolidays_() };
 }
 
 function adminSetLp_(body) {
@@ -1286,6 +1300,8 @@ function readSubs_() {
       redoMarkedAt: v[SUB.REDO_MARKED - 1] instanceof Date ? v[SUB.REDO_MARKED - 1].getTime() : (Date.parse(v[SUB.REDO_MARKED - 1]) || 0),
       approvedAt: v[SUB.APPROVED_AT - 1] instanceof Date ? v[SUB.APPROVED_AT - 1].getTime() : (Date.parse(v[SUB.APPROVED_AT - 1]) || 0),
       filedAs: FILED_AS.indexOf(String(v[SUB.FILED_AS - 1])) !== -1 ? String(v[SUB.FILED_AS - 1]) : (v[SUB.FINALIZED - 1] ? 'Annotated' : ''),
+      pageDate: dateText_(v[SUB.PAGE_DATE - 1] || ''),
+      pageCheck: String(v[SUB.PAGE_CHECK - 1] || ''),
     });
   }
   memoPut_('subs', items);
@@ -1323,6 +1339,8 @@ function adminItem_(i) {
   p.filedAs = i.filedAs;
   p.redoSentAt = i.redo ? i.redoMarkedAt : 0;
   p.approvedAt = i.approved ? i.approvedAt : 0;
+  p.pageDate = i.pageDate;
+  p.pageCheck = i.pageCheck;
   return p;
 }
 
@@ -1523,15 +1541,236 @@ function getLpDates_() {
 }
 
 /** Date completed must be a weekday, and inside the LP's dates when the LP has them. */
-function checkDate_(lp, ymd) {
+function checkDate_(lp, ymd, what) {
+  what = what || 'The date completed';
   if (!isYmd_(ymd)) return 'Enter the date you completed it.';
   const day = new Date(ymd + 'T12:00:00Z').getUTCDay();
-  if (day === 0 || day === 6) return 'The date completed must be a weekday (Monday to Friday).';
+  if (day === 0 || day === 6) return what + ' must be a weekday (Monday to Friday).';
   const range = getLpDates_()[lp];
   if (range && (ymd < range.start || ymd > range.end)) {
-    return 'The date completed must be during ' + lp + ' (' + range.start + ' to ' + range.end + ').';
+    return what + ' must be during ' + lp + ' (' + niceDay_(range.start) + ' to ' + niceDay_(range.end) + ').';
   }
+  const holiday = schoolHoliday_(ymd);
+  if (holiday) return what + ' can’t be ' + niceDay_(ymd) + ', a school holiday (' + holiday + ').';
   return '';
+}
+
+// ---------- School holidays (set with the LP dates; no school, so no work dated then) ----------
+
+// They live on the Holidays tab of the WiSH Admin sheet (Date, Holiday, Through for a break),
+// so they can also be typed there. Federal holidays count without being listed.
+const HOLIDAY_SHEET = 'Holidays';
+const HOLIDAY_HEADERS = ['Date', 'Holiday', 'Through (for a break)'];
+let HOLIDAYS_ = null; // read once per request
+
+/** [{ from: 'yyyy-mm-dd', to: 'yyyy-mm-dd', name }] */
+function getHolidays_() {
+  if (HOLIDAYS_) return HOLIDAYS_;
+  const sheet = getAdmin_().getSheetByName(HOLIDAY_SHEET);
+  const out = [];
+  if (sheet && sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues().forEach(v => {
+      const from = dateText_(v[0]).trim(), to = dateText_(v[2]).trim();
+      if (isYmd_(from)) out.push({ from: from, to: isYmd_(to) && to > from ? to : from, name: text_(v[1]).trim() });
+    });
+  }
+  out.sort((a, b) => a.from < b.from ? -1 : 1);
+  HOLIDAYS_ = out;
+  return out;
+}
+
+function setHolidays_(input) {
+  const out = [];
+  for (let i = 0; i < Math.min(input.length, 80); i++) {
+    const h = input[i] || {};
+    const from = clean_(h.from, 10), to = clean_(h.to, 10) || from;
+    if (!from && !to) continue;
+    if (!isYmd_(from) || !isYmd_(to)) return 'A school holiday has a date WiSH can’t read.';
+    if (to < from) return 'A school holiday ends before it starts.';
+    out.push({ from: from, to: to, name: clean_(h.name, 60) });
+  }
+  out.sort((a, b) => a.from < b.from ? -1 : 1);
+  const sheet = namedSheet_(HOLIDAY_SHEET, HOLIDAY_HEADERS);
+  sheet.getRange(1, 1, 1, 3).setValues([HOLIDAY_HEADERS]).setFontWeight('bold');
+  if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).clearContent();
+  if (out.length) {
+    sheet.getRange(2, 1, out.length, 3).setNumberFormat('@');
+    sheet.getRange(2, 1, out.length, 3).setValues(out.map(h => [h.from, cell_(h.name), h.to !== h.from ? h.to : '']));
+  }
+  HOLIDAYS_ = out;
+  return '';
+}
+
+/** The holiday's name if no school that day ('' if it's a school day): a federal holiday or one you added. */
+function schoolHoliday_(ymd) {
+  const h = getHolidays_().filter(x => ymd >= x.from && ymd <= x.to)[0];
+  return h ? (h.name || 'no school') : federalHoliday_(ymd);
+}
+
+/**
+ * The federal holidays (the days federal offices close), on the weekday they're observed:
+ * one that falls on a Saturday is kept the Friday before, and on a Sunday the Monday after.
+ */
+function federalHoliday_(ymd) {
+  const y = Number(ymd.slice(0, 4));
+  return federalHolidays_(y).concat(federalHolidays_(y + 1)).filter(h => h.from === ymd).map(h => h.name)[0] || '';
+}
+
+function federalHolidays_(y) {
+  const iso = (m, d) => y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2);
+  const nth = (m, dow, n) => { // n-th weekday of a month; n = -1 for the last one
+    if (n > 0) return 1 + ((dow - new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 7) % 7) + (n - 1) * 7;
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return last - ((new Date(Date.UTC(y, m - 1, last)).getUTCDay() - dow + 7) % 7);
+  };
+  const observed = (m, d) => {
+    const t = new Date(Date.UTC(y, m - 1, d)), day = t.getUTCDay();
+    if (day === 6) t.setUTCDate(d - 1);
+    if (day === 0) t.setUTCDate(d + 1);
+    return t.toISOString().slice(0, 10);
+  };
+  return [
+    [observed(1, 1), 'New Year’s Day'], [iso(1, nth(1, 1, 3)), 'Martin Luther King Jr. Day'],
+    [iso(2, nth(2, 1, 3)), 'Presidents’ Day'], [iso(5, nth(5, 1, -1)), 'Memorial Day'],
+    [observed(6, 19), 'Juneteenth'], [observed(7, 4), 'Independence Day'], [iso(9, nth(9, 1, 1)), 'Labor Day'],
+    [iso(10, nth(10, 1, 2)), 'Columbus Day / Indigenous Peoples’ Day'], [observed(11, 11), 'Veterans Day'],
+    [iso(11, nth(11, 4, 4)), 'Thanksgiving'], [observed(12, 25), 'Christmas Day'],
+  ].map(h => ({ from: h[0], to: h[0], name: h[1], federal: true }));
+}
+
+/** Your holidays plus the federal ones for this school year and next, for the student app. */
+function allHolidays_() {
+  const y = new Date().getFullYear();
+  return getHolidays_().concat(federalHolidays_(y - 1), federalHolidays_(y), federalHolidays_(y + 1));
+}
+
+// ---------- Page check: name, subject and date at the top of page 1 ----------
+// No AI. The text comes from Google Drive's built-in text recognition (for photos and scans)
+// or straight from the document (Word, Google Docs and Slides). The dates are found with plain
+// patterns, and the name and subject by comparing words with the roster.
+
+const MONTHS_ = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+function checkPage_(body) {
+  const student = findStudent_(body.studentId);
+  if (!student) return { ok: false, error: 'Your account was not found. Ask your ES.' };
+  const lp = LEARNING_PERIODS.indexOf(body.lp) !== -1 ? body.lp : getCurrentLp_();
+  if (String(body.image || body.docx || '').length > 4 * 1024 * 1024) return { ok: true, read: false };
+  // At most 60 checks per student a day, so nobody can use your Drive as a text reader.
+  const cache = CacheService.getScriptCache(), countKey = 'pagecheck_' + student.id + '_' + ymd_(new Date(), Session.getScriptTimeZone());
+  const used = Number(cache.get(countKey)) || 0;
+  if (used >= 60) return { ok: true, read: false };
+  cache.put(countKey, String(used + 1), 6 * 3600);
+  let text = '';
+  try {
+    if (body.link) text = googleFileText_(googleFileInfo_(body.link));
+    else if (body.docx) text = docText_(Utilities.base64Decode(body.docx), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    else if (body.image) text = docText_(Utilities.base64Decode(body.image), 'image/jpeg');
+  } catch (err) {
+    return { ok: true, read: false };
+  }
+  return Object.assign({ ok: true }, pageCheck_(text.slice(0, 1500), student, clean_(body.subject, 80), lp));
+}
+
+function pageCheck_(text, student, subject, lp) {
+  const dates = findDates_(text, getLpDates_()[lp]);
+  const date = dates.filter(d => !checkDate_(lp, d))[0] || dates[0] || '';
+  return {
+    read: /[a-z0-9]/i.test(text), date: date,
+    dateProblem: date ? checkDate_(lp, date, 'The date on your page') : '',
+    name: wordsOnPage_(text, [student.firstName, student.lastName].join(' ').split(/[\s-]+/)),
+    subject: wordsOnPage_(text, subjectWords_(subject)),
+  };
+}
+
+/** Every date written in the text, as yyyy-mm-dd (a missing year is the LP's). */
+function findDates_(text, range) {
+  const t = String(text || '').toLowerCase();
+  const years = range ? [Number(range.start.slice(0, 4)), Number(range.end.slice(0, 4))] : [new Date().getFullYear()];
+  const out = [];
+  const add = (m, d, y) => {
+    m = Number(m); d = Number(d);
+    if (!(m >= 1 && m <= 12 && d >= 1 && d <= 31)) return;
+    (y ? [Number(String(y).length === 2 ? '20' + y : y)] : years).forEach(yy => {
+      const ymd = yy + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2);
+      if (isYmd_(ymd) && new Date(ymd + 'T12:00:00Z').getUTCDate() === d && out.indexOf(ymd) === -1) out.push(ymd);
+    });
+  };
+  let r;
+  const iso = /\b(20\d\d)[-\/.](\d{1,2})[-\/.](\d{1,2})\b/g;
+  while ((r = iso.exec(t))) add(r[2], r[3], r[1]);
+  const num = /(^|[^\d])(\d{1,2}) ?[\/\-.] ?(\d{1,2})(?: ?[\/\-.] ?(\d{4}|\d{2}))?(?!\d)/g;
+  while ((r = num.exec(t))) add(r[2], r[3], r[4]);
+  const mon = '(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\\.?';
+  const md = new RegExp('\\b' + mon + ' *(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,? *(\\d{4}))?', 'g');
+  while ((r = md.exec(t))) add(MONTHS_.indexOf(r[1].slice(0, 3)) + 1, r[2], r[3]);
+  const dm = new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)? +(?:of +)?' + mon + '(?:,? *(\\d{4}))?', 'g');
+  while ((r = dm.exec(t))) add(MONTHS_.indexOf(r[2].slice(0, 3)) + 1, r[1], r[3]);
+  return out;
+}
+
+/** The words of a class name worth looking for, with their usual short forms ("a-g English 11A Honors" -> english, eng, ela). */
+function subjectWords_(subject) {
+  const words = String(subject || '').toLowerCase().replace(/\(.*?\)/g, ' ').split(/[^a-z]+/)
+    .filter(w => w.length > 1 && ['ag', 'honors', 'of', 'and', 'the', 'grade', 'th', 'accel'].indexOf(w) === -1);
+  const extra = { english: ['eng', 'ela'], algebra: ['alg', 'math'], geometry: ['geo', 'math'], statistics: ['stats', 'stat', 'math'],
+    calculus: ['calc', 'math', 'precalc', 'precalculus'], pre: [], history: ['hist'], government: ['gov', 'govt'], economics: ['econ'],
+    biology: ['bio'], chemistry: ['chem'], physics: ['phys'], science: ['sci'], spanish: ['span', 'espanol'], american: ['asl'],
+    sign: ['asl'], physical: ['pe'], photography: ['photo'], math: ['math'] };
+  return words.reduce((all, w) => all.concat([w], extra[w] || []), []).filter(w => w);
+}
+
+/** True when any of the words is in the text (a longer word may have one letter misread). */
+function wordsOnPage_(text, words) {
+  // Text recognition sometimes reads o, l or s as 0, 1 or 5 inside a word.
+  const fixed = String(text || '').toLowerCase().replace(/[015](?=[a-z])|(?<=[a-z])[015]/g, c => ({ 0: 'o', 1: 'l', 5: 's' }[c]));
+  const seen = fixed.split(/[^a-z]+/).filter(w => w.length > 1);
+  return words.map(w => String(w || '').toLowerCase().replace(/[^a-z]/g, '')).filter(w => w.length > 1).some(w => {
+    const slack = w.length >= 8 ? 2 : w.length >= 4 ? 1 : 0;
+    return seen.some(s => s === w || (slack && Math.abs(s.length - w.length) <= slack && editDistance_(s, w) <= slack));
+  });
+}
+
+/** Letters to add, drop, change or swap to turn a into b. */
+function editDistance_(a, b) {
+  const d = [];
+  for (let i = 0; i <= a.length; i++) d[i] = [i];
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+/** Text of a picture (Drive's text recognition) or a Word file, through a temporary Google Doc that is deleted right away. */
+function docText_(bytes, type) {
+  const boundary = 'wishcheck' + Date.now();
+  const meta = JSON.stringify({ name: 'WiSH page check (temporary)', mimeType: 'application/vnd.google-apps.document' });
+  const head = Utilities.newBlob('--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta +
+    '\r\n--' + boundary + '\r\nContent-Type: ' + type + '\r\n\r\n').getBytes();
+  const tail = Utilities.newBlob('\r\n--' + boundary + '--').getBytes();
+  const auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=en', {
+    method: 'post', contentType: 'multipart/related; boundary=' + boundary,
+    payload: head.concat(Array.prototype.slice.call(bytes)).concat(tail), headers: auth, muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() >= 300) throw new Error('Couldn’t read the page.');
+  const id = JSON.parse(res.getContentText()).id;
+  try {
+    const text = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/plain', { headers: auth, muteHttpExceptions: true });
+    return text.getResponseCode() === 200 ? text.getContentText() : '';
+  } finally {
+    UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id, { method: 'delete', headers: auth, muteHttpExceptions: true });
+  }
+}
+
+/** The text of a shared Google Doc or Slides, read without your sign-in like the PDF export. */
+function googleFileText_(info) {
+  const res = UrlFetchApp.fetch(publicUrl_(info, info.kind === 'Google Slides' ? '/export/txt' : '/export?format=txt'), { muteHttpExceptions: true });
+  return res.getResponseCode() === 200 ? res.getContentText() : '';
 }
 
 function isYmd_(s) {
@@ -1643,7 +1882,7 @@ function getCurrentLp_() {
 const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
-const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList',
+const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList',
   'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 

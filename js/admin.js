@@ -189,8 +189,13 @@
     const dates = school.lpDates || {};
     if (!Object.keys(dates).length) return;
     const have = data.lpDates || {};
-    const same = data.lps.every(lp => JSON.stringify(dates[lp] || null) === JSON.stringify(have[lp] || null));
-    if (!same) data.lpDates = (await call('adminSetLpDates', { dates })).lpDates;
+    const same = data.lps.every(lp => JSON.stringify(dates[lp] || null) === JSON.stringify(have[lp] || null)) &&
+      (!school.holidays || JSON.stringify(school.holidays) === JSON.stringify(data.holidays || []));
+    if (!same) {
+      const res = await call('adminSetLpDates', { dates, ...(school.holidays ? { holidays: school.holidays } : {}) });
+      data.lpDates = res.lpDates;
+      if (res.holidays) data.holidays = res.holidays;
+    }
     if ((creds.step || 0) < 6 && school.currentLp && school.currentLp !== data.currentLp) {
       await call('adminSetLp', { lp: school.currentLp });
       data.currentLp = school.currentLp;
@@ -604,6 +609,7 @@
           <div><span>Minutes spent</span>${esc(it.minutes || '—')}</div>
           <div><span>Pages</span>${it.pageCount}</div>
           <div><span>Uploaded</span>${esc(new Date(it.receivedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}</div>
+          ${it.pageDate || it.pageCheck ? `<div class="${/typed|not found|not checked/.test(it.pageCheck || '') ? 'page-flag' : ''}"><span>Date on page</span>${it.pageDate ? esc(niceDate(it.pageDate)) : '—'}${it.pageCheck && it.pageCheck !== 'date read' ? ` <small>(${esc(it.pageCheck)})</small>` : ''}</div>` : ''}
         </div>
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
         <div class="info-text"><span>Comments</span>${esc(it.comments || '—')}</div>
@@ -1280,11 +1286,40 @@
       <span class="lp-name">${esc(lp)}</span>
       <input type="date" data-lp="${esc(lp)}" data-end="0" value="${esc((d[lp] || {}).start || '')}" aria-label="${esc(lp)} start date" ${off}>
       <input type="date" data-lp="${esc(lp)}" data-end="1" value="${esc((d[lp] || {}).end || '')}" aria-label="${esc(lp)} end date" ${off}>`).join('');
+    renderHolidays(data.holidays || [], shared);
     $('#dates-shared').hidden = !shared;
     $('#dates-save').hidden = shared;
     currentStudent = null;
     show('settings');
   }
+
+  // School holidays: one row each (from, to, name), saved with the LP dates.
+  function holidayRow(h, off) {
+    return `<div class="holiday-row">
+      <label>From <input type="date" data-h="from" value="${esc(h.from || '')}" ${off}></label>
+      <label>To <input type="date" data-h="to" value="${esc(h.to && h.to !== h.from ? h.to : '')}" ${off}></label>
+      <label class="grow">Name <input data-h="name" maxlength="60" placeholder="e.g. Thanksgiving break" value="${esc(h.name || '')}" ${off}></label>
+      ${off ? '' : '<button type="button" class="btn ghost small" data-h-del aria-label="Remove this holiday">×</button>'}
+    </div>`;
+  }
+  function renderHolidays(list, shared) {
+    const off = shared ? 'disabled' : '';
+    $('#holiday-list').innerHTML = list.length ? list.map(h => holidayRow(h, off)).join('') : (shared ? '<p class="meta">No school holidays yet.</p>' : '');
+    $('#holiday-add').hidden = shared;
+    if (!list.length && !shared) $('#holiday-add').click();
+  }
+  $('#holiday-add').addEventListener('click', () => {
+    $('#holiday-list').insertAdjacentHTML('beforeend', holidayRow({}, ''));
+  });
+  $('#holiday-list').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-h-del]');
+    if (del) del.closest('.holiday-row').remove();
+  });
+  const readHolidays = () => $$('#holiday-list .holiday-row').map(r => ({
+    from: r.querySelector('[data-h="from"]').value,
+    to: r.querySelector('[data-h="to"]').value || r.querySelector('[data-h="from"]').value,
+    name: r.querySelector('[data-h="name"]').value.trim(),
+  })).filter(h => h.from);
 
   $('#open-dates').addEventListener('click', () => openSettings('dash'));
   $('#settings-back').addEventListener('click', () => {
@@ -1302,10 +1337,11 @@
     });
     busy('Saving dates…');
     try {
-      const res = await call('adminSetLpDates', { dates });
+      const res = await call('adminSetLpDates', { dates, holidays: readHolidays() });
       data.lpDates = res.lpDates;
+      if (res.holidays) { data.holidays = res.holidays; renderHolidays(data.holidays, false); }
       renderDash();
-      toast('LP dates saved.');
+      toast('LP dates and holidays saved.');
     } catch (err) {
       toast(err.message);
     } finally {

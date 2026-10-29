@@ -44,7 +44,7 @@
     try {
       const asked = Date.now();
       const res = await Api.call('login', { studentId: id });
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, meetings: res.meetings || null });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null });
       showAlerts(res.alerts);
       loginForm.reset();
       resetWizard();
@@ -74,7 +74,7 @@
       const res = await Api.call('login', { studentId: session.student.id });
       // Follow the new current LP unless the student deliberately picked another one.
       if (wiz.lp === session.currentLp) wiz.lp = res.currentLp;
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, meetings: res.meetings || null });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null });
       showAlerts(res.alerts);
       renderAll();
       if (res.items) applyItems(res.items, asked, res.trash); else syncHistory(true);
@@ -187,7 +187,7 @@
   const wiz = { step: 'pages', lp: null, pages: [], editing: null, source: 'camera', resubmit: null, doc: null, queue: [] };
 
   function resetWizard() {
-    Object.assign(wiz, { step: 'pages', lp: session ? session.currentLp : null, pages: [], editing: null, resubmit: null, doc: null, queue: [] });
+    Object.assign(wiz, { step: 'pages', lp: session ? session.currentLp : null, pages: [], editing: null, resubmit: null, doc: null, queue: [], check: null });
     $('#subject-select').value = '';
     $('#step-review').reset();
   }
@@ -203,12 +203,16 @@
 
   const isWeekend = (ymd) => { const d = new Date(`${ymd}T12:00:00`).getDay(); return d === 0 || d === 6; };
   const lpRange = (lp) => (session && session.lpDates && session.lpDates[lp]) || null;
-  function dateProblem(ymd, lp) {
+  // School holidays come from the ES's LP dates page (Code.gs getHolidays_).
+  const holidayOn = (ymd) => ((session && session.holidays) || []).find(h => ymd >= h.from && ymd <= h.to);
+  function dateProblem(ymd, lp, what = 'The date completed') {
     if (!ymd) return 'Enter the date you completed it.';
-    if (ymd > today()) return 'The date completed can’t be in the future.';
-    if (isWeekend(ymd)) return 'The date completed must be a weekday (Monday to Friday).';
+    if (ymd > today()) return `${what} can’t be in the future.`;
+    if (isWeekend(ymd)) return `${what} must be a weekday (Monday to Friday).`;
     const r = lpRange(lp);
-    if (r && (ymd < r.start || ymd > r.end)) return `The date completed must be during ${lp} (${niceDate(r.start)} to ${niceDate(r.end)}).`;
+    if (r && (ymd < r.start || ymd > r.end)) return `${what} must be during ${lp} (${niceDate(r.start)} to ${niceDate(r.end)}).`;
+    const h = holidayOn(ymd);
+    if (h) return `${what} can’t be ${niceDate(ymd)}, a school holiday (${h.name || 'no school'}).`;
     return '';
   }
   function setDateLimits() {
@@ -226,7 +230,7 @@
       for (let i = 0; i < 7 && !pick; i++) {
         const y = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         if (r && y < r.start) break;
-        if (!isWeekend(y)) pick = y;
+        if (!isWeekend(y) && !holidayOn(y)) pick = y;
         d.setDate(d.getDate() - 1);
       }
       inp.value = pick;
@@ -546,6 +550,80 @@
 
   // ---------- Step 3: details ----------
 
+  // Page check (no AI): before submitting, WiSH reads the top of page 1 and looks for the
+  // student's name, the subject and a date. A date outside the LP, on a weekend or on a school
+  // holiday stops the upload. A missing name or subject is a warning. When the date can't be
+  // read (often handwriting), the student types the date written on the page, and the ES sees
+  // that it was typed. Returns { pageDate, pageCheck } to go on, or null to stop.
+  const pageKey = () => [$('#subject-select').value, wiz.doc ? (wiz.doc.link || wiz.doc.name) : wiz.pages.map(p => p.thumb.length).join(',')].join('|');
+  function pageTop() {
+    const c = wiz.pages[0].result;
+    const h = Math.round(c.height / 3), scale = Math.min(1, 1400 / c.width);
+    const out = document.createElement('canvas');
+    out.width = Math.round(c.width * scale); out.height = Math.round(h * scale);
+    const g = out.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, out.width, out.height);
+    g.drawImage(c, 0, 0, c.width, h, 0, 0, out.width, out.height);
+    return out.toDataURL('image/jpeg', 0.85).split(',')[1];
+  }
+  async function checkPage() {
+    const box = $('#page-check');
+    const key = pageKey();
+    let res = wiz.check && wiz.check.key === key ? wiz.check.res : null;
+    if (!res) {
+      busy('Checking the top of page 1…');
+      try {
+        const body = { studentId: session.student.id, lp: wiz.lp, subject: $('#subject-select').value };
+        if (wiz.doc && wiz.doc.type === 'gdoc') body.link = wiz.doc.link;
+        else if (wiz.doc) body.docx = await blobToBase64(wiz.doc.blob);
+        else body.image = pageTop();
+        res = await Api.call('checkPage', body);
+      } catch (err) {
+        res = null; // offline or a WiSH from before the page check: the ES checks it by eye
+      } finally {
+        busy(false);
+      }
+      if (!res) return { pageDate: '', pageCheck: 'not checked' };
+      wiz.check = { key, res, warned: false };
+    }
+    const typed = $('#page-date') ? $('#page-date').value : '';
+    const typedProblem = typed ? dateProblem(typed, wiz.lp, 'The date on your page') : '';
+    const lines = [];
+    let stop = false;
+    if (res.date && res.dateProblem) {
+      stop = true;
+      lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(res.dateProblem)} Fix the date at the top of page 1, then take the picture again.</p>`);
+    } else if (res.date) {
+      lines.push(`<p class="pc-ok">✓ Date on your page: ${esc(niceDate(res.date))}</p>`);
+    } else {
+      if (!typed || typedProblem) stop = true;
+      lines.push(`<label class="pc-ask"><span>${res.read ? 'WiSH couldn’t read a date at the top of page 1.' : 'WiSH couldn’t read the top of page 1.'} Type the date written there:</span>
+        <input type="date" id="page-date" value="${esc(typed)}"></label>` +
+        (typedProblem ? `<p class="pc-bad">✗ ${esc(typedProblem)}</p>` : '') +
+        '<p class="meta">No date at the top? Write the date there, then take the picture again.</p>');
+    }
+    const missing = [res.name === false && 'your full name', res.subject === false && 'the subject'].filter(Boolean);
+    if (res.read && missing.length) {
+      lines.push(`<p class="pc-warn">⚠ WiSH couldn’t find ${missing.join(' or ')} at the top of page 1. Add ${missing.length > 1 ? 'them' : 'it'} and retake the picture${stop ? ' too' : ', or submit anyway'}.</p>`);
+    }
+    const warnOnly = !stop && res.read && missing.length && !wiz.check.warned;
+    box.innerHTML = `<h2>Page check</h2>${lines.join('')}` + (stop || warnOnly ? '<button type="button" class="btn small" id="page-retake">← Change pages</button>' : '');
+    box.hidden = false;
+    const retake = $('#page-retake');
+    if (retake) retake.addEventListener('click', () => go('pages'));
+    if (stop || warnOnly) {
+      if (warnOnly) { wiz.check.warned = true; $('#upload-btn').textContent = 'Submit anyway'; }
+      box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if ($('#page-date') && !typed) $('#page-date').focus();
+      return null;
+    }
+    const date = res.date || typed;
+    const notes = [res.date ? 'date read' : 'date typed by student'];
+    if (res.read && res.name === false) notes.push('name not found');
+    if (res.read && res.subject === false) notes.push('subject not found');
+    return { pageDate: date, pageCheck: notes.join(', ') };
+  }
+
   function renderReview() {
     const subject = $('#subject-select').value;
     const n = wiz.pages.length;
@@ -553,6 +631,7 @@
     $('#upload-btn').textContent = `Submit to ${wiz.lp}`;
     $('#summary-line').innerHTML = `<strong>${esc(subject)}</strong> · ${wiz.doc ? esc(docLabel()) : `${n} page${n > 1 ? 's' : ''}`} · ${esc(wiz.lp)}`;
     setDateLimits();
+    if (!wiz.check || wiz.check.key !== pageKey()) { wiz.check = null; $('#page-check').hidden = true; $('#page-check').innerHTML = ''; }
     $('#review-pages').innerHTML = wiz.doc
       ? `<div class="file-card">${docCard()}</div>`
       : wiz.pages.map((p, i) => `<figure class="page-thumb"><img alt="Page ${i + 1}" src="${p.thumb}"><span class="num">${i + 1}</span></figure>`).join('');
@@ -566,6 +645,8 @@
     const badDate = dateProblem(f.dateCompleted.value, wiz.lp);
     if (badDate) { f.dateCompleted.focus(); return toast(badDate); }
     if (!f.score.value.trim()) { f.score.focus(); return toast('Enter your grade or score.'); }
+    const page = await checkPage();
+    if (!page) return;
     busy('Making your file…');
     await tick();
     try {
@@ -595,6 +676,8 @@
         favorite: false,
         status: 'pending',
         resubmitOf: wiz.resubmit ? wiz.resubmit.id : '',
+        pageDate: page.pageDate,
+        pageCheck: page.pageCheck,
       };
       await Store.put(item);
       busy(`Uploading to ${item.lp}…`);
@@ -891,6 +974,8 @@
         source: item.source || 'scan',
         fileName: fileNameFor(item),
         thumb: item.thumb,
+        pageDate: item.pageDate || '',
+        pageCheck: item.pageCheck || '',
         ...(item.source === 'gdoc' ? { link: item.link } : { data: await blobToBase64(item.pdf) }),
       });
       await Store.update(item.id, { status: 'sent', error: '', sentAt: Date.now() });
