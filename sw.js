@@ -1,8 +1,8 @@
 // Keeps the app working offline. Bump VERSION whenever you change app files.
-const VERSION = 'workit-v91';
+const VERSION = 'workit-v92';
 const FILES = [
   './', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest',
-  'js/app.js', 'js/notes.js', 'js/ink.js', 'js/classes.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js', 'js/move.js',
+  'js/app.js', 'js/notes.js', 'js/ink.js', 'js/holidays.js', 'js/classes.js', 'js/api.js', 'js/scan.js', 'js/pdf.js', 'js/pdfview.js', 'js/store.js', 'js/move.js',
   'icons/icon.svg', 'icons/logo.svg', 'icons/logo-dark.svg', 'icons/wish-mark-dark.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

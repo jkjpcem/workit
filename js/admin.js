@@ -428,7 +428,7 @@
         <span class="cap">
           <span class="tag">${statusLabel(i)}</span>
           <strong>${esc(i.subject)}</strong>
-          <span class="meta">${esc(i.lp)} · ${esc(niceDate(i.dateCompleted))}${i.score ? ` · ${esc(i.score)}` : ''}</span>
+          <span class="meta">${esc(i.lp)} · ${esc(dayDate(i.dateCompleted))}${offDay(i.dateCompleted) ? ` <b class="off-day" title="Not a school day">⚠ ${esc(offDay(i.dateCompleted))}</b>` : ''}${i.score ? ` · ${esc(i.score)}` : ''}</span>
         </span>
       </button>`).join('');
   }
@@ -607,7 +607,7 @@
         <div class="info-grid">
           <div><span>Student</span>${esc(student ? student.name : it.name)}</div>
           <div><span>Learning Period</span>${esc(it.lp)}</div>
-          <div><span>Date completed</span>${esc(niceDate(it.dateCompleted))}</div>
+          <div class="${offDay(it.dateCompleted) ? 'page-flag' : ''}"><span>Date completed</span>${esc(dayDate(it.dateCompleted))}${offDay(it.dateCompleted) ? ` <small>(${esc(offDay(it.dateCompleted))})</small>` : ''}</div>
           <div><span>Grade / score</span><strong>${esc(it.score || '—')}</strong></div>
           <div><span>Minutes spent</span>${esc(it.minutes || '—')}</div>
           <div><span>Pages</span>${it.pageCount}</div>
@@ -1976,6 +1976,14 @@
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
+  // "Wed, Oct 28, 2026", and whether that wasn't a school day (older uploads came in before the check).
+  function dayDate(ymd) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
+    if (!m) return ymd || '';
+    return new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  const offDay = (ymd) => Holidays.problem(ymd, (data && data.holidays) || []);
+
   function niceDate(ymd) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
     if (!m) return ymd || '';

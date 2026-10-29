@@ -115,7 +115,8 @@
             <input name="minutes" type="number" inputmode="numeric" min="1" max="600" step="1" required placeholder="e.g. 45">
           </label>
           <label><span>When did you complete the assignment? <span class="req" aria-hidden="true">*</span></span>
-            <input name="dateCompleted" type="date" required aria-describedby="date-note date-hint">
+            <input name="dateCompleted" type="date" required aria-describedby="date-day date-note date-hint">
+            <span class="date-day" id="date-day" aria-live="polite" hidden></span>
             <span class="field-hint date-note" id="date-note">Use the date written at the top of your assignment. It has to match.</span>
             <span class="field-hint" id="date-hint"></span>
           </label>

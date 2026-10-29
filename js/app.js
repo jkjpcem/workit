@@ -252,12 +252,12 @@
   const holidayOn = (ymd) => ((session && session.holidays) || []).find(h => ymd >= h.from && ymd <= h.to);
   function dateProblem(ymd, lp, what = 'The date completed') {
     if (!ymd) return 'Enter the date you completed it.';
+    if (isWeekend(ymd)) return `That’s a weekend. ${what} must be a school day (Monday to Friday).`;
+    const h = holidayOn(ymd);
+    if (h) return `That’s a school holiday (${h.name || 'no school'}). ${what} must be a school day.`;
     if (ymd > today()) return `${what} can’t be in the future.`;
-    if (isWeekend(ymd)) return `${what} must be a weekday (Monday to Friday).`;
     const r = lpRange(lp);
     if (r && (ymd < r.start || ymd > r.end)) return `${what} must be during ${lp} (${niceDate(r.start)} to ${niceDate(r.end)}).`;
-    const h = holidayOn(ymd);
-    if (h) return `${what} can’t be ${niceDate(ymd)}, a school holiday (${h.name || 'no school'}).`;
     return '';
   }
   function setDateLimits() {
@@ -271,6 +271,7 @@
       : 'A school day (no weekends or holidays).';
     // Left blank on purpose so the student types the date from the assignment.
     if (inp.value && dateProblem(inp.value, wiz.lp)) inp.value = '';
+    showDay();
   }
 
   // Submit stays off until all three boxes are checked.
@@ -278,11 +279,18 @@
     $('#upload-btn').disabled = !$$('#confirm-box input[type=checkbox]').every(c => c.checked);
   }
   $('#confirm-box').addEventListener('change', syncConfirm);
-  $('#step-review').dateCompleted.addEventListener('change', (e) => {
-    const bad = e.target.value && dateProblem(e.target.value, wiz.lp);
-    $('#date-hint').classList.toggle('bad', !!bad);
-    if (bad) toast(bad);
-  });
+  // The day of the week next to the date, and a warning right away for a weekend or holiday.
+  function showDay() {
+    const v = $('#step-review').dateCompleted.value;
+    const el = $('#date-day');
+    el.hidden = !v;
+    if (!v) return;
+    const day = new Date(`${v}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    const bad = dateProblem(v, wiz.lp);
+    el.classList.toggle('bad', !!bad);
+    el.textContent = bad ? `✗ ${day}. ${bad}` : `✓ ${day}`;
+  }
+  ['input', 'change'].forEach(ev => $('#step-review').dateCompleted.addEventListener(ev, showDay));
 
   function go(step) {
     wiz.step = step;
@@ -1464,7 +1472,7 @@
   function niceDate(ymd) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
     if (!m) return ymd || '';
-    return new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   }
   function shrink(canvas, size, quality) {
     const s = Math.min(1, size / Math.max(canvas.width, canvas.height));
