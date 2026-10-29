@@ -1,5 +1,5 @@
-// Text boxes a student or family adds on top of an upload's pages (a score, feedback), the
-// same kind the ES adds on the dashboard. They're saved apart from the ES's own annotations
+// Text boxes and pencil marks a student or family adds on top of an upload's pages (a score,
+// feedback), the same kind the ES adds on the dashboard. They're saved apart from the ES's own annotations
 // and can change until the ES approves or files the sample.
 const Notes = (() => {
   const FONTS = {
@@ -15,12 +15,15 @@ const Notes = (() => {
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
   const style = { font: 'sans', size: 18, bold: true, color: COLORS[0] };
-  let pagesEl = null, bar = null, notes = [], editing = false, selected = -1, onChange = null;
+  const PEN_PT = 3;
+  let pagesEl = null, bar = null, notes = [], editing = false, selected = -1, onChange = null, pen = false;
 
   // Builds the toolbar once.
   function buildBar(el) {
     el.innerHTML = `
       <button type="button" class="btn small primary" data-n="add">＋ Text box</button>
+      <button type="button" class="btn small n-pen" data-n="pen" aria-pressed="false" title="Write by hand">✏️ Pencil</button>
+      <button type="button" class="btn small" data-n="undo" title="Take back the last pencil mark">↶ Undo</button>
       <select data-n="font" aria-label="Font">
         <option value="sans">Arial</option><option value="serif">Times</option>
         <option value="hand">Comic</option><option value="mono">Courier</option>
@@ -29,21 +32,25 @@ const Notes = (() => {
       <span class="swatches" role="radiogroup" aria-label="Color">${COLORS.map(c =>
         `<button type="button" class="swatch" role="radio" aria-checked="false" aria-label="${c}" data-color="${c}" style="background:${c}"></button>`).join('')}</span>
       <button type="button" class="btn small n-bold" data-n="bold" aria-pressed="false" title="Bold"><b>B</b></button>
-      <button type="button" class="btn small" data-n="delete" title="Delete text box" aria-label="Delete text box">🗑</button>`;
+      <button type="button" class="btn small" data-n="delete" title="Delete" aria-label="Delete">🗑</button>`;
     el.addEventListener('mousedown', (e) => { if (e.target.tagName !== 'SELECT') e.preventDefault(); });
     el.addEventListener('click', (e) => {
       const sw = e.target.closest('.swatch');
       if (sw) return setStyle({ color: sw.dataset.color });
       const b = e.target.closest('[data-n]');
       if (!b) return;
-      if (b.dataset.n === 'add') addInView();
-      if (b.dataset.n === 'bold') setStyle({ bold: !(notes[selected] ? notes[selected].bold : style.bold) });
-      if (b.dataset.n === 'delete' && selected >= 0) {
-        notes.splice(selected, 1);
+      if (b.dataset.n === 'add') { setPen(false); addInView(); }
+      if (b.dataset.n === 'pen') setPen(!pen);
+      if (b.dataset.n === 'undo') {
+        for (let i = notes.length - 1; i >= 0; i--) {
+          if (Ink.is(notes[i])) { notes.splice(i, 1); break; }
+        }
         selected = -1;
         render();
         changed();
       }
+      if (b.dataset.n === 'bold') setStyle({ bold: !(notes[selected] ? notes[selected].bold : style.bold) });
+      if (b.dataset.n === 'delete') removeSelected();
     });
     $('[data-n=font]', el).addEventListener('change', (e) => setStyle({ font: e.target.value }));
     $('[data-n=size]', el).addEventListener('change', (e) => setStyle({ size: Number(e.target.value) }));
@@ -60,12 +67,14 @@ const Notes = (() => {
     selected = -1;
     if (bar && !bar.dataset.built) buildBar(bar);
     pagesEl.onclick = onPageClick;
+    pagesEl.onpointerdown = onPenDown;
+    setPen(false);
     render();
   }
 
   function setEditing(on) {
     editing = !!on;
-    if (!editing) select(-1);
+    if (!editing) { select(-1); setPen(false); }
     pagesEl.classList.toggle('editing', editing);
     if (bar) bar.hidden = !editing;
     render();
@@ -76,9 +85,48 @@ const Notes = (() => {
     $$('.nlayer', pagesEl).forEach(l => { l.innerHTML = ''; });
     notes.forEach((a, i) => {
       const layer = $(`.npage[data-page="${a.page}"] .nlayer`, pagesEl);
-      if (layer) layer.appendChild(makeBox(a, i));
+      if (!layer) return;
+      if (Ink.is(a)) Ink.show(layer, a, i);
+      else layer.appendChild(makeBox(a, i));
     });
+    select(selected);
+  }
+
+  // ✏️ Pencil on: dragging on a page writes, smoothed as it goes; text boxes let the pen pass over.
+  function setPen(on) {
+    pen = !!on;
+    if (!pagesEl) return;
+    pagesEl.classList.toggle('pen', pen);
+    const hint = document.getElementById('notes-hint');
+    if (hint) {
+      hint.textContent = pen
+        ? 'Write on the page with your finger, pen or mouse. Tap ✏️ Pencil again to stop writing and scroll.'
+        : 'Tap a page to add a text box, or tap ✏️ Pencil to write by hand. Tap a box or mark, then ✕, to delete it.';
+    }
+    if (pen && document.activeElement && document.activeElement.isContentEditable) document.activeElement.blur();
+    if (pen) select(-1);
     syncBar();
+  }
+
+  function onPenDown(e) {
+    if (!editing || !pen || e.button > 0) return;
+    const layer = e.target.closest('.nlayer');
+    if (!layer) return;
+    const page = Number(layer.closest('.npage').dataset.page);
+    Ink.capture(e, layer, { color: style.color, width: PEN_PT }, (stroke) => {
+      notes.push({ ...stroke, page });
+      selected = -1;
+      render();
+      changed();
+    });
+  }
+
+  function removeSelected() {
+    if (selected < 0 || !notes[selected]) return;
+    notes.splice(selected, 1);
+    selected = -1;
+    render();
+    changed();
   }
 
   function makeBox(a, i) {
@@ -86,7 +134,10 @@ const Notes = (() => {
     box.className = `anno ${i === selected ? 'selected' : ''}`;
     box.dataset.i = i;
     applyStyle(box, a);
-    box.innerHTML = '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>';
+    box.innerHTML = '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>' +
+      '<button type="button" class="box-x" title="Delete this text box" aria-label="Delete this text box">✕</button>';
+    $('.box-x', box).addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+    $('.box-x', box).addEventListener('click', (e) => { e.stopPropagation(); selected = i; removeSelected(); });
     const txt = $('.txt', box);
     txt.textContent = a.text;
     txt.contentEditable = String(editing);
@@ -114,25 +165,37 @@ const Notes = (() => {
 
   function select(i) {
     selected = i;
-    if (pagesEl) $$('.anno', pagesEl).forEach(b => b.classList.toggle('selected', Number(b.dataset.i) === i));
+    if (pagesEl) {
+      $$('.anno', pagesEl).forEach(b => b.classList.toggle('selected', Number(b.dataset.i) === i));
+      $$('.ink-mark', pagesEl).forEach(g => g.classList.toggle('selected', Number(g.dataset.i) === i));
+      $$('.ink-x', pagesEl).forEach(x => x.remove());
+      const a = notes[i];
+      const layer = a && $(`.npage[data-page="${a.page}"] .nlayer`, pagesEl);
+      if (editing && Ink.is(a) && layer) Ink.deleteButton(layer, a, removeSelected);
+    }
     syncBar();
   }
 
   function syncBar() {
     if (!bar || !bar.dataset.built) return;
-    const s = notes[selected] || style;
+    const a = notes[selected];
+    const s = a && !Ink.is(a) ? a : { ...style, color: a ? a.color : style.color };
     $('[data-n=font]', bar).value = s.font;
     $('[data-n=size]', bar).value = String(s.size);
     $('[data-n=bold]', bar).setAttribute('aria-pressed', String(!!s.bold));
     $$('.swatch', bar).forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
     $('[data-n=delete]', bar).disabled = !notes[selected];
+    $('[data-n=pen]', bar).setAttribute('aria-pressed', String(pen));
+    $('[data-n=undo]', bar).disabled = !notes.some(Ink.is);
   }
 
   // Toolbar changes apply to the selected box and become the style for new boxes.
   function setStyle(patch) {
     Object.assign(style, patch);
     const a = notes[selected];
-    if (a) {
+    if (a && Ink.is(a)) {
+      if (patch.color) { a.color = patch.color; render(); changed(); }
+    } else if (a) {
       Object.assign(a, patch);
       const box = $(`.anno[data-i="${selected}"]`, pagesEl);
       if (box) applyStyle(box, a);
@@ -142,6 +205,8 @@ const Notes = (() => {
   }
 
   function addBox(page, x, y) {
+    // A box left empty goes away when the next one is added.
+    notes = notes.filter(a => Ink.is(a) || String(a.text || '').trim());
     notes.push({ page, x: clamp(x, 0, 0.6), y: clamp(y, 0, 0.95), w: 0.4, text: '', ...style });
     selected = notes.length - 1;
     render();
@@ -149,16 +214,14 @@ const Notes = (() => {
     if (txt) txt.focus();
   }
 
-  // Tap an empty part of a page to drop a text box there.
+  // Tap an empty part of a page to drop a text box there (every tap adds another one);
+  // tap a pencil mark to pick it.
   function onPageClick(e) {
-    if (!editing) return;
+    if (!editing || pen) return;
+    const mark = e.target.closest('.ink-mark');
+    if (mark) return select(Number(mark.dataset.i));
     const layer = e.target.closest('.nlayer');
     if (!layer || e.target !== layer) return;
-    if (selected >= 0) {
-      if (document.activeElement) document.activeElement.blur();
-      select(-1);
-      return;
-    }
     const wrap = layer.closest('.npage');
     const r = wrap.getBoundingClientRect();
     addBox(Number(wrap.dataset.page), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
@@ -210,7 +273,7 @@ const Notes = (() => {
   }
 
   function changed() {
-    if (onChange) onChange(notes.filter(a => String(a.text || '').trim()));
+    if (onChange) onChange(notes.filter(a => Ink.is(a) || String(a.text || '').trim()));
   }
 
   return { mount, setEditing, isEditing: () => editing };

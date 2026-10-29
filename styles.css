@@ -496,7 +496,7 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 .notes-bar .swatches { display: flex; gap: 6px; }
 .notes-bar .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
 .notes-bar .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text); }
-.notes-bar .n-bold[aria-pressed="true"] { background: var(--text); color: var(--card); }
+.notes-bar .n-bold[aria-pressed="true"], .notes-bar .n-pen[aria-pressed="true"] { background: var(--text); color: var(--card); }
 .notes-hint { margin: 0 16px 8px; color: rgba(255, 255, 255, .8); font-size: 13px; }
 .npage { position: relative; width: 100%; container-type: inline-size; }
 .npage img { display: block; }
@@ -509,7 +509,20 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 .editing .anno { border-color: rgba(52, 86, 214, .5); background: rgba(255, 255, 255, .3); }
 .npage .anno.selected { border: 1.5px dashed var(--brand) !important; }
 .npage .anno .txt { outline: none; min-height: 1.25em; }
-.npage .anno .txt:empty::before { content: 'Type here'; opacity: .45; }
+.editing .anno.selected .box-x { display: block; }
+.pen .nlayer { cursor: crosshair; touch-action: none; }
+.pen .anno { pointer-events: none; }
+svg.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.ink-line { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ink-hit { fill: none; stroke: transparent; stroke-width: 16px; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: stroke; cursor: pointer; }
+.ink-mark.family .ink-hit, .pen .ink-hit { pointer-events: none; }
+.ink-mark.selected .ink-line { filter: drop-shadow(0 0 2px rgba(52, 86, 214, .95)) drop-shadow(0 0 4px rgba(52, 86, 214, .6)); }
+.ink-x, .npage .anno .box-x {
+  position: absolute; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; z-index: 3;
+  background: #d0342c; color: #fff; font: 700 13px/24px system-ui, sans-serif; text-align: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+}
+.ink-x { transform: translate(-20%, -115%); }
+.npage .anno .box-x { display: none; right: -14px; top: -14px; }
 .npage .anno .grip, .npage .anno .resize { display: none; position: absolute; touch-action: none; user-select: none; }
 .editing .anno.selected .grip, .editing .anno.selected .resize { display: block; }
 .npage .anno .grip {

@@ -519,6 +519,8 @@
     let annotating = false;
     let selected = -1;               // index into item.annotations
     let style = { font: 'sans', size: 14, color: COLORS[0], bold: false }; // for new boxes
+    let pen = false;                 // ✏️ Pencil: drag on a page to write by hand
+    const PEN_PT = 2.5;
 
     function item() { return list[idx]; }
 
@@ -786,13 +788,13 @@
 
     // ----- Annotating -----
 
-    function setAnnotating(on) {
+    function setAnnotating(on, { header: withHeader = true } = {}) {
       annotating = on && !!item() && !item().redo && !item().redoDraft;
       $('#v-pages').classList.toggle('annotating', annotating);
       $('#anno-bar').hidden = !annotating;
       $('#anno-hint').hidden = !annotating;
-      if (!annotating) select(-1);
-      const header = annotating && addHeader(item());
+      if (!annotating) { select(-1); setPen(false); }
+      const header = annotating && withHeader && addHeader(item());
       if (item()) {
         renderAnnotations(); // switches text boxes between editable and read-only
         renderReview(item());
@@ -802,7 +804,7 @@
 
     // Annotating an upload starts with a header box on page 1: the student's full name and
     // class, then blank lines for the ES to fill in. It comes back whenever it's missing,
-    // except right after the ES deletes it; "＋ Header" adds it back any time.
+    // except right after the ES deletes it; "＋ Annotation" adds it back any time.
     const isHeader = (a, it) => a.header || String(a.text || '').startsWith(`${it.name}\n${it.subject}\n`);
     function addHeader(it, { force = false } = {}) {
       if (!it.annotations) it.annotations = [];
@@ -835,10 +837,23 @@
       const it = item();
       if (!it.annotations) return;
       $$('#v-pages .anno-layer').forEach(l => { l.innerHTML = ''; });
-      // The family's own text boxes: shown as they placed them, not editable here.
+      // The family's own text boxes and pencil marks: shown as they placed them, not editable here.
+      const tagged = new Set();
       (it.familyNotes || []).forEach(a => {
         const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
         if (!layer) return;
+        if (Ink.is(a)) {
+          Ink.show(layer, a, null, 'family');
+          if (!tagged.has(a.page)) {
+            tagged.add(a.page);
+            const b = Ink.bbox(a), tag = document.createElement('span');
+            tag.className = 'family-tag ink-tag';
+            tag.textContent = 'Family ✏️';
+            Object.assign(tag.style, { left: `${b.x0 * 100}%`, top: `${b.y0 * 100}%` });
+            layer.appendChild(tag);
+          }
+          return;
+        }
         const box = document.createElement('div');
         box.className = 'anno family';
         box.title = 'Added by the student or family';
@@ -849,9 +864,11 @@
       });
       it.annotations.forEach((a, i) => {
         const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
-        if (layer) layer.appendChild(makeBox(a, i));
+        if (!layer) return;
+        if (Ink.is(a)) Ink.show(layer, a, i);
+        else layer.appendChild(makeBox(a, i));
       });
-      syncToolbar();
+      select(selected);
     }
 
     function makeBox(a, i) {
@@ -859,11 +876,14 @@
       box.className = `anno ${i === selected ? 'selected' : ''}`;
       box.dataset.i = i;
       applyStyle(box, a);
-      box.innerHTML = '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>';
+      box.innerHTML = '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>' +
+        '<button type="button" class="box-x" title="Delete this text box" aria-label="Delete this text box">✕</button>';
       const txt = $('.txt', box);
       txt.textContent = a.text;
       txt.contentEditable = String(annotating);
       txt.addEventListener('focus', () => select(i, false));
+      $('.box-x', box).addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      $('.box-x', box).addEventListener('click', (e) => { e.stopPropagation(); select(i); removeSelected(); });
       txt.addEventListener('input', () => {
         a.text = txt.innerText.replace(/\n$/, '');
         changed();
@@ -885,28 +905,73 @@
       });
     }
 
-    function select(i, rerender = true) {
+    function select(i) {
       selected = i;
-      $$('#v-pages .anno').forEach(b => b.classList.toggle('selected', Number(b.dataset.i) === i));
+      $$('#v-pages .anno:not(.family)').forEach(b => b.classList.toggle('selected', Number(b.dataset.i) === i));
+      $$('#v-pages .ink-mark:not(.family)').forEach(g => g.classList.toggle('selected', Number(g.dataset.i) === i));
+      $$('#v-pages .ink-x').forEach(x => x.remove());
+      const a = item() && item().annotations && item().annotations[i];
+      if (annotating && Ink.is(a)) {
+        const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
+        if (layer) Ink.deleteButton(layer, a, removeSelected);
+      }
       syncToolbar();
-      if (rerender === false) return;
     }
 
     function syncToolbar() {
-      const a = item() && item().annotations[selected];
-      const s = a || style;
+      const a = item() && item().annotations && item().annotations[selected];
+      const s = a && !Ink.is(a) ? a : { ...style, color: a ? a.color : style.color };
       $('#a-font').value = s.font;
       $('#a-size').value = String(s.size);
       $('#a-bold').setAttribute('aria-pressed', String(!!s.bold));
       $$('#a-colors .swatch').forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
       $('#a-delete').disabled = !a;
+      $('#a-delete').title = Ink.is(a) ? 'Delete this pencil mark' : 'Delete this text box';
+      $('#a-pen').setAttribute('aria-pressed', String(pen));
+      $('#a-undo').disabled = !(item() && item().annotations && item().annotations.some(Ink.is));
     }
+
+    // ✏️ Pencil on: dragging on a page writes; text boxes let the pen pass over them.
+    function setPen(on) {
+      pen = !!on;
+      $('#v-pages').classList.toggle('pen', pen);
+      $('#anno-hint').textContent = pen
+        ? 'Write anywhere on a page. Click ✏️ Pencil again to go back to text boxes.'
+        : 'Click anywhere on a page to add a text box. Click a box or pencil mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it.';
+      if (pen && document.activeElement && document.activeElement.isContentEditable) document.activeElement.blur();
+      if (pen) select(-1);
+      syncToolbar();
+    }
+    $('#a-pen').addEventListener('click', () => setPen(!pen));
+    $('#a-undo').addEventListener('click', () => {
+      const list = item().annotations;
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (Ink.is(list[i])) { list.splice(i, 1); break; }
+      }
+      selected = -1;
+      renderAnnotations();
+      changed();
+    });
+    $('#v-pages').addEventListener('pointerdown', (e) => {
+      if (!annotating || !pen || e.button > 0) return;
+      const layer = e.target.closest('.anno-layer');
+      if (!layer) return;
+      const page = Number(layer.closest('.page-wrap').dataset.page);
+      Ink.capture(e, layer, { color: style.color, width: PEN_PT }, (stroke) => {
+        item().annotations.push({ ...stroke, page });
+        selected = -1;
+        renderAnnotations();
+        changed();
+      });
+    });
 
     // Toolbar changes apply to the selected box and become the style for new boxes.
     function setStyle(patch) {
       Object.assign(style, patch);
       const a = item().annotations[selected];
-      if (a) {
+      if (a && Ink.is(a)) {
+        if (patch.color) { a.color = patch.color; renderAnnotations(); changed(); }
+      } else if (a) {
         Object.assign(a, patch);
         const box = $(`#v-pages .anno[data-i="${selected}"]`);
         if (box) applyStyle(box, a);
@@ -924,7 +989,8 @@
       const b = e.target.closest('.swatch');
       if (b) setStyle({ color: b.dataset.color });
     });
-    $('#a-delete').addEventListener('click', () => {
+    $('#a-delete').addEventListener('click', () => removeSelected());
+    function removeSelected() {
       if (selected < 0) return;
       const it = item();
       if (isHeader(it.annotations[selected], it)) it.headerDeleted = true;
@@ -932,13 +998,18 @@
       selected = -1;
       renderAnnotations();
       changed();
-    });
+    }
     // Keep toolbar clicks from stealing focus from the text being edited.
     $('#anno-bar').addEventListener('mousedown', (e) => { if (e.target.tagName !== 'SELECT') e.preventDefault(); });
 
     function addBox(page, x, y) {
+      // A box left empty goes away when the next one is added.
+      const list = item().annotations;
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (!Ink.is(list[i]) && !list[i].header && !String(list[i].text || '').trim()) list.splice(i, 1);
+      }
       const a = { page, x: clamp(x, 0, 0.9), y: clamp(y, 0, 0.95), w: 0.4, text: '', ...style };
-      item().annotations.push(a);
+      list.push(a);
       selected = item().annotations.length - 1;
       renderAnnotations();
       const txt = $(`#v-pages .anno[data-i="${selected}"] .txt`);
@@ -946,17 +1017,31 @@
       changed();
     }
 
-    // Click on an empty part of a page to drop a text box there.
+    // Click on an empty part of a page to drop a text box there (every click adds another one).
+    // Clicking a box or pencil mark you made before opens it for changes, even before ✏️ Annotate.
     $('#v-pages').addEventListener('click', (e) => {
-      if (!annotating) return;
-      const layer = e.target.closest('.anno-layer');
-      if (!layer || e.target !== layer) return;
-      // First click away from a box just deselects it.
-      if (selected >= 0) {
-        document.activeElement.blur();
-        select(-1);
+      const mark = e.target.closest('.ink-mark:not(.family), .anno:not(.family)');
+      if (mark && !pen) {
+        const i = Number(mark.dataset.i);
+        if (!annotating) {
+          setAnnotating(true, { header: false });
+          if (!annotating) return;
+        }
+        if (mark.classList.contains('ink-mark') || !annotating) return select(i);
+        const txt = $(`#v-pages .anno[data-i="${i}"] .txt`);
+        if (txt && document.activeElement !== txt) {
+          txt.focus();
+          const range = document.createRange();
+          range.selectNodeContents(txt);
+          range.collapse(false);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }
         return;
       }
+      if (!annotating || pen) return;
+      const layer = e.target.closest('.anno-layer');
+      if (!layer || e.target !== layer) return;
       const wrap = layer.closest('.page-wrap');
       const r = wrap.getBoundingClientRect();
       addBox(Number(wrap.dataset.page), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
@@ -1027,7 +1112,7 @@
         toast(`Couldn’t save annotations: ${err.message}`);
       }
     }
-    const cleanAnnotations = (it) => it.annotations.filter(a => a.text.trim());
+    const cleanAnnotations = (it) => it.annotations.filter(a => Ink.is(a) || String(a.text || '').trim());
 
     // ----- Finalize: bake the text boxes into the pages and save the PDF -----
 
@@ -1124,6 +1209,8 @@
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
       for (const a of annotations) {
+        if (Ink.is(a)) { Ink.paint(ctx, a, W, H); continue; }
+        if (!String(a.text || '').trim()) continue;
         const px = a.size * W / PAGE_PT;
         const padX = 0.3 * px, padY = 0.15 * px, lineH = 1.25 * px;
         ctx.font = `${a.bold ? '700' : '400'} ${px}px ${FONTS[a.font] || FONTS.sans}`;

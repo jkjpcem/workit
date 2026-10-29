@@ -1249,8 +1249,9 @@
     if (!p || !p.item) return;
     p.item.familyNotes = p.notes;
     try {
-      await Store.update(p.item.id, { familyNotes: p.notes });
       await Api.call('familyNotes', { studentId: session.student.id, id: p.item.id, notes: p.notes });
+      // Safari can refuse to rewrite the copy saved on this device; the notes are already saved in WiSH.
+      try { await Store.update(p.item.id, { familyNotes: p.notes }); } catch (e) { /* ignore */ }
       if (notesItem === p.item) $('#view-save').textContent = 'Saved ✓';
     } catch (err) {
       if (notesItem === p.item) $('#view-save').textContent = 'Not saved';
@@ -1259,7 +1260,7 @@
   }
 
   async function viewPdf(blob, title, item, startEditing) {
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const bytes = blob instanceof Uint8Array ? blob : new Uint8Array(await blob.arrayBuffer());
     // WiSH's own PDFs are page photos, so they show at once. Others go through pdf.js.
     let pages = Pdf.extractJpegs(bytes);
     if (!pages.length) {
@@ -1282,17 +1283,24 @@
     if (act === 'view' || act === 'annotate') {
       try {
         // A Word file or Google Doc is only a PDF once the server has made it one.
-        let blob = item.source === 'docx' || item.source === 'gdoc' ? item.serverPdf : item.pdf;
-        if (!blob) {
+        const key = item.source === 'docx' || item.source === 'gdoc' ? 'serverPdf' : 'pdf';
+        // The copy saved on this device. Safari sometimes loses the file behind it
+        // ("The object can not be found here"), so then it comes from Drive again.
+        let bytes = null;
+        if (item[key]) {
+          try { bytes = new Uint8Array(await item[key].arrayBuffer()); } catch (e) { bytes = null; }
+        }
+        if (!bytes || !bytes.length) {
           busy('Opening…');
           const res = await Api.call('file', { studentId: item.studentId, id: item.id });
-          blob = new Blob([Uint8Array.from(atob(res.data), c => c.charCodeAt(0))], { type: 'application/pdf' });
-          await Store.update(item.id, item.source === 'docx' || item.source === 'gdoc' ? { serverPdf: blob } : { pdf: blob });
+          bytes = Uint8Array.from(atob(res.data), c => c.charCodeAt(0));
+          item[key] = new Blob([bytes], { type: 'application/pdf' });
+          try { await Store.update(item.id, { [key]: item[key] }); } catch (e) { /* opening still works without the saved copy */ }
         }
         busy('Opening…');
-        await viewPdf(blob, `${item.subject} · ${item.lp}`, item, act === 'annotate');
+        await viewPdf(bytes, `${item.subject} · ${item.lp}`, item, act === 'annotate');
       } catch (err) {
-        toast(err.message);
+        toast(err && err.name === 'NotFoundError' ? 'Couldn’t open it. Please try again.' : err.message);
       } finally {
         busy(false);
       }

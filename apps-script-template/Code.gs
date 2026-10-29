@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 27;
+const WORKIT_VERSION = 28;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -435,8 +435,8 @@ function remove_(body) {
 function familyNotes_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: 'Your account was not found.' };
-  const json = JSON.stringify((Array.isArray(body.notes) ? body.notes : []).slice(0, 60).map(cleanNote_));
-  if (json.length > 45000) return { ok: false, error: 'Too many notes on one upload.' };
+  const json = JSON.stringify((Array.isArray(body.notes) ? body.notes : []).slice(0, 400).map(cleanNote_));
+  if (json.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pencil marks or remove a text box.' };
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -453,18 +453,24 @@ function familyNotes_(body) {
   }
 }
 
-// A family text box, reduced to what the boxes use, so nothing else rides along to the ES's screen.
+// A family text box or pencil mark, reduced to what they use, so nothing else rides along to
+// the ES's screen. A pencil mark's points are packed 2 letters per coordinate (js/ink.js).
 const NOTE_FONTS = ['sans', 'serif', 'hand', 'mono'];
 function cleanNote_(n) {
   n = n || {};
   const num = (v, lo, hi, d) => { const x = Number(v); return isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
+  const color = /^#[0-9a-f]{6}$/i.test(String(n.color || '')) ? n.color : '#d0342c';
+  if (n.type === 'ink') {
+    const d = String(n.d || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 6000);
+    return { type: 'ink', page: Math.round(num(n.page, 0, 99, 0)), color: color, width: num(n.width, 0.5, 20, 3), d: d.slice(0, d.length - d.length % 4) };
+  }
   return {
     page: Math.round(num(n.page, 0, 99, 0)),
     x: num(n.x, 0, 1, 0), y: num(n.y, 0, 1, 0), w: num(n.w, 0.02, 1, 0.3),
     size: num(n.size, 6, 96, 18),
     font: NOTE_FONTS.indexOf(n.font) !== -1 ? n.font : 'sans',
     bold: n.bold === true,
-    color: /^#[0-9a-f]{6}$/i.test(String(n.color || '')) ? n.color : '#d0342c',
+    color: color,
     text: String(n.text == null ? '' : n.text).slice(0, 2000),
   };
 }
@@ -1106,7 +1112,7 @@ function adminAnnotate_(body) {
   const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
   if (!item) return { ok: false, error: 'Upload not found.' };
   const json = JSON.stringify(Array.isArray(body.annotations) ? body.annotations : []);
-  if (json.length > 45000) return { ok: false, error: 'Too many annotations on one upload.' };
+  if (json.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pencil marks or remove a text box.' };
   subs.sheet.getRange(item.row, SUB.ANNOTATIONS).setValue(json);
   return { ok: true };
 }
