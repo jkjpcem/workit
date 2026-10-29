@@ -519,8 +519,9 @@
     let annotating = false;
     let selected = -1;               // index into item.annotations
     let style = { font: 'sans', size: 14, color: COLORS[0], bold: false }; // for new boxes
-    let pen = false;                 // ✏️ Pencil: drag on a page to write by hand
+    let pen = false;                 // ✏️ Pen: drag on a page to write by hand
     const PEN_PT = 2.5;
+    let hist = { id: null, stack: [], last: '', t: 0, sel: -2 }; // Undo, per upload
 
     function item() { return list[idx]; }
 
@@ -615,7 +616,7 @@
         </div>
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
         <div class="info-text"><span>Comments</span>${esc(it.comments || '—')}</div>
-        ${it.familyNotes && it.familyNotes.length ? `<p class="meta family-line">✏️ The student or family added ${it.familyNotes.length} text box${it.familyNotes.length > 1 ? 'es' : ''} on the pages (marked Family). They’re included when you finalize.</p>` : ''}
+        ${it.familyNotes && it.familyNotes.length ? `<p class="meta family-line">✏️ The student or family added ${it.familyNotes.length} text box${it.familyNotes.length > 1 ? 'es' : ''} on the pages (marked Family). You can change or delete them like your own, and they’re included when you export.</p>` : ''}
         ${it.resubmitOf ? `<p class="meta">↺ Resubmission${original ? ` of the ${esc(niceDate(original.dateCompleted))} upload` : ''}.</p>` : ''}
         ${it.resubmitted ? '<p class="meta">The student has resubmitted this. The new version is in their uploads.</p>' : ''}
         ${it.fileUrl ? `<p><a href="${esc(it.fileUrl)}" target="_blank" rel="noopener">Open the original in Google Drive ↗</a></p>` : ''}`;
@@ -646,7 +647,7 @@
       $('#finish-row').hidden = redoing;
       $('#t-annotate').disabled = redoing;
       $('#t-annotate').setAttribute('aria-pressed', String(annotating));
-      $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotate';
+      $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotations';
       const asExtra = finalized && it.filedAs === 'Extra';
       const asAnnotated = finalized && !asExtra;
       const filed = it.finalizedAt ? `<small>${esc(stamp(it.finalizedAt))}</small>` : '';
@@ -833,50 +834,71 @@
     $('#a-colors').innerHTML = COLORS.map(c =>
       `<button class="swatch" role="radio" aria-checked="false" aria-label="${c}" data-color="${c}" style="background:${c}"></button>`).join('');
 
+    // The family's own text boxes and pen marks join the ES's list (marked family) so the ES
+    // can change them too; they're saved back to the family's column.
+    function mergeFamily(it) {
+      if (it._famMerged) return;
+      it.annotations = [...(it.annotations || []), ...(it.familyNotes || []).map(a => ({ ...a, family: true }))];
+      it._famMerged = true;
+      it._famJson = JSON.stringify(it.familyNotes || []);
+    }
+    const esOnly = (list) => list.filter(a => !a.family);
+    const famOnly = (list) => list.filter(a => a.family).map(({ family, ...a }) => a);
+
     function renderAnnotations() {
       const it = item();
       if (!it.annotations) return;
+      mergeFamily(it);
+      if (hist.id !== it.id) hist = { id: it.id, stack: [], last: JSON.stringify(it.annotations), t: 0, sel: -2 };
       $$('#v-pages .anno-layer').forEach(l => { l.innerHTML = ''; });
-      // The family's own text boxes and pencil marks: shown as they placed them, not editable here.
       const tagged = new Set();
-      (it.familyNotes || []).forEach(a => {
-        const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
-        if (!layer) return;
-        if (Ink.is(a)) {
-          Ink.show(layer, a, null, 'family');
-          if (!tagged.has(a.page)) {
-            tagged.add(a.page);
-            const b = Ink.bbox(a), tag = document.createElement('span');
-            tag.className = 'family-tag ink-tag';
-            tag.textContent = 'Family ✏️';
-            Object.assign(tag.style, { left: `${b.x0 * 100}%`, top: `${b.y0 * 100}%` });
-            layer.appendChild(tag);
-          }
-          return;
-        }
-        const box = document.createElement('div');
-        box.className = 'anno family';
-        box.title = 'Added by the student or family';
-        applyStyle(box, a);
-        box.innerHTML = '<span class="family-tag">Family</span><div class="txt"></div>';
-        $('.txt', box).textContent = a.text;
-        layer.appendChild(box);
-      });
       it.annotations.forEach((a, i) => {
         const layer = $(`#v-pages .page-wrap[data-page="${a.page}"] .anno-layer`);
         if (!layer) return;
-        if (Ink.is(a)) Ink.show(layer, a, i);
-        else layer.appendChild(makeBox(a, i));
+        if (!Ink.is(a)) return layer.appendChild(makeBox(a, i));
+        Ink.show(layer, a, i, a.family ? 'family' : '');
+        if (a.family && !tagged.has(a.page)) {
+          tagged.add(a.page);
+          const b = Ink.bbox(a), tag = document.createElement('span');
+          tag.className = 'family-tag ink-tag';
+          tag.textContent = 'Family ✏️';
+          Object.assign(tag.style, { left: `${b.x0 * 100}%`, top: `${b.y0 * 100}%` });
+          layer.appendChild(tag);
+        }
       });
       select(selected);
     }
 
+    // Undo: each change keeps the step before it (typing in one box counts as one step).
+    function remember(it) {
+      const cur = JSON.stringify(it.annotations);
+      if (hist.id !== it.id || cur === hist.last) return;
+      const now = Date.now();
+      if (now - hist.t > 1200 || hist.sel !== selected) hist.stack.push(hist.last);
+      if (hist.stack.length > 100) hist.stack.shift();
+      hist.last = cur;
+      hist.t = now;
+      hist.sel = selected;
+    }
+    function undo() {
+      const it = item();
+      if (!it || hist.id !== it.id || !hist.stack.length) return;
+      hist.last = hist.stack.pop();
+      hist.t = 0;
+      it.annotations = JSON.parse(hist.last);
+      selected = -1;
+      renderAnnotations();
+      changed();
+    }
+
     function makeBox(a, i) {
       const box = document.createElement('div');
-      box.className = `anno ${i === selected ? 'selected' : ''}`;
+      box.className = `anno ${a.family ? 'family' : ''} ${i === selected ? 'selected' : ''}`;
       box.dataset.i = i;
+      if (a.family) box.title = 'Added by the student or family';
       applyStyle(box, a);
-      box.innerHTML = '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>' +
+      box.innerHTML = (a.family ? '<span class="family-tag">Family</span>' : '') +
+        '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>' +
         '<button type="button" class="box-x" title="Delete this text box" aria-label="Delete this text box">✕</button>';
       const txt = $('.txt', box);
       txt.textContent = a.text;
@@ -907,8 +929,8 @@
 
     function select(i) {
       selected = i;
-      $$('#v-pages .anno:not(.family)').forEach(b => b.classList.toggle('selected', Number(b.dataset.i) === i));
-      $$('#v-pages .ink-mark:not(.family)').forEach(g => g.classList.toggle('selected', Number(g.dataset.i) === i));
+      $$('#v-pages .anno').forEach(b => b.classList.toggle('selected', Number(b.dataset.i) === i));
+      $$('#v-pages .ink-mark').forEach(g => g.classList.toggle('selected', Number(g.dataset.i) === i));
       $$('#v-pages .ink-x').forEach(x => x.remove());
       const a = item() && item().annotations && item().annotations[i];
       if (annotating && Ink.is(a)) {
@@ -926,32 +948,24 @@
       $('#a-bold').setAttribute('aria-pressed', String(!!s.bold));
       $$('#a-colors .swatch').forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
       $('#a-delete').disabled = !a;
-      $('#a-delete').title = Ink.is(a) ? 'Delete this pencil mark' : 'Delete this text box';
+      $('#a-delete').title = Ink.is(a) ? 'Delete this pen mark' : 'Delete this text box';
       $('#a-pen').setAttribute('aria-pressed', String(pen));
-      $('#a-undo').disabled = !(item() && item().annotations && item().annotations.some(Ink.is));
+      $('#a-undo').disabled = !(item() && hist.id === item().id && hist.stack.length);
     }
 
-    // ✏️ Pencil on: dragging on a page writes; text boxes let the pen pass over them.
+    // ✏️ Pen on: dragging on a page writes; text boxes let the pen pass over them.
     function setPen(on) {
       pen = !!on;
       $('#v-pages').classList.toggle('pen', pen);
       $('#anno-hint').textContent = pen
-        ? 'Write anywhere on a page. Click ✏️ Pencil again to go back to text boxes.'
-        : 'Click anywhere on a page to add a text box. Click a box or pencil mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it.';
+        ? 'Write anywhere on a page. Click ✏️ Pen again to go back to text boxes. ⌘Z or Ctrl+Z undoes.'
+        : 'Click anywhere on a page to add a text box. Click a box or pen mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it. ⌘Z or Ctrl+Z undoes.';
       if (pen && document.activeElement && document.activeElement.isContentEditable) document.activeElement.blur();
       if (pen) select(-1);
       syncToolbar();
     }
     $('#a-pen').addEventListener('click', () => setPen(!pen));
-    $('#a-undo').addEventListener('click', () => {
-      const list = item().annotations;
-      for (let i = list.length - 1; i >= 0; i--) {
-        if (Ink.is(list[i])) { list.splice(i, 1); break; }
-      }
-      selected = -1;
-      renderAnnotations();
-      changed();
-    });
+    $('#a-undo').addEventListener('click', undo);
     $('#v-pages').addEventListener('pointerdown', (e) => {
       if (!annotating || !pen || e.button > 0) return;
       const layer = e.target.closest('.anno-layer');
@@ -1018,9 +1032,9 @@
     }
 
     // Click on an empty part of a page to drop a text box there (every click adds another one).
-    // Clicking a box or pencil mark you made before opens it for changes, even before ✏️ Annotate.
+    // Clicking a box or pen mark from before opens it for changes, even before ✏️ Annotations.
     $('#v-pages').addEventListener('click', (e) => {
-      const mark = e.target.closest('.ink-mark:not(.family), .anno:not(.family)');
+      const mark = e.target.closest('.ink-mark, .anno');
       if (mark && !pen) {
         const i = Number(mark.dataset.i);
         if (!annotating) {
@@ -1096,7 +1110,10 @@
     function changed() {
       const it = item();
       if (it.finalizedAt && it.filedAs !== 'Extra') it.finalStale = true;
-      syncCaches(it, ['annotations', 'finalStale']);
+      remember(it);
+      syncToolbar();
+      if (it._famMerged) it.familyNotes = famOnly(it.annotations);
+      syncCaches(it, ['annotations', 'finalStale', 'familyNotes', '_famMerged', '_famJson']);
       renderReview(it);
       $('#v-save').textContent = 'Saving…';
       clearTimeout(annoTimer);
@@ -1105,7 +1122,13 @@
     async function saveAnnotations(it) {
       annoTimer = null;
       try {
-        await call('adminAnnotate', { studentId: it.studentId, id: it.id, annotations: cleanAnnotations(it) });
+        const fam = famOnly(cleanAnnotations(it));
+        const famJson = JSON.stringify(fam);
+        await call('adminAnnotate', {
+          studentId: it.studentId, id: it.id, annotations: esOnly(cleanAnnotations(it)),
+          ...(it._famMerged && famJson !== it._famJson ? { familyNotes: fam } : {}),
+        });
+        if (it._famMerged) it._famJson = famJson;
         if (item() === it) $('#v-save').textContent = 'Saved ✓';
       } catch (err) {
         if (item() === it) $('#v-save').textContent = 'Not saved';
@@ -1127,7 +1150,8 @@
         if (f.images) {
           const pages = [];
           for (let n = 0; n < f.images.length; n++) {
-            const canvas = await renderPage(f.images[n], [...(it.familyNotes || []), ...cleanAnnotations(it)].filter(a => a.page === n));
+            const marks = it._famMerged ? cleanAnnotations(it) : [...(it.familyNotes || []), ...cleanAnnotations(it)];
+            const canvas = await renderPage(f.images[n], marks.filter(a => a.page === n));
             pages.push(await Pdf.canvasToJpeg(canvas, 0.85));
           }
           blob = Pdf.build(pages);
@@ -1136,7 +1160,7 @@
         }
         busy(`Saving to ${it.lp} Annotated…`);
         const res = await call('adminFinalize', {
-          studentId: it.studentId, id: it.id, filedAs: 'Annotated', annotations: cleanAnnotations(it), data: await blobToBase64(blob),
+          studentId: it.studentId, id: it.id, filedAs: 'Annotated', annotations: esOnly(cleanAnnotations(it)), data: await blobToBase64(blob),
         });
         filed(it, res);
       } catch (err) {
@@ -1269,6 +1293,7 @@
       if (e.key === 'ArrowLeft') go(-1);
       else if (e.key === 'ArrowRight') go(1);
       else if ((e.key === 'Delete' || e.key === 'Backspace') && annotating && selected >= 0) $('#a-delete').click();
+      else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && annotating) { e.preventDefault(); undo(); }
     });
     // Swipe left/right on a phone or tablet (not while annotating).
     let touchX = null;

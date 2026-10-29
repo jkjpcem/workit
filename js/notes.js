@@ -1,4 +1,4 @@
-// Text boxes and pencil marks a student or family adds on top of an upload's pages (a score,
+// Text boxes and pen marks a student or family adds on top of an upload's pages (a score,
 // feedback), the same kind the ES adds on the dashboard. They're saved apart from the ES's own annotations
 // and can change until the ES approves or files the sample.
 const Notes = (() => {
@@ -17,13 +17,14 @@ const Notes = (() => {
   const style = { font: 'sans', size: 18, bold: true, color: COLORS[0] };
   const PEN_PT = 3;
   let pagesEl = null, bar = null, notes = [], editing = false, selected = -1, onChange = null, pen = false;
+  let hist = { stack: [], last: '[]', t: 0, sel: -2 }; // Undo
 
   // Builds the toolbar once.
   function buildBar(el) {
     el.innerHTML = `
       <button type="button" class="btn small primary" data-n="add">＋ Text box</button>
-      <button type="button" class="btn small n-pen" data-n="pen" aria-pressed="false" title="Write by hand">✏️ Pencil</button>
-      <button type="button" class="btn small" data-n="undo" title="Take back the last pencil mark">↶ Undo</button>
+      <button type="button" class="btn small n-pen" data-n="pen" aria-pressed="false" title="Write by hand">✏️ Pen</button>
+      <button type="button" class="btn small" data-n="undo" title="Undo the last change">↶ Undo</button>
       <select data-n="font" aria-label="Font">
         <option value="sans">Arial</option><option value="serif">Times</option>
         <option value="hand">Comic</option><option value="mono">Courier</option>
@@ -41,14 +42,7 @@ const Notes = (() => {
       if (!b) return;
       if (b.dataset.n === 'add') { setPen(false); addInView(); }
       if (b.dataset.n === 'pen') setPen(!pen);
-      if (b.dataset.n === 'undo') {
-        for (let i = notes.length - 1; i >= 0; i--) {
-          if (Ink.is(notes[i])) { notes.splice(i, 1); break; }
-        }
-        selected = -1;
-        render();
-        changed();
-      }
+      if (b.dataset.n === 'undo') undo();
       if (b.dataset.n === 'bold') setStyle({ bold: !(notes[selected] ? notes[selected].bold : style.bold) });
       if (b.dataset.n === 'delete') removeSelected();
     });
@@ -68,9 +62,36 @@ const Notes = (() => {
     if (bar && !bar.dataset.built) buildBar(bar);
     pagesEl.onclick = onPageClick;
     pagesEl.onpointerdown = onPenDown;
+    hist = { stack: [], last: JSON.stringify(notes), t: 0, sel: -2 };
     setPen(false);
     render();
   }
+
+  // Undo: each change keeps the step before it (typing in one box counts as one step).
+  function remember() {
+    const cur = JSON.stringify(notes);
+    if (cur === hist.last) return;
+    const now = Date.now();
+    if (now - hist.t > 1200 || hist.sel !== selected) hist.stack.push(hist.last);
+    if (hist.stack.length > 100) hist.stack.shift();
+    Object.assign(hist, { last: cur, t: now, sel: selected });
+  }
+  function undo() {
+    if (!hist.stack.length) return;
+    hist.last = hist.stack.pop();
+    hist.t = 0;
+    notes = JSON.parse(hist.last);
+    selected = -1;
+    render();
+    changed();
+  }
+  // ⌘Z / Ctrl+Z undoes, except while typing in a box (then it undoes the typing).
+  document.addEventListener('keydown', (e) => {
+    if (!editing || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+    if (document.activeElement && document.activeElement.isContentEditable) return;
+    e.preventDefault();
+    undo();
+  });
 
   function setEditing(on) {
     editing = !!on;
@@ -92,7 +113,7 @@ const Notes = (() => {
     select(selected);
   }
 
-  // ✏️ Pencil on: dragging on a page writes, smoothed as it goes; text boxes let the pen pass over.
+  // ✏️ Pen on: dragging on a page writes, smoothed as it goes; text boxes let the pen pass over.
   function setPen(on) {
     pen = !!on;
     if (!pagesEl) return;
@@ -100,8 +121,8 @@ const Notes = (() => {
     const hint = document.getElementById('notes-hint');
     if (hint) {
       hint.textContent = pen
-        ? 'Write on the page with your finger, pen or mouse. Tap ✏️ Pencil again to stop writing and scroll.'
-        : 'Tap a page to add a text box, or tap ✏️ Pencil to write by hand. Tap a box or mark, then ✕, to delete it.';
+        ? 'Write on the page with your finger, pen or mouse. Tap ✏️ Pen again to stop writing and scroll.'
+        : 'Tap a page to add a text box, or tap ✏️ Pen to write by hand. Tap a box or mark, then ✕, to delete it.';
     }
     if (pen && document.activeElement && document.activeElement.isContentEditable) document.activeElement.blur();
     if (pen) select(-1);
@@ -186,7 +207,7 @@ const Notes = (() => {
     $$('.swatch', bar).forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
     $('[data-n=delete]', bar).disabled = !notes[selected];
     $('[data-n=pen]', bar).setAttribute('aria-pressed', String(pen));
-    $('[data-n=undo]', bar).disabled = !notes.some(Ink.is);
+    $('[data-n=undo]', bar).disabled = !hist.stack.length;
   }
 
   // Toolbar changes apply to the selected box and become the style for new boxes.
@@ -215,7 +236,7 @@ const Notes = (() => {
   }
 
   // Tap an empty part of a page to drop a text box there (every tap adds another one);
-  // tap a pencil mark to pick it.
+  // tap a pen mark to pick it.
   function onPageClick(e) {
     if (!editing || pen) return;
     const mark = e.target.closest('.ink-mark');
@@ -273,6 +294,8 @@ const Notes = (() => {
   }
 
   function changed() {
+    remember();
+    syncBar();
     if (onChange) onChange(notes.filter(a => Ink.is(a) || String(a.text || '').trim()));
   }
 

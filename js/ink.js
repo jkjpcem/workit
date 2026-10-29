@@ -1,4 +1,4 @@
-// Pencil marks on a page, shared by the ES dashboard and the student's ✏️ Annotate.
+// Pen marks on a page, shared by the ES dashboard and the student's ✏️ Annotate.
 // A stroke is { type: 'ink', page, color, width, d }: width is points on a letter-width page
 // and d packs the points as 2 characters per coordinate (0..4095 across the page), so a page of
 // handwriting fits in one spreadsheet cell. Strokes are smoothed about 35% while drawing.
@@ -116,8 +116,8 @@ const Ink = (() => {
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'ink-x';
-    x.title = 'Delete this pencil mark';
-    x.setAttribute('aria-label', 'Delete this pencil mark');
+    x.title = 'Delete this pen mark';
+    x.setAttribute('aria-label', 'Delete this pen mark');
     x.textContent = '✕';
     x.style.left = `${clamp(b.x1, 0, 0.97) * 100}%`;
     x.style.top = `${clamp(b.y0, 0.01, 1) * 100}%`;

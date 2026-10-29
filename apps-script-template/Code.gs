@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 28;
+const WORKIT_VERSION = 29;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -436,7 +436,7 @@ function familyNotes_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: 'Your account was not found.' };
   const json = JSON.stringify((Array.isArray(body.notes) ? body.notes : []).slice(0, 400).map(cleanNote_));
-  if (json.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pencil marks or remove a text box.' };
+  if (json.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pen marks or remove a text box.' };
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -1112,8 +1112,15 @@ function adminAnnotate_(body) {
   const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
   if (!item) return { ok: false, error: 'Upload not found.' };
   const json = JSON.stringify(Array.isArray(body.annotations) ? body.annotations : []);
-  if (json.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pencil marks or remove a text box.' };
+  if (json.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pen marks or remove a text box.' };
+  // The ES can change the family's own boxes and marks too; they stay in the family's column.
+  let fam = null;
+  if (Array.isArray(body.familyNotes)) {
+    fam = JSON.stringify(body.familyNotes.slice(0, 400).map(cleanNote_));
+    if (fam.length > 45000) return { ok: false, error: 'There is too much on this upload to save. Undo a few pen marks or remove a text box.' };
+  }
   subs.sheet.getRange(item.row, SUB.ANNOTATIONS).setValue(json);
+  if (fam !== null) subs.sheet.getRange(item.row, SUB.FAMILY_NOTES).setValue(fam);
   return { ok: true };
 }
 

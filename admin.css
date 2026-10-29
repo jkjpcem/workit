@@ -249,7 +249,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 svg.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .ink-line { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .ink-hit { fill: none; stroke: transparent; stroke-width: 16px; stroke-linecap: round; vector-effect: non-scaling-stroke; pointer-events: stroke; cursor: pointer; }
-.ink-mark.family .ink-hit, .pen .ink-hit { pointer-events: none; }
+.pen .ink-hit { pointer-events: none; }
 .ink-mark.selected .ink-line { filter: drop-shadow(0 0 2px rgba(52, 86, 214, .95)) drop-shadow(0 0 4px rgba(52, 86, 214, .6)); }
 .ink-x, .anno .box-x {
   position: absolute; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; z-index: 3;

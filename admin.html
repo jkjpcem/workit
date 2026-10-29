@@ -440,8 +440,8 @@
       <div class="anno-bar" id="anno-bar" hidden>
         <button class="btn small primary" id="a-add">＋ Text box</button>
         <button class="btn small" id="a-header" title="Add the Annotation box: name, class, Minutes, Grade, Date and Std">＋ Annotation</button>
-        <button class="btn small a-pen" id="a-pen" aria-pressed="false" title="Write by hand on the page">✏️ Pencil</button>
-        <button class="btn small" id="a-undo" title="Take back the last pencil mark">↶ Undo</button>
+        <button class="btn small a-pen" id="a-pen" aria-pressed="false" title="Write by hand on the page">✏️ Pen</button>
+        <button class="btn small" id="a-undo" title="Undo the last change (⌘Z or Ctrl+Z)">↶ Undo</button>
         <select id="a-font" aria-label="Font">
           <option value="sans">Arial</option>
           <option value="serif">Times</option>
@@ -458,7 +458,7 @@
         <span class="grow-space"></span>
         <button class="btn small" id="a-done">Done</button>
       </div>
-      <p class="hint anno-hint" id="anno-hint" hidden>Click anywhere on a page to add a text box. Click a box or pencil mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it.</p>
+      <p class="hint anno-hint" id="anno-hint" hidden>Click anywhere on a page to add a text box. Click a box or pen mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it. ⌘Z or Ctrl+Z undoes.</p>
       <div class="v-pages" id="v-pages"></div>
       <div class="v-panel">
         <div class="card" id="v-info"></div>
@@ -469,7 +469,7 @@
             <button class="toggle redo" id="t-redo" aria-pressed="false">↺ Redo</button>
           </div>
           <div class="finish-row" id="finish-row" hidden>
-            <div class="step-group"><button class="btn big" id="t-annotate">✏️ Annotate</button></div>
+            <div class="step-group"><button class="btn big" id="t-annotate">✏️ Annotations</button></div>
             <div class="step-group export-row">
               <button class="btn big primary" id="t-finalize">🏁 Export as Annotated</button>
               <button class="btn big" id="t-extra">📁 Export as Extra</button>
