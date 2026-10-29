@@ -619,7 +619,7 @@
         ${it.familyNotes && it.familyNotes.length ? `<p class="meta family-line">✏️ The student or family added ${it.familyNotes.length} text box${it.familyNotes.length > 1 ? 'es' : ''} on the pages (marked Family). You can change or delete them like your own, and they’re included when you export.</p>` : ''}
         ${it.resubmitOf ? `<p class="meta">↺ Resubmission${original ? ` of the ${esc(niceDate(original.dateCompleted))} upload` : ''}.</p>` : ''}
         ${it.resubmitted ? '<p class="meta">The student has resubmitted this. The new version is in their uploads.</p>' : ''}
-        ${it.fileUrl ? `<p><a href="${esc(it.fileUrl)}" target="_blank" rel="noopener">Open the original in Google Drive ↗</a></p>` : ''}`;
+`;
     }
 
     function renderReview(it) {
@@ -663,11 +663,41 @@
         : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
           (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
           : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : ''}
-           ${it.finalUrl ? `<a href="${esc(it.finalUrl)}" target="_blank" rel="noopener">Open the filed copy ↗</a>` : ''}
            <button type="button" class="btn small undo-export" data-unfile>↶ Undo export</button>`) +
         (it.oldExports || []).map(x => `<span class="old-export">↶ Taken back: the ${esc(x.filedAs)} copy${x.exportedAt ? ` from ${esc(stamp(x.exportedAt))}` : ''}.
           <button type="button" class="btn small" data-putback="${esc(x.fileId)}">Put it back</button></span>`).join('');
+      renderFiles(it);
       Core.panel(it);
+    }
+
+    // Google Drive links for this sample: its files, and the LP's three folders, with the one
+    // holding this sample's exported copy marked. Folder links come once per LP.
+    const folderLinks = {};
+    function renderFiles(it) {
+      const box = $('#files-row');
+      const f = folderLinks[it.lp];
+      if (f === undefined) {
+        folderLinks[it.lp] = null;
+        call('adminFolders', { lp: it.lp })
+          .then(res => { folderLinks[it.lp] = res; })
+          .catch(() => { folderLinks[it.lp] = false; }) // a WiSH from before folder links
+          .then(() => { if (item() === it) renderFiles(it); });
+      }
+      const link = (url, icon, label, cls = '') => url
+        ? `<a class="drive-chip ${cls}" href="${esc(url)}" target="_blank" rel="noopener"><span aria-hidden="true">${icon}</span>${esc(label)}</a>` : '';
+      const exported = it.finalizedAt ? (it.filedAs === 'Extra' ? 'extra' : 'annotated') : '';
+      const files = [
+        link(it.fileUrl, '📄', 'Original'),
+        it.finalizedAt ? link(it.finalUrl, '📄', `Exported (${it.filedAs || 'Annotated'})`) : '',
+      ].join('');
+      const folders = f ? [
+        link(f.uploads, '📁', 'Uploads'),
+        link(f.annotated, '📁', 'Annotated', exported === 'annotated' ? 'here' : ''),
+        link(f.extra, '📁', 'Extra', exported === 'extra' ? 'here' : ''),
+      ].join('') : '';
+      box.innerHTML = `<span class="files-label">Files in Google Drive</span><div class="drive-chips">${files}</div>` +
+        (folders ? `<span class="files-label">${esc(it.lp)} folders</span><div class="drive-chips">${folders}</div>` : '');
+      box.hidden = !files && !folders;
     }
 
     // ----- Approve / redo (saved a moment after the last click) -----

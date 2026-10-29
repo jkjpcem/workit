@@ -211,7 +211,7 @@ function doPost(e) {
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
-      adminUnfile: adminUnfile_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
+      adminUnfile: adminUnfile_, adminFolders: adminFolders_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
     };
@@ -1143,6 +1143,17 @@ function stashExport_(subs, item) {
   subs.sheet.getRange(item.row, SUB.OLD_EXPORTS).setValue(JSON.stringify(list));
 }
 
+/** Links to one LP's Drive folders, for the dashboard's sample view. */
+function adminFolders_(body) {
+  const lp = LEARNING_PERIODS.indexOf(body.lp) !== -1 ? body.lp : getCurrentLp_();
+  return {
+    ok: true, lp: lp,
+    uploads: getUploadFolder_(lp).getUrl(),
+    annotated: getApprovedFolder_(lp, 'Annotated').getUrl(),
+    extra: getApprovedFolder_(lp, 'Extra').getUrl(),
+  };
+}
+
 /** Undo export: the sample stays approved, and its exported copy moves to WiSH's Trash. */
 function adminUnfile_(body) {
   return withLock_(() => {
@@ -1996,7 +2007,7 @@ function getCurrentLp_() {
 const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
-const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList',
+const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList', 'adminFolders',
   'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 
