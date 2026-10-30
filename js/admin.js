@@ -661,13 +661,18 @@
       $('#t-finalize').innerHTML = asAnnotated ? (it.finalStale ? '🏁 Update annotated copy' : '✓ Exported as Annotated') + filed : '🏁 Export as Annotated';
       $('#t-extra').innerHTML = asExtra ? '✓ Exported as Extra' + filed : '📁 Export as Extra';
       $('#t-extra').disabled = asExtra || !it.approved;
-      $('#t-finalize').disabled = !it.approved;
+      // An annotated copy needs the header box (name, class, Grade, Minutes, Date, Standard).
+      const noHeader = !(it.annotations || []).some(a => isHeader(a, it));
+      $('#t-finalize').disabled = !it.approved || noHeader;
+      $('#t-finalize').title = it.approved && noHeader ? 'Add the header box first (＋ Annotation).' : '';
       const n = annotatedCount(it.studentId, it.lp);
       const fs = $('#final-state');
       fs.className = `final-state ${finalized ? (it.finalStale ? 'stale' : 'done') : ''}`;
       fs.innerHTML = redoing ? ''
         : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Export as Annotated or Export as Extra.'
-        : `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
+        : (noHeader && !asExtra ? `<span class="need-header">This sample has no header box, so it can’t be exported as Annotated yet.
+            <button type="button" class="btn small" data-addheader>＋ Add the header</button></span>` : '') +
+          `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
           (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
           : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : ''}
            <button type="button" class="btn small undo-export" data-unfile>↶ Undo export</button>`) +
@@ -1181,7 +1186,7 @@
 
     $('#t-finalize').addEventListener('click', async () => {
       const it = item();
-      if (!it.approved) return;
+      if (!it.approved || !(it.annotations || []).some(a => isHeader(a, it))) return;
       flushSaves();
       busy('Making the final copy…');
       try {
@@ -1237,6 +1242,11 @@
       renderReview(it);
     }
     $('#final-state').addEventListener('click', async (e) => {
+      if (e.target.closest('[data-addheader]')) {
+        if (!annotating) setAnnotating(true);
+        $('#a-header').click();
+        return;
+      }
       const b = e.target.closest('[data-unfile], [data-putback]');
       const it = item();
       if (!b || !it) return;
