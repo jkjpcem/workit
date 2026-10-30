@@ -285,17 +285,26 @@
     const v = $('#step-review').dateCompleted.value;
     const el = $('#date-day');
     el.hidden = !v;
-    if (!v) return;
+    if (!v) { $('#off-check').hidden = true; $('#step-review').ok2.disabled = false; return; }
     const day = new Date(`${v}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     const bad = dateProblem(v, wiz.lp, undefined, true);
     const off = !bad && offDayOf(v);
     el.classList.toggle('bad', !!bad);
     el.classList.toggle('warn', !!off);
     el.textContent = bad ? `✗ ${day}. ${bad}`
-      : off ? `⚠ ${day} is ${off}. Please double-check the date on your assignment. If the work really was done that day, confirm it in the boxes below.`
+      : off ? `⚠ ${day} is ${off}. Look at the date written on your work sample first.`
       : `✓ ${day}`;
-    // The second box becomes the family's confirmation, which the ES sees.
+    // Step 1: they check the date written on the work sample. Step 2: the second box below
+    // becomes their confirmation, which the ES sees. Step 2 stays off until step 1 is done.
     const short = new Date(`${v}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const seen = $('#off-seen');
+    if (seen.dataset.for !== v) { seen.checked = false; seen.dataset.for = v; }
+    $('#off-check').hidden = !off;
+    $('#off-seen-text').textContent = `I checked the date written on my work sample, and it says ${short}.`;
+    const ok2 = $('#step-review').ok2;
+    ok2.disabled = !!off && !seen.checked;
+    if (ok2.disabled) ok2.checked = false;
+    syncConfirm();
     $('#ok2-text').textContent = off
       ? `Yes, this work was done on ${short} even though it’s ${off}`
       : 'Date of assignment is not on a weekend or holiday';
@@ -308,6 +317,7 @@
     return h ? `a school holiday (${h.name || 'no school'})` : '';
   }
   ['input', 'change'].forEach(ev => $('#step-review').dateCompleted.addEventListener(ev, showDay));
+  $('#off-seen').addEventListener('change', showDay);
 
   function go(step) {
     wiz.step = step;
