@@ -297,7 +297,7 @@
       }).join('');
       const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
         `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
-        (mine.length > 6 ? `<span class="more">+${mine.length - 5}</span>` : '');
+        (mine.length > 6 ? moreTile(mine.slice(5)) : '');
       card.innerHTML = `
         <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
         <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
@@ -322,6 +322,13 @@
     }
     fitClasses();
     evenUploads();
+  }
+
+  // The "+3" tile: yellow when one of the samples it hides still needs review, green when they've all been reviewed.
+  function moreTile(hidden) {
+    const waiting = hidden.filter(i => ['new', 'resubmitted'].includes(status(i))).length;
+    const tip = waiting ? `${waiting} of these ${hidden.length} still to review` : `All ${hidden.length} reviewed`;
+    return `<span class="more ${waiting ? '' : 'st-approved'}" title="${tip}">+${hidden.length}</span>`;
   }
 
   // The upload area is as tall on every card as on the tallest, so class lists all start at the same height.
