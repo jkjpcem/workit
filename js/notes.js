@@ -221,6 +221,7 @@ const Notes = (() => {
       fontSize: `calc(${a.size} * 100cqw / ${PAGE_PT})`,
       fontWeight: a.bold ? '700' : '400',
       color: a.color,
+      transform: a.rot ? `rotate(${a.rot}deg)` : '',
     });
   }
 

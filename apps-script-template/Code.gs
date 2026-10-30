@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 33;
+const WORKIT_VERSION = 34;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -480,6 +480,7 @@ function cleanNote_(n) {
     bold: n.bold === true,
     color: color,
     text: String(n.text == null ? '' : n.text).slice(0, 2000),
+    rot: Math.round(num(n.rot, 0, 359, 0)),
   };
 }
 

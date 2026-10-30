@@ -654,7 +654,9 @@
       $('#finish-row').hidden = redoing;
       $('#t-annotate').disabled = redoing;
       $('#t-annotate').setAttribute('aria-pressed', String(annotating));
-      $('#t-annotate').textContent = annotating ? '✓ Done annotating' : '✏️ Annotations';
+      $('#t-annotate').textContent = !annotating ? '✏️ Annotations' : annotated(it) ? '✓ Done annotating' : 'Close';
+      // Green once the ES has filled in the header box.
+      $('#t-annotate').classList.toggle('is-done', annotated(it));
       const asExtra = finalized && it.filedAs === 'Extra';
       const asAnnotated = finalized && !asExtra;
       const filed = it.finalizedAt ? `<small>${esc(stamp(it.finalizedAt))}</small>` : '';
@@ -664,6 +666,8 @@
       // An annotated copy needs the header box (name, class, Grade, Minutes, Date, Standard).
       const noHeader = !(it.annotations || []).some(a => isHeader(a, it));
       $('#t-finalize').disabled = !it.approved || noHeader;
+      $('#t-finalize').classList.toggle('is-done', asAnnotated && !it.finalStale);
+      $('#t-extra').classList.toggle('is-done', asExtra);
       $('#t-finalize').title = it.approved && noHeader ? 'Add the header box first (＋ Annotation).' : '';
       const n = annotatedCount(it.studentId, it.lp);
       const fs = $('#final-state');
@@ -852,6 +856,11 @@
     // class, then blank lines for the ES to fill in. It comes back whenever it's missing,
     // except right after the ES deletes it; "＋ Annotation" adds it back any time.
     const isHeader = (a, it) => a.header || String(a.text || '').startsWith(`${it.name}\n${it.subject}\n`);
+    // A header box still showing only its blank labels (Grade:, Minutes:...) isn't an annotation yet.
+    const blankHeader = (a, it) => isHeader(a, it) &&
+      String(a.text || '').split('\n').slice(2).every(l => /^\s*[A-Za-z]+:\s*$/.test(l) || !l.trim());
+    // Annotated = the ES has typed something into the header box (Grade, Minutes, Date, Standard...).
+    const annotated = (it) => (it.annotations || []).some(a => !a.family && isHeader(a, it) && !blankHeader(a, it));
     function addHeader(it, { force = false } = {}) {
       if (!it.annotations) it.annotations = [];
       if (!force && (it.headerDeleted || it.annotations.some(a => isHeader(a, it)))) return false;
@@ -944,6 +953,7 @@
       applyStyle(box, a);
       box.innerHTML = (a.family ? '<span class="family-tag">Family</span>' : '') +
         '<span class="grip" title="Drag to move">⠿</span><div class="txt"></div><span class="resize" title="Drag to resize"></span>' +
+        '<span class="rot" title="Drag to rotate (snaps at 45° and 90°)">⟳</span>' +
         '<button type="button" class="box-x" title="Delete this text box" aria-label="Delete this text box">✕</button>';
       const txt = $('.txt', box);
       txt.textContent = a.text;
@@ -957,6 +967,7 @@
       });
       $('.grip', box).addEventListener('pointerdown', (e) => startDrag(e, box, a, 'move'));
       $('.resize', box).addEventListener('pointerdown', (e) => startDrag(e, box, a, 'resize'));
+      $('.rot', box).addEventListener('pointerdown', (e) => startDrag(e, box, a, 'rotate'));
       return box;
     }
 
@@ -969,6 +980,7 @@
         fontSize: `calc(${a.size} * 100cqw / ${PAGE_PT})`,
         fontWeight: a.bold ? '700' : '400',
         color: a.color,
+        transform: a.rot ? `rotate(${a.rot}deg)` : '',
       });
     }
 
@@ -996,6 +1008,7 @@
       $('#a-delete').title = Ink.is(a) ? 'Delete this pen mark' : 'Delete this text box';
       $('#a-pen').setAttribute('aria-pressed', String(pen));
       $('#a-undo').disabled = !(item() && hist.id === item().id && hist.stack.length);
+      $('#a-done').textContent = item() && annotated(item()) ? 'Done' : 'Close';
     }
 
     // ✏️ Pen on: dragging on a page writes; text boxes let the pen pass over them.
@@ -1130,18 +1143,33 @@
       const start = { x: e.clientX, y: e.clientY, ax: a.x, ay: a.y, aw: a.w };
       const handle = e.target;
       handle.setPointerCapture(e.pointerId);
+      const br = box.getBoundingClientRect();
+      const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
+      const rad = (a.rot || 0) * Math.PI / 180;
       const move = (ev) => {
         const dx = (ev.clientX - start.x) / r.width;
         const dy = (ev.clientY - start.y) / r.height;
-        if (mode === 'move') {
+        if (mode === 'rotate') {
+          // The handle sits above the box, so straight up is 0°. Within 6° of a 45° step it snaps.
+          let deg = Math.atan2(ev.clientX - cx, cy - ev.clientY) * 180 / Math.PI;
+          const step = Math.round(deg / 45) * 45;
+          if (Math.abs(deg - step) <= 6) deg = step;
+          deg = Math.round(((deg % 360) + 360) % 360);
+          a.rot = deg === 360 ? 0 : deg;
+          handle.dataset.deg = `${a.rot}°`;
+        } else if (mode === 'move') {
           a.x = clamp(start.ax + dx, 0, 1 - Math.min(a.w, 0.98));
           a.y = clamp(start.ay + dy, 0, 0.98);
         } else {
-          a.w = clamp(start.aw + dx, 0.05, 1 - a.x);
+          // Along the box's own width, even when it's turned.
+          const along = ((ev.clientX - start.x) * Math.cos(rad) + (ev.clientY - start.y) * Math.sin(rad)) / r.width;
+          a.w = clamp(start.aw + along, 0.05, 1 - a.x);
         }
         applyStyle(box, a);
       };
       const up = () => {
+        delete handle.dataset.deg;
+        if (!a.rot) delete a.rot;
         handle.removeEventListener('pointermove', move);
         handle.removeEventListener('pointerup', up);
         handle.removeEventListener('pointercancel', up);
@@ -1243,8 +1271,11 @@
     }
     $('#final-state').addEventListener('click', async (e) => {
       if (e.target.closest('[data-addheader]')) {
+        // Opening Annotations adds the header box by itself; otherwise add it here.
+        const it = item();
         if (!annotating) setAnnotating(true);
-        $('#a-header').click();
+        if (!(it.annotations || []).some(a => isHeader(a, it))) $('#a-header').click();
+        else { renderAnnotations(); select(it.annotations.findIndex(a => isHeader(a, it))); renderReview(it); }
         return;
       }
       const b = e.target.closest('[data-unfile], [data-putback]');
@@ -1324,11 +1355,21 @@
         ctx.fillStyle = a.color;
         ctx.textBaseline = 'top';
         const maxW = Math.max(px, a.w * W - 2 * padX);
+        const lines = wrap(ctx, a.text, maxW);
+        ctx.save();
+        if (a.rot) {
+          // Turn around the box's center, as on screen.
+          const bx = a.x * W + a.w * W / 2, by = a.y * H + (lines.length * lineH + 2 * padY) / 2;
+          ctx.translate(bx, by);
+          ctx.rotate(a.rot * Math.PI / 180);
+          ctx.translate(-bx, -by);
+        }
         let y = a.y * H + padY + (lineH - px) / 2;
-        for (const line of wrap(ctx, a.text, maxW)) {
+        for (const line of lines) {
           ctx.fillText(line, a.x * W + padX, y);
           y += lineH;
         }
+        ctx.restore();
       }
       return canvas;
     }
