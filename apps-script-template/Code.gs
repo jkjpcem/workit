@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 31;
+const WORKIT_VERSION = 32;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -3045,7 +3045,7 @@ function reportHtml_(s, st, days, fresh, on) {
       let meet = '';
       if (booked) {
         const at = booked[g.x.student.id];
-        meet = '<br><span style="font-size:11px;color:' + (at ? '#5f6a8a' : '#9b1c1f') + '">' + (at ? '📅 ' + Utilities.formatDate(new Date(at), tz, 'MMM d') : 'no meeting') + '</span>';
+        meet = '<br><span style="font-size:11px;color:' + (at ? '#5f6a8a' : '#9b1c1f') + '">' + (at ? '📅 ' + Utilities.formatDate(new Date(at), tz, 'EEE, MMM d') : 'no meeting') + '</span>';
       }
       return '<tr><td style="' + F + 'font-size:12px;color:#1c2340;padding:4px 8px 4px 0;vertical-align:top;width:120px">' + esc_(g.x.student.name) + meet + '</td>' +
         '<td style="padding:2px 0;vertical-align:top">' + (g.cells.length ? g.cells.map(chip).join('') : '<span style="' + F + 'font-size:11px;color:#7a829e">no classes listed</span>') + '</td></tr>';

@@ -197,7 +197,7 @@ function AdminCore(ctx) {
   // Each student and how many core subjects they're missing for the reporting period.
   // Click a name to see what was annotated when, what's missing, and to mark one done.
   let sideLp = null, expanded = null;
-  const niceDay = (ms) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const niceDay = (ms) => new Date(ms).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
   function side(viewLp) {
     const box = $('#rp-side');
@@ -212,7 +212,7 @@ function AdminCore(ctx) {
     }).sort((a, b) => b.missing - a.missing || a.st.lastName.localeCompare(b.st.lastName) || a.st.firstName.localeCompare(b.st.firstName));
     const complete = rows.filter(r => !r.missing).length;
     const range = [(core.lpDates || {})[lps[0]], (core.lpDates || {})[lps[lps.length - 1]]];
-    const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     box.innerHTML = `
       <h2>${forRp} Annotation Tracker</h2>
       <p class="meta">${lps[0]}–${lps[lps.length - 1]}${range[0] && range[1] ? ` · ${nice(range[0].start)} to ${nice(range[1].end)}` : ''}</p>
@@ -275,7 +275,7 @@ function AdminCore(ctx) {
     if (!pageRp) pageRp = rpOf(core.currentLp);
     const lps = RPS[pageRp], list = slots(st, pageRp);
     const range = [(core.lpDates || {})[lps[0]], (core.lpDates || {})[lps[lps.length - 1]]];
-    const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const nice = (ymd) => new Date(ymd + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const left = list.filter(x => !done(x)).length;
     box.innerHTML = `
       <h2>${pageRp} Annotation Tracker</h2>

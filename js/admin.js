@@ -611,7 +611,7 @@
           <div><span>Grade / score</span><strong>${esc(it.score || '—')}</strong></div>
           <div><span>Minutes spent</span>${esc(it.minutes || '—')}</div>
           <div><span>Pages</span>${it.pageCount}</div>
-          <div><span>Uploaded</span>${esc(new Date(it.receivedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}</div>
+          <div><span>Uploaded</span>${esc(new Date(it.receivedAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</div>
           ${it.pageDate || it.pageCheck ? `<div class="${/typed|not found|not checked/.test(it.pageCheck || '') ? 'page-flag' : ''}"><span>Date on page</span>${it.pageDate ? esc(niceDate(it.pageDate)) : '—'}${it.pageCheck && it.pageCheck !== 'date read' ? ` <small>(${esc(it.pageCheck)})</small>` : ''}</div>` : ''}
         </div>
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
@@ -1398,7 +1398,7 @@
   function renderTrash() {
     const grid = $('#trash-grid');
     if (!trashItems.length && !trashExports.length) { grid.innerHTML = '<div class="empty">The Trash is empty.</div>'; return; }
-    const day = (ms) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const day = (ms) => new Date(ms).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     const nameOf = (i) => (data.students.find(s => s.id === i.studentId) || {}).name || i.name || i.studentId;
     grid.innerHTML = trashExports.map((i, n) => `
       <div class="card trash-item">
@@ -1695,7 +1695,7 @@
     const d = new Date(t), today = new Date();
     const days = Math.round((new Date(today.toDateString()) - new Date(d.toDateString())) / 86400000);
     return days === 0 ? `Today ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : days === 1 ? 'Yesterday'
-      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
 
   // ----- Email wording -----
@@ -1829,7 +1829,7 @@
   const isEmpty = (r) => COLS.every(k => !String(r[k] || '').trim());
   // Last sign-in, or what stops this row from signing in.
   const sidCell = (r, problem) => problem ? `<span class="why">${esc(problem)}</span>` : isEmpty(r) ? ''
-    : r.lastSignIn ? esc(new Date(r.lastSignIn).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))
+    : r.lastSignIn ? esc(new Date(r.lastSignIn).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))
     : '<span class="never">Never</span>';
   // Whether reminders can reach this family.
   const remCell = (r) => isEmpty(r) ? '<td class="rem-cell"></td>'
@@ -2094,7 +2094,7 @@
   function niceDate(ymd) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
     if (!m) return ymd || '';
-    return new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   }
   function blankThumb() {
     return 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3 4"><rect width="3" height="4" fill="#eef1f6"/></svg>');

@@ -302,7 +302,7 @@
   function lpDatesText(lp) {
     const r = lpRange(lp);
     if (!r) return '';
-    const short = (ymd) => new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const short = (ymd) => new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     return ` <span class="lp-dates">(${esc(short(r.start))} to ${esc(short(r.end))})</span>`;
   }
 
@@ -1115,7 +1115,7 @@
   function renderTrash() {
     const box = $('#trash-list');
     if (!studentTrash.length) { box.innerHTML = ''; return; }
-    const day = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const day = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     box.innerHTML = `
       <details class="card trash-box">
         <summary>🗑 Trash (${studentTrash.length})</summary>
