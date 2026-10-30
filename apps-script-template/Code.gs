@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 32;
+const WORKIT_VERSION = 33;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -287,11 +287,13 @@ function upload_(body) {
   if (!clean_(body.subject, 60)) return { ok: false, error: 'Pick a subject.' };
   const source = SOURCES.indexOf(body.source) !== -1 ? body.source : 'scan';
   if (source === 'gdoc' ? !body.link : !body.data) return { ok: false, error: 'No file was attached.' };
-  const dateProblem = checkDate_(body.lp, clean_(body.dateCompleted, 20));
+  // A weekend or holiday date goes through only when the family confirmed it (saved in Page check).
+  const offDay = body.offDayConfirmed === true;
+  const dateProblem = checkDate_(body.lp, clean_(body.dateCompleted, 20), '', offDay);
   if (dateProblem) return { ok: false, error: dateProblem };
   // The date written on page 1, read by the page check or typed by the student (see checkPage_).
   const pageDate = clean_(body.pageDate, 10);
-  const pageProblem = pageDate ? checkDate_(body.lp, pageDate, 'The date on your page') : '';
+  const pageProblem = pageDate ? checkDate_(body.lp, pageDate, 'The date on your page', offDay) : '';
   if (pageProblem) return { ok: false, error: pageProblem };
   // Date completed is the date of the assignment, so it has to match the date WiSH read on the page.
   if (pageDate && /^date read/.test(String(body.pageCheck || '')) && pageDate !== clean_(body.dateCompleted, 20)) {
@@ -376,7 +378,8 @@ function upload_(body) {
     row[SUB.MINUTES - 1] = minutes_(body.minutes);
     row[SUB.SOURCE - 1] = source;
     row[SUB.PAGE_DATE - 1] = pageDate;
-    row[SUB.PAGE_CHECK - 1] = cell_(clean_(body.pageCheck, 120));
+    const confirmedOff = offDay && !!checkDate_(body.lp, clean_(body.dateCompleted, 20)) ? ', weekend/holiday date confirmed by family' : '';
+    row[SUB.PAGE_CHECK - 1] = cell_(clean_(String(body.pageCheck || '').replace(/, weekend\/holiday date confirmed by family/g, ''), 110) + confirmedOff);
     subs.sheet.appendRow(row);
     if (original) subs.sheet.getRange(original.row, SUB.REPLACED_BY).setValue(uploadId);
     return { ok: true, fileUrl: file.getUrl() };
@@ -1666,16 +1669,17 @@ function getLpDates_() {
 }
 
 /** Date completed must be a weekday, and inside the LP's dates when the LP has them. */
-function checkDate_(lp, ymd, what) {
+// allowOff: the family confirmed a weekend or holiday date is right (the dashboard flags it).
+function checkDate_(lp, ymd, what, allowOff) {
   what = what || 'The date completed';
   if (!isYmd_(ymd)) return 'Enter the date you completed it.';
   const day = new Date(ymd + 'T12:00:00Z').getUTCDay();
-  if (day === 0 || day === 6) return what + ' must be a weekday (Monday to Friday).';
+  if (!allowOff && (day === 0 || day === 6)) return what + ' must be a weekday (Monday to Friday).';
   const range = getLpDates_()[lp];
   if (range && (ymd < range.start || ymd > range.end)) {
     return what + ' must be during ' + lp + ' (' + niceDay_(range.start) + ' to ' + niceDay_(range.end) + ').';
   }
-  const holiday = schoolHoliday_(ymd);
+  const holiday = !allowOff && schoolHoliday_(ymd);
   if (holiday) return what + ' can’t be ' + niceDay_(ymd) + ', a school holiday (' + holiday + ').';
   return '';
 }

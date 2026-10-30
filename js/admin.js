@@ -607,12 +607,12 @@
         <div class="info-grid">
           <div><span>Student</span>${esc(student ? student.name : it.name)}</div>
           <div><span>Learning Period</span>${esc(it.lp)}</div>
-          <div class="${offDay(it.dateCompleted) ? 'page-flag' : ''}"><span>Date completed</span>${esc(dayDate(it.dateCompleted))}${offDay(it.dateCompleted) ? ` <small>(${esc(offDay(it.dateCompleted))})</small>` : ''}</div>
+          <div class="${offDay(it.dateCompleted) ? 'page-flag' : ''}"><span>Date completed</span>${esc(dayDate(it.dateCompleted))}${offDay(it.dateCompleted) ? ` <small>(${esc(offDay(it.dateCompleted))}${/confirmed by family/.test(it.pageCheck || '') ? '. The family was warned and confirmed this date.' : ''})</small>` : ''}</div>
           <div><span>Grade / score</span><strong>${esc(it.score || '—')}</strong></div>
           <div><span>Minutes spent</span>${esc(it.minutes || '—')}</div>
           <div><span>Pages</span>${it.pageCount}</div>
           <div><span>Uploaded</span>${esc(new Date(it.receivedAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</div>
-          ${it.pageDate || it.pageCheck ? `<div class="${/typed|not found|not checked/.test(it.pageCheck || '') ? 'page-flag' : ''}"><span>Date on page</span>${it.pageDate ? esc(niceDate(it.pageDate)) : '—'}${it.pageCheck && it.pageCheck !== 'date read' ? ` <small>(${esc(it.pageCheck)})</small>` : ''}</div>` : ''}
+          ${it.pageDate || it.pageCheck ? `<div class="${/typed|not found|not checked|confirmed/.test(it.pageCheck || '') ? 'page-flag' : ''}"><span>Date on page</span>${it.pageDate ? esc(niceDate(it.pageDate)) : '—'}${it.pageCheck && it.pageCheck !== 'date read' ? ` <small>(${esc(it.pageCheck)})</small>` : ''}</div>` : ''}
         </div>
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
         <div class="info-text"><span>Comments</span>${esc(it.comments || '—')}</div>

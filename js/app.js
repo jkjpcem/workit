@@ -250,10 +250,11 @@
   const lpRange = (lp) => (session && session.lpDates && session.lpDates[lp]) || null;
   // School holidays come from the ES's LP dates page (Code.gs getHolidays_).
   const holidayOn = (ymd) => ((session && session.holidays) || []).find(h => ymd >= h.from && ymd <= h.to);
-  function dateProblem(ymd, lp, what = 'The date completed') {
+  // allowOff: a weekend or holiday is only a warning (the family can confirm it; the ES sees a flag).
+  function dateProblem(ymd, lp, what = 'The date completed', allowOff = false) {
     if (!ymd) return 'Enter the date you completed it.';
-    if (isWeekend(ymd)) return `That’s a weekend. ${what} must be a school day (Monday to Friday).`;
-    const h = holidayOn(ymd);
+    if (!allowOff && isWeekend(ymd)) return `That’s a weekend. ${what} must be a school day (Monday to Friday).`;
+    const h = !allowOff && holidayOn(ymd);
     if (h) return `That’s a school holiday (${h.name || 'no school'}). ${what} must be a school day.`;
     if (ymd > today()) return `${what} can’t be in the future.`;
     const r = lpRange(lp);
@@ -270,7 +271,7 @@
       ? `A school day from ${niceDate(r.start)} to ${niceDate(r.end)} (no weekends or holidays).`
       : 'A school day (no weekends or holidays).';
     // Left blank on purpose so the student types the date from the assignment.
-    if (inp.value && dateProblem(inp.value, wiz.lp)) inp.value = '';
+    if (inp.value && dateProblem(inp.value, wiz.lp, undefined, true)) inp.value = '';
     showDay();
   }
 
@@ -286,9 +287,25 @@
     el.hidden = !v;
     if (!v) return;
     const day = new Date(`${v}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
-    const bad = dateProblem(v, wiz.lp);
+    const bad = dateProblem(v, wiz.lp, undefined, true);
+    const off = !bad && offDayOf(v);
     el.classList.toggle('bad', !!bad);
-    el.textContent = bad ? `✗ ${day}. ${bad}` : `✓ ${day}`;
+    el.classList.toggle('warn', !!off);
+    el.textContent = bad ? `✗ ${day}. ${bad}`
+      : off ? `⚠ ${day} is ${off}. Please double-check the date on your assignment. If the work really was done that day, confirm it in the boxes below.`
+      : `✓ ${day}`;
+    // The second box becomes the family's confirmation, which the ES sees.
+    const short = new Date(`${v}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    $('#ok2-text').textContent = off
+      ? `Yes, this work was done on ${short} even though it’s ${off}`
+      : 'Date of assignment is not on a weekend or holiday';
+  }
+  // 'a weekend', 'a school holiday (Veterans Day)', or '' for a school day.
+  function offDayOf(ymd) {
+    if (!ymd) return '';
+    if (isWeekend(ymd)) return 'a weekend';
+    const h = holidayOn(ymd);
+    return h ? `a school holiday (${h.name || 'no school'})` : '';
   }
   ['input', 'change'].forEach(ev => $('#step-review').dateCompleted.addEventListener(ev, showDay));
 
@@ -646,9 +663,11 @@
     const typed = $('#step-review').dateCompleted.value;
     const lines = [];
     let stop = false;
-    if (res.date && res.dateProblem) {
+    // A weekend or holiday on the page is fine once they confirmed that date above.
+    const pageBad = res.date && dateProblem(res.date, wiz.lp, 'The date on your page', true);
+    if (pageBad) {
       stop = true;
-      lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(res.dateProblem)} Fix the date at the top of page 1, then take the picture again.</p>`);
+      lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(pageBad)} Fix the date at the top of page 1, then take the picture again.</p>`);
     } else if (res.date && res.date !== typed) {
       stop = true;
       lines.push(`<p class="pc-bad">✗ The date on your assignment is <b>${esc(niceDate(res.date))}</b>, but you entered <b>${esc(niceDate(typed))}</b>. Fix the date above, or retake the picture.</p>`);
@@ -698,7 +717,7 @@
     const minutes = Number(f.minutes.value);
     if (!(minutes >= 1 && minutes <= 600 && Number.isInteger(minutes))) { f.minutes.focus(); return toast('Enter the minutes you spent (1 to 600).'); }
     if (!f.dateCompleted.value) { f.dateCompleted.focus(); return toast('Enter the date you completed the assignment.'); }
-    const badDate = dateProblem(f.dateCompleted.value, wiz.lp);
+    const badDate = dateProblem(f.dateCompleted.value, wiz.lp, undefined, true);
     if (badDate) { f.dateCompleted.focus(); return toast(badDate); }
     if (!$$('#confirm-box input[type=checkbox]').every(c => c.checked)) return toast('Check all three boxes first.');
     if (!f.score.value.trim()) { f.score.focus(); return toast('Enter your grade or score.'); }
@@ -735,6 +754,7 @@
         resubmitOf: wiz.resubmit ? wiz.resubmit.id : '',
         pageDate: page.pageDate,
         pageCheck: page.pageCheck,
+        offDayConfirmed: !!offDayOf(f.dateCompleted.value),
       };
       await Store.put(item);
       busy(`Uploading to ${item.lp}…`);
@@ -1033,6 +1053,7 @@
         thumb: item.thumb,
         pageDate: item.pageDate || '',
         pageCheck: item.pageCheck || '',
+        offDayConfirmed: !!item.offDayConfirmed,
         ...(item.source === 'gdoc' ? { link: item.link } : { data: await blobToBase64(item.pdf) }),
       });
       await Store.update(item.id, { status: 'sent', error: '', sentAt: Date.now() });
