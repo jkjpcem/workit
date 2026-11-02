@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 35;
+const WORKIT_VERSION = 36;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -246,7 +246,8 @@ function doPost(e) {
 function login_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: "We couldn't find you. Did you enter all the letters correctly?" };
-  noteSignIn_(student.id);
+  // The ES opening Turn in for a student (byEs_) isn't the student signing in.
+  if (!byEs_(body)) noteSignIn_(student.id);
   // Redo requests the student hasn't seen yet are shown once, right after sign-in.
   const all = readSubs_().items.filter(i => i.studentId === student.id);
   const mine = all.filter(i => !i.trashedAt);
@@ -279,24 +280,35 @@ function ackAlerts_(body) {
   return { ok: true };
 }
 
+/**
+ * True when the ES is the one turning work in for a student (dashboard > Upload for student).
+ * The website sends the ES's own sign-in with the request; a wrong one is refused.
+ */
+function byEs_(body) {
+  return body.byEs === true && !checkAdmin_(body);
+}
+
 function upload_(body) {
   const student = findStudent_(body.studentId);
   if (!student) return { ok: false, error: 'Your account was not found. Ask your ES.' };
-  if (student.active === false) return { ok: false, error: 'Turning in work is paused on your account. Ask your ES.' };
+  const es = byEs_(body);
+  if (body.byEs === true && !es) return { ok: false, error: 'Your ES sign-in has run out. Close this tab and open Upload for student again from the dashboard.' };
+  if (student.active === false && !es) return { ok: false, error: 'Turning in work is paused on your account. Ask your ES.' };
   if (LEARNING_PERIODS.indexOf(body.lp) === -1) return { ok: false, error: 'Unknown Learning Period.' };
   if (!clean_(body.subject, 60)) return { ok: false, error: 'Pick a subject.' };
   const source = SOURCES.indexOf(body.source) !== -1 ? body.source : 'scan';
   if (source === 'gdoc' ? !body.link : !body.data) return { ok: false, error: 'No file was attached.' };
   // A weekend or holiday date goes through only when the family confirmed it (saved in Page check).
-  const offDay = body.offDayConfirmed === true;
+  // The ES can turn in work dated on a weekend or holiday, or that doesn't match the page.
+  const offDay = body.offDayConfirmed === true || es;
   const dateProblem = checkDate_(body.lp, clean_(body.dateCompleted, 20), '', offDay);
   if (dateProblem) return { ok: false, error: dateProblem };
   // The date written on page 1, read by the page check or typed by the student (see checkPage_).
   const pageDate = clean_(body.pageDate, 10);
-  const pageProblem = pageDate ? checkDate_(body.lp, pageDate, 'The date on your page', offDay) : '';
+  const pageProblem = pageDate && !es ? checkDate_(body.lp, pageDate, 'The date on your page', offDay) : '';
   if (pageProblem) return { ok: false, error: pageProblem };
   // Date completed is the date of the assignment, so it has to match the date WiSH read on the page.
-  if (pageDate && /^date read/.test(String(body.pageCheck || '')) && pageDate !== clean_(body.dateCompleted, 20)) {
+  if (!es && pageDate && /^date read/.test(String(body.pageCheck || '')) && pageDate !== clean_(body.dateCompleted, 20)) {
     return { ok: false, error: 'The date on your assignment is ' + niceDay_(pageDate) + ', but you entered ' + niceDay_(clean_(body.dateCompleted, 20)) + '. Fix the date, or retake the picture.' };
   }
   const uploadId = /^[A-Za-z0-9_-]{1,60}$/.test(String(body.uploadId || '')) ? String(body.uploadId) : '';
@@ -321,7 +333,7 @@ function upload_(body) {
     const existing = uploadId && findItem_(subs, student.id, uploadId, true);
     if (existing) return { ok: true, fileUrl: existing.fileUrl, duplicate: true };
     const dayAgo = Date.now() - 24 * 3600000;
-    if (subs.items.filter(i => i.studentId === student.id && i.receivedAt > dayAgo).length >= UPLOADS_PER_DAY) {
+    if (!es && subs.items.filter(i => i.studentId === student.id && i.receivedAt > dayAgo).length >= UPLOADS_PER_DAY) {
       return { ok: false, error: 'That’s the most uploads WiSH takes from one student in a day. Try again tomorrow, or ask your ES.' };
     }
 
@@ -378,8 +390,9 @@ function upload_(body) {
     row[SUB.MINUTES - 1] = minutes_(body.minutes);
     row[SUB.SOURCE - 1] = source;
     row[SUB.PAGE_DATE - 1] = pageDate;
-    const confirmedOff = offDay && !!checkDate_(body.lp, clean_(body.dateCompleted, 20)) ? ', weekend/holiday date confirmed by family' : '';
-    row[SUB.PAGE_CHECK - 1] = cell_(clean_(String(body.pageCheck || '').replace(/, weekend\/holiday date confirmed by family/g, ''), 110) + confirmedOff);
+    const confirmedOff = es ? ', added by ES'
+      : offDay && !!checkDate_(body.lp, clean_(body.dateCompleted, 20)) ? ', weekend/holiday date confirmed by family' : '';
+    row[SUB.PAGE_CHECK - 1] = cell_(clean_(String(body.pageCheck || '').replace(/, (weekend\/holiday date confirmed by family|added by ES)/g, ''), 110) + confirmedOff);
     subs.sheet.appendRow(row);
     if (original) subs.sheet.getRange(original.row, SUB.REPLACED_BY).setValue(uploadId);
     return { ok: true, fileUrl: file.getUrl() };
@@ -428,6 +441,9 @@ function remove_(body) {
     if (!item) return { ok: true }; // already gone
     if (item.approved || item.finalizedAt) {
       return { ok: false, error: 'Your ES already approved this sample, so it can\'t be deleted. Ask your ES if it needs to change.' };
+    }
+    if (/added by ES/.test(String(item.pageCheck || '')) && !byEs_(body)) {
+      return { ok: false, error: 'Your ES added this sample, so only your ES can delete it.' };
     }
     trashItem_(subs, item, 'Student');
     return { ok: true };
@@ -1448,6 +1464,7 @@ function publicItem_(i) {
     score: i.score, minutes: i.minutes, source: i.source, feedback: i.feedback, comments: i.comments, pageCount: i.pageCount, favorite: i.favorite,
     thumb: i.thumb, approved: i.approved, finalized: !!i.finalizedAt, redo: i.redo, reasons: i.reasons, redoNote: i.redoNote,
     resubmitted: !!i.replacedBy, resubmitOf: i.resubmitOf, familyNotes: i.familyNotes || [],
+    byEs: /added by ES/.test(String(i.pageCheck || '')),
   };
 }
 

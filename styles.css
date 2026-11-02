@@ -592,3 +592,10 @@ dialog.viewer { position: relative; }
   background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); }
 .off-check input { width: 20px; height: 20px; flex: none; accent-color: var(--brand); }
 .confirm-box input:disabled + span { opacity: .5; }
+
+/* The ES turning in work for a student (opened from the dashboard) */
+.es-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; padding: 12px 16px; border-radius: 14px;
+  background: var(--brand-soft); color: var(--brand); border: 1.5px solid color-mix(in srgb, var(--brand) 35%, transparent); }
+.es-banner p { margin: 0; flex: 1 1 260px; }
+.es-upload #account, .es-upload #confirm-box, .es-upload #off-check { display: none !important; }
+.badge.by-es { background: var(--brand-soft); color: var(--brand); }

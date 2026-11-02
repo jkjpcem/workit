@@ -107,11 +107,21 @@ const Api = (() => {
     return location.hostname === 'jkjpcem.github.io' ? `${base}?es=${encodeURIComponent(user)}` : base + encodeURIComponent(user);
   }
 
-  return {
+  // The ES turning work in for a student (dashboard > Upload for student): every request goes to
+  // the ES's own copy and carries the ES's sign-in, so the server knows it's the ES.
+  function actAsEs(o) {
+    const inner = api.call;
+    api.call = (action, payload = {}) =>
+      inner(action, { ...payload, byEs: true, adminUser: o.adminUser, adminKey: o.adminKey }, { url: o.url || '' });
+  }
+
+  const api = {
     call,
+    actAsEs,
     ready,
     studentLink,
     configured: () => !!home(),
     esName: () => (es && es.name) || '',
   };
+  return api;
 })();

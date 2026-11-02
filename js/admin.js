@@ -408,14 +408,30 @@
     return all.filter(i => studentLp === 'all' || i.lp === studentLp).sort((a, b) => b.receivedAt - a.receivedAt);
   }
 
+  // Opens the student Turn in steps in a new tab, as this student. The new tab picks up a note
+  // left here (with this ES's sign-in) and deletes it at once; it's ignored after 2 minutes.
+  function uploadFor(s) {
+    try {
+      localStorage.setItem('wish.esUpload', JSON.stringify({
+        studentId: s.id, name: s.name, lp: studentLp !== 'all' ? studentLp : viewLp,
+        adminUser: creds.user, adminKey: creds.key, url: creds.url || '', t: Date.now(),
+      }));
+    } catch (err) {
+      return toast('This browser blocked it. Allow site data for WiSH, then try again.');
+    }
+    window.open(new URL('./#es-upload', location.href).href, '_blank');
+  }
+
   function renderStudent() {
     const s = currentStudent;
-    $('#student-head').innerHTML = `<h1>${esc(s.name)}</h1>
+    $('#student-head').innerHTML = `<div class="head-row"><h1>${esc(s.name)}</h1>
+      <button type="button" class="btn primary" id="upload-for">＋ Upload for ${esc(s.firstName || s.name)}</button></div>
       <div class="meta">Grade ${esc(s.grade)}</div>
       ${[1, 2].map(sem => {
         const list = Classes.forLp(s, sem === 1 ? 'LP1' : 'LP5');
         return `<div class="meta sem-line"><b>Sem ${sem}</b> (LP${sem === 1 ? '1–4' : '5–8'}): ${list.map(c => esc(c.name) + (c.need > 1 ? ' <i>(accelerated, 2 per LP)</i>' : '')).join(', ') || 'No classes set'}${sem === 2 && s.sem2Typed === false && list.length ? ' <i>(from Sem 1)</i>' : ''}</div>`;
       }).join('')}`;
+    $('#upload-for').addEventListener('click', () => uploadFor(s));
     Core.studentPage(s, studentLp);
     $('#student-lps').innerHTML = ['all', ...data.lps].map(lp => `
       <button class="chip ${studentLp === lp ? 'active' : ''}" data-lp="${lp}">${lp === 'all' ? 'All' : lp}${lp === data.currentLp ? ' •' : ''}</button>`).join('');

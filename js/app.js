@@ -9,10 +9,22 @@
   // { student: { id, name, firstName, grade, classes }, currentLp, lps }
 
   const SESSION_KEY = 'workit.session';
-  let session = readJson(SESSION_KEY);
+
+  // The ES turning work in for a student (dashboard > Upload for student): the dashboard leaves a
+  // note for a couple of minutes and opens this tab. Nothing about it is kept on this device.
+  const esUpload = (() => {
+    if (location.hash !== '#es-upload') return null;
+    let o = null;
+    try { o = JSON.parse(localStorage.getItem('wish.esUpload')); localStorage.removeItem('wish.esUpload'); } catch { o = null; }
+    history.replaceState(null, '', location.pathname + location.search);
+    return o && o.studentId && Date.now() - o.t < 120000 ? o : null;
+  })();
+  if (esUpload) Api.actAsEs(esUpload);
+  let session = esUpload ? null : readJson(SESSION_KEY);
 
   function saveSession(s) {
     session = s;
+    if (esUpload) return;
     if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
     else localStorage.removeItem(SESSION_KEY);
   }
@@ -91,7 +103,7 @@
   // New redos show at the top of Turn in ("To do"), so the alert only needs marking as seen.
 
   async function showAlerts(alerts) {
-    if (!alerts || !alerts.length) return;
+    if (esUpload || !alerts || !alerts.length) return; // the student still sees them
     try { await Api.call('ackAlerts', { studentId: session.student.id, ids: alerts.map(a => a.id) }); } catch { /* fine */ }
   }
 
@@ -189,7 +201,7 @@
     if (!session) return;
     renderMeeting();
     // Inactive (set by the ES in the roster): can look, can't turn in.
-    const paused = session.student.active === false;
+    const paused = session.student.active === false && !esUpload;
     $('#paused-note').hidden = !paused;
     $$('#step-pages, #step-review').forEach(el => el.classList.toggle('paused', paused));
     if (current === 'upload') renderWizard();
@@ -277,7 +289,7 @@
 
   // Submit stays off until all three boxes are checked.
   function syncConfirm() {
-    $('#upload-btn').disabled = !$$('#confirm-box input[type=checkbox]').every(c => c.checked);
+    $('#upload-btn').disabled = !esUpload && !$$('#confirm-box input[type=checkbox]').every(c => c.checked);
   }
   $('#confirm-box').addEventListener('change', syncConfirm);
   // The day of the week next to the date, and a warning right away for a weekend or holiday.
@@ -292,7 +304,7 @@
     el.classList.toggle('bad', !!bad);
     el.classList.toggle('warn', !!off);
     el.textContent = bad ? `✗ ${day}. ${bad}`
-      : off ? `⚠ ${day} is ${off}. Look at the date written on your work sample first.`
+      : off ? `⚠ ${day} is ${off}.${esUpload ? '' : ' Look at the date written on your work sample first.'}`
       : `✓ ${day}`;
     // Step 1: they check the date written on the work sample. Step 2: the second box below
     // becomes their confirmation, which the ES sees. Step 2 stays off until step 1 is done.
@@ -690,7 +702,13 @@
     if (res.read && missing.length) {
       lines.push(`<p class="pc-warn">⚠ WiSH couldn’t find ${missing.join(' or ')} at the top of page 1. Add ${missing.length > 1 ? 'them' : 'it'} and retake the picture${stop ? ' too' : ', or submit anyway'}.</p>`);
     }
-    const warnOnly = !stop && res.read && missing.length && !wiz.check.warned;
+    // The ES may turn in a page whose date doesn't match: they're told once, then it goes.
+    if (stop && esUpload) {
+      stop = false;
+      if (!wiz.check.esWarned) { wiz.check.esWarned = true; wiz.check.warned = false; }
+      else wiz.check.warned = true;
+    }
+    const warnOnly = !stop && ((res.read && missing.length) || (esUpload && wiz.check.esWarned)) && !wiz.check.warned;
     box.innerHTML = `<h2>Page check</h2>${lines.join('')}` + (stop || warnOnly ? '<button type="button" class="btn small" id="page-retake">← Change pages</button>' : '');
     box.hidden = false;
     const retake = $('#page-retake');
@@ -701,7 +719,7 @@
       return null;
     }
     const date = res.date || typed;
-    const notes = [res.date ? 'date read' : 'date typed by student'];
+    const notes = [res.date ? 'date read' : `date typed by ${esUpload ? 'ES' : 'student'}`];
     if (res.read && res.name === false) notes.push('name not found');
     if (res.read && res.subject === false) notes.push('subject not found');
     return { pageDate: date, pageCheck: notes.join(', ') };
@@ -729,7 +747,7 @@
     if (!f.dateCompleted.value) { f.dateCompleted.focus(); return toast('Enter the date you completed the assignment.'); }
     const badDate = dateProblem(f.dateCompleted.value, wiz.lp, undefined, true);
     if (badDate) { f.dateCompleted.focus(); return toast(badDate); }
-    if (!$$('#confirm-box input[type=checkbox]').every(c => c.checked)) return toast('Check all three boxes first.');
+    if (!esUpload && !$$('#confirm-box input[type=checkbox]').every(c => c.checked)) return toast('Check all three boxes first.');
     if (!f.score.value.trim()) { f.score.focus(); return toast('Enter your grade or score.'); }
     const page = await checkPage();
     if (!page) return;
@@ -771,6 +789,7 @@
         pageDate: page.pageDate,
         pageCheck: page.pageCheck,
         offDayConfirmed: !!offDayOf(f.dateCompleted.value),
+        byEs: !!esUpload,
       };
       // A copy on the phone is a backup; if the phone won't save it, upload anyway.
       try { await Store.put(item); } catch (err) { console.warn('Not saved on this device', err); }
@@ -1276,7 +1295,7 @@
           <h3>${esc(item.subject)}</h3>
           <div class="meta">${esc(item.lp)} · Completed ${esc(niceDate(item.dateCompleted))} · ${esc(sizeLabel(item))}</div>
           ${item.score ? `<div class="score">Score: <strong>${esc(item.score)}</strong>${item.minutes ? ` · ${esc(item.minutes)} min` : ''}</div>` : ''}
-          <div class="badges">${badge}${review}</div>
+          <div class="badges">${badge}${review}${item.byEs ? '<span class="badge by-es">Added by your ES</span>' : ''}</div>
           ${needsRedo && item.reasons && item.reasons.length ? `<ul class="reasons">${item.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
           ${needsRedo && item.redoNote ? `<div class="notes redo-note-text"><b>From your ES:</b> ${esc(item.redoNote)}</div>` : ''}
           ${item.feedback ? `<div class="notes"><b>Feedback:</b> ${esc(item.feedback)}</div>` : ''}
@@ -1288,7 +1307,7 @@
             ${canAnnotate(item) ? '<button class="btn" data-act="annotate">✏️ Annotate</button>' : ''}
             ${needsRedo ? '<button class="btn primary" data-act="resubmit">Resubmit</button>' : ''}
             ${item.status !== 'sent' ? '<button class="btn primary" data-act="retry">Send now</button><button class="btn" data-act="discard">Delete</button>' : ''}
-            ${item.status === 'sent' && !item.approved && !item.finalized ? '<button class="btn danger" data-act="delete">Delete</button>' : ''}
+            ${item.status === 'sent' && !item.approved && !item.finalized && (!item.byEs || esUpload) ? '<button class="btn danger" data-act="delete">Delete</button>' : ''}
           </div>
         </div>`;
       el.addEventListener('click', (e) => onItem(e, item));
@@ -1570,7 +1589,33 @@
   // ---------- Start ----------
 
   resetWizard();
+  if (location.hash === '#es-upload' || esUpload) document.body.classList.add('es-upload');
+  if (esUpload) {
+    // Opens Turn in as the student, without counting as their sign-in.
+    (async () => {
+      busy(`Opening ${esUpload.name || 'the student'}’s Turn in…`);
+      try {
+        const asked = Date.now();
+        const res = await Api.call('login', { studentId: esUpload.studentId });
+        saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null });
+        if (esUpload.lp && res.lps.includes(esUpload.lp)) wiz.lp = esUpload.lp;
+        $('#es-banner-name').textContent = res.student.name;
+        $('#es-banner').hidden = false;
+        show('upload');
+        if (res.items) applyItems(res.items, asked, res.trash);
+      } catch (err) {
+        show('login');
+        toast(err.message);
+      } finally {
+        busy(false);
+      }
+    })();
+  } else if (document.body.classList.contains('es-upload')) {
+    show('login');
+    toast('That link has run out. Open Upload for student again from the dashboard.');
+  } else {
   show(session ? 'upload' : 'login');
+  }
   if (session) {
     refreshSession(); // also brings in My uploads
     retryPending();
