@@ -62,7 +62,11 @@ const Pdf = (() => {
       ctx.drawImage(canvas, 0, 0, small.width, small.height);
       canvas = small;
     }
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    if (!canvas.width || !canvas.height) throw new Error('A page got lost on this phone. Remove it and add it again.');
+    let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    // iPhones sometimes hand back nothing when memory is tight; the slower way usually still works.
+    if (!blob) blob = await (await fetch(canvas.toDataURL('image/jpeg', quality))).blob();
+    if (!blob || !blob.size) throw new Error('This phone ran out of memory making the file. Close other apps or tabs and try again.');
     return { jpeg: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
   }
 

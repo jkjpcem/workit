@@ -737,7 +737,13 @@
     await tick();
     try {
       const pdfPages = [];
-      if (!wiz.doc) for (const p of wiz.pages) pdfPages.push(await Pdf.canvasToJpeg(p.result, 0.78, 1700));
+      // A phone short on memory gets smaller pages instead of an error.
+      const jpeg = async (c) => {
+        for (const [q, side] of [[0.78, 1700], [0.72, 1200], [0.7, 900]]) {
+          try { return await Pdf.canvasToJpeg(c, q, side); } catch (err) { if (side === 900 || /lost/.test(err.message)) throw err; }
+        }
+      };
+      if (!wiz.doc) for (const p of wiz.pages) pdfPages.push(await jpeg(p.result));
       const now = Date.now();
       const item = {
         id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
@@ -766,13 +772,14 @@
         pageCheck: page.pageCheck,
         offDayConfirmed: !!offDayOf(f.dateCompleted.value),
       };
-      await Store.put(item);
+      // A copy on the phone is a backup; if the phone won't save it, upload anyway.
+      try { await Store.put(item); } catch (err) { console.warn('Not saved on this device', err); }
       busy(`Uploading to ${item.lp}…`);
       const result = await send(item);
       showDone(item, result);
     } catch (err) {
       console.error(err);
-      toast('Something went wrong. Please try again.');
+      toast(`Something went wrong: ${err && err.message ? err.message : err}. Please try again.`);
     } finally {
       busy(false);
     }
@@ -1066,14 +1073,16 @@
         offDayConfirmed: !!item.offDayConfirmed,
         ...(item.source === 'gdoc' ? { link: item.link } : { data: await blobToBase64(item.pdf) }),
       });
-      await Store.update(item.id, { status: 'sent', error: '', sentAt: Date.now() });
-      if (item.resubmitOf) await Store.update(item.resubmitOf, { resubmitted: true });
-      return { ok: true };
     } catch (err) {
       const waiting = err.offline || !Api.configured();
-      await Store.update(item.id, { status: waiting ? 'pending' : 'failed', error: err.message });
+      await Store.update(item.id, { status: waiting ? 'pending' : 'failed', error: err.message }).catch(() => {});
       return { ok: false, error: err.message, offline: waiting };
     }
+    try {
+      await Store.update(item.id, { status: 'sent', error: '', sentAt: Date.now() });
+      if (item.resubmitOf) await Store.update(item.resubmitOf, { resubmitted: true });
+    } catch (err) { console.warn('Sent, but not marked on this device', err); }
+    return { ok: true };
   }
 
   let retrying = false;
