@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 34;
+const WORKIT_VERSION = 35;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -563,7 +563,7 @@ function deleteItem_(sheet, item) {
  */
 function emptyTrashDaily_() {
   const props = PropertiesService.getScriptProperties();
-  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const today = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd');
   if (props.getProperty('TRASH_EMPTIED') === today) return false;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return false;
@@ -1787,7 +1787,7 @@ function checkPage_(body) {
   const lp = LEARNING_PERIODS.indexOf(body.lp) !== -1 ? body.lp : getCurrentLp_();
   if (String(body.image || body.docx || '').length > 4 * 1024 * 1024) return { ok: true, read: false };
   // At most 60 checks per student a day, so nobody can use your Drive as a text reader.
-  const cache = CacheService.getScriptCache(), countKey = 'pagecheck_' + student.id + '_' + ymd_(new Date(), Session.getScriptTimeZone());
+  const cache = CacheService.getScriptCache(), countKey = 'pagecheck_' + student.id + '_' + ymd_(new Date(), tz_());
   const used = Number(cache.get(countKey)) || 0;
   if (used >= 60) return { ok: true, read: false };
   cache.put(countKey, String(used + 1), 6 * 3600);
@@ -2444,7 +2444,7 @@ function turnOnEmails() {
 // ----- Days -----
 
 function ymd_(d, tz) {
-  return Utilities.formatDate(d, tz || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return Utilities.formatDate(d, tz || tz_(), 'yyyy-MM-dd');
 }
 
 function addDays_(ymd, n) {
@@ -2550,7 +2550,7 @@ function emailState_() {
   FRESH_ = true;
   const lp = getCurrentLp_();
   const range = getLpDates_()[lp] || null;
-  const tz = Session.getScriptTimeZone();
+  const tz = tz_();
   const today = ymd_(new Date(), tz);
   const daysLeft = range ? daysBetween_(today, range.end) : null;
   const students = getStudents_().filter(x => x.active !== false);  // inactive students get no reminders
@@ -2717,6 +2717,24 @@ function meetingVars_(b, days, tz, link) {
     'meet link': b.meet || '(the Google Meet link is in your calendar invitation)',
     'booking link': link,
   };
+}
+
+/**
+ * The ES's own time zone, for every date and time WiSH writes (meeting times in emails, "today",
+ * the reminder send hour). It's the Google Calendar's zone, so a meeting at 10:00 AM on the
+ * calendar reads 10:00 AM in the email even if the script project itself is set to another zone.
+ */
+let tzMemo_ = '';
+function tz_() {
+  if (tzMemo_) return tzMemo_;
+  const cache = CacheService.getScriptCache();
+  let tz = cache.get('wish_tz');
+  if (!tz) {
+    try { tz = CalendarApp.getDefaultCalendar().getTimeZone(); } catch (e) { tz = ''; }
+    if (!tz) tz = Session.getScriptTimeZone();
+    cache.put('wish_tz', tz, 21600);
+  }
+  return (tzMemo_ = tz);
 }
 
 /** The last day each student got a missing-sample reminder this LP. */
@@ -3213,7 +3231,7 @@ function readBookings_(fresh) {
   const cal = CalendarApp.getDefaultCalendar();
   const range = meetingRange_();
   const me = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
-  const tz = Session.getScriptTimeZone();
+  const tz = tz_();
   const dates = getLpDates_();
   const words = String(s.words || '').split(',').map(w => w.trim()).filter(Boolean);
   const seen = {};
