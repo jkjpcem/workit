@@ -1982,19 +1982,11 @@
   }
 
   // ----- Classes: one tag per class, Sem 1 and Sem 2 side by side -----
-  let classSem = 'classes'; // the Sem 1 or Sem 2 tab
-  $$('.sem-tabs [data-sem]').forEach(b => b.addEventListener('click', () => {
-    classSem = b.dataset.sem;
-    $$('.sem-tabs [data-sem]').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-    $('#classes-th').className = classSem === 'classes' ? 'sem1' : 'sem2';
-    $('#classes-th').innerHTML = classSem === 'classes' ? 'Sem 1 classes <span>LP1–4</span>' : 'Sem 2 classes <span>LP5–8</span>';
-    renderClasses();
-  }));
   function renderClasses() {
     const rows = roster.map((r, i) => ({ r, i })).filter(x => !isEmpty(x.r));
     $('#classes-body').innerHTML = rows.length ? rows.map(({ r, i }) => `<tr data-r="${i}">
         <td class="cls-who">${esc(`${r.first} ${r.last}`.trim() || '(no name)')}</td>
-        ${[classSem].map(k => {
+        ${['classes', 'classes2'].map(k => {
           const derived = k === 'classes2' && !String(r.classes2 || '').trim();
           const list = classList(r, k);
           return `<td class="cls-cell${derived ? ' derived' : ''}" data-k="${k}">
@@ -2003,7 +1995,7 @@
 <input class="cls-add" placeholder="＋ Add a class" aria-label="Add a ${k === 'classes' ? 'Sem 1' : 'Sem 2'} class for ${esc(r.first)}"></div>
           </td>`;
         }).join('')}
-      </tr>`).join('') : '<tr><td colspan="2" class="cls-empty">Add students above, then their classes show here.</td></tr>';
+      </tr>`).join('') : '<tr><td colspan="3" class="cls-empty">Add students above, then their classes show here.</td></tr>';
   }
   function setClasses(i, k, list) {
     roster[i][k] = classText(list);
@@ -2025,7 +2017,18 @@
     if (!text) return;
     const i = Number(inp.closest('tr').dataset.r), k = inp.closest('td').dataset.k;
     const list = classList(roster[i], k);
-    Classes.parse(text).forEach(c => { if (!list.some(x => x.name.toLowerCase() === c.name.toLowerCase())) list.push(c); });
+    const added = Classes.parse(text).filter(c => !list.some(x => x.name.toLowerCase() === c.name.toLowerCase()));
+    list.push(...added);
+    // A Sem 1 class goes into Sem 2 too, with A changed to B ("English 10A" -> "English 10B").
+    // A class without an A at the end (one semester, like Econ) stays in Sem 1 only. Sem 2 can be edited after.
+    if (k === 'classes') {
+      const sem2 = classList(roster[i], 'classes2');
+      added.forEach(c => {
+        const b = Classes.toB(c.name);
+        if (b !== c.name && !sem2.some(x => x.name.toLowerCase() === b.toLowerCase())) sem2.push({ name: b, need: c.need });
+      });
+      roster[i].classes2 = classText(sem2);
+    }
     setClasses(i, k, list);
     const again = $(`#classes-body tr[data-r="${i}"] td[data-k="${k}"] .cls-add`);
     if (again) again.focus();
