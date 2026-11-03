@@ -274,6 +274,9 @@
       grid.innerHTML = `<div class="empty">${data.students.length ? 'No student matches that.' : 'No students yet. Add them in the Students tab of the WiSH Admin sheet.'}</div>`;
       return;
     }
+    // Three groups, each under a line: still turning in (no name), "Turned in" (every class has
+    // its samples), and "Reviewed and Exported" (every class has its samples and all are exported).
+    const groups = [[], [], []];
     for (const s of students) {
       const mine = items.filter(i => i.studentId === s.id).sort((a, b) => b.receivedAt - a.receivedAt);
       const by = { new: 0, approved: 0, finalized: 0, redo: 0, resubmitted: 0 };
@@ -318,8 +321,21 @@
           openStudent(s.id, viewLp).catch(err => toast(err.message));
         }
       });
-      grid.appendChild(card);
+      const turnedIn = classes.length > 0 && classes.every(c => mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length >= c.need);
+      groups[allFiled ? 2 : turnedIn ? 1 : 0].push(card);
     }
+    grid.classList.add('grouped');
+    ['', 'Turned in', 'Reviewed and Exported'].forEach((name, g) => {
+      if (!groups[g].length) return;
+      const sec = document.createElement('section');
+      sec.className = 'grp';
+      if (g) sec.innerHTML = `<h2 class="grp-line"><span>${esc(name)}</span><b>${groups[g].length}</b></h2>`;
+      const inner = document.createElement('div');
+      inner.className = 'grp-cards';
+      groups[g].forEach(c => inner.appendChild(c));
+      sec.appendChild(inner);
+      grid.appendChild(sec);
+    });
     fitClasses();
     evenUploads();
   }
