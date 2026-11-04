@@ -287,7 +287,7 @@
     const items = data.items;
     const count = (st) => items.filter(i => status(i) === st).length;
     // Out of the students who owe samples this LP: active, with classes this LP.
-    const owing = data.students.filter(s => s.active !== false && Classes.forLp(s, viewLp).length);
+    const owing = data.students.filter(s => owes(s, viewLp) && Classes.forLp(s, viewLp).length);
     const submitted = owing.filter(s => items.some(i => i.studentId === s.id)).length;
     // Every student needs exactly 2 annotated samples per LP: no fewer, and no more.
     const annotated = owing.map(s => ({ s, n: annotatedCount(s.id, viewLp) }));
@@ -332,7 +332,7 @@
       const needed = classes.reduce((n, c) => n + c.need, 0);
       const allFiled = active.length > 0 && by.finalized === active.length &&
         classes.every(c => mine.filter(i => i.subject === c.name).length >= c.need);
-      card.className = `scard ${owed ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${s.active === false ? 'inactive' : ''}`;
+      card.className = `scard ${owed ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${owes(s, viewLp) ? '' : 'inactive'}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter') card.click(); });
@@ -348,7 +348,7 @@
         ? `<span class="pair">${thumb(g[1], 'behind')}${thumb(g[0])}</span>` : thumb(g[0])).join('') +
         (groupsOf.length > 6 ? moreTile(groupsOf.slice(5).flat()) : '');
       card.innerHTML = `
-        <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
+        <div class="top"><h3>${esc(s.name)}</h3>${inactiveTag(s)}<span class="sid">Grade ${esc(s.grade)}</span></div>
         <div class="bar" aria-hidden="true">${['finalized', 'approved', 'redo', 'new'].map(k =>
           by[k] ? `<i class="${k}" style="width:${(by[k] / Math.max(active.length, needed)) * 100}%"></i>` : '').join('')}</div>
         <div class="card-uploads">${mine.length ? `
@@ -384,6 +384,19 @@
     });
     fitClasses();
     evenUploads();
+  }
+
+  // Active students owe samples every LP. A student who withdrew still owes them for every LP
+  // that started on or before the withdraw date. Inactive with no date: owes nothing.
+  function owes(s, lp) {
+    if (s.active !== false) return true;
+    const range = (data.lpDates || {})[lp];
+    return !!s.withdrew && (!range || range.start <= s.withdrew);
+  }
+  function inactiveTag(s) {
+    if (s.active !== false) return '';
+    if (s.withdrew) return `<span class="sid off" title="${owes(s, viewLp) ? `Still owes ${esc(viewLp)} samples` : `Doesn’t owe ${esc(viewLp)} samples`}">Withdrew ${esc(niceDate(s.withdrew))}</span>`;
+    return '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders. Add a withdraw date in the Student Roster if they withdrew.">Inactive</span>';
   }
 
   // "1 of 2 annotated"; more than 2 is flagged, since each student needs exactly 2 per LP.
@@ -2081,6 +2094,13 @@
     $('#roster-state').textContent = on ? 'Unsaved changes' : '';
   }
 
+  // Inactive students get a Withdrew date: they still owe samples for every LP that started by then.
+  function withdrewBox(r, i) {
+    if (r.status !== 'Inactive') return '';
+    return `<label class="withdrew ${r.withdrew ? '' : 'nudge'}" title="They still owe samples for every LP that started on or before this date">
+      <span>${r.withdrew ? 'Withdrew' : 'Add withdraw date'}</span><input type="date" data-k="withdrew" value="${esc(r.withdrew || '')}" aria-label="Withdraw date row ${i + 1}"></label>`;
+  }
+
   function renderRoster() {
     const counts = {};
     roster.forEach(r => { const id = rosterId(r); if (id) counts[id] = (counts[id] || 0) + 1; });
@@ -2094,7 +2114,7 @@
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
-          <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
+          <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>${withdrewBox(r, i)}`}</td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
@@ -2244,7 +2264,11 @@
     const sel = e.target.closest('select[data-k="status"]');
     if (!sel) return;
     const tr = sel.closest('tr');
-    roster[Number(tr.dataset.r)].status = sel.value;
+    const r = roster[Number(tr.dataset.r)];
+    r.status = sel.value;
+    if (sel.value !== 'Inactive') r.withdrew = '';
+    $('.withdrew', tr)?.remove();
+    sel.insertAdjacentHTML('afterend', withdrewBox(r, Number(tr.dataset.r)));
     sel.className = sel.value === 'Inactive' ? 'off' : 'on';
     tr.classList.toggle('inactive', sel.value === 'Inactive');
     setDirty(true);

@@ -201,7 +201,8 @@
     if (!session) return;
     renderMeeting();
     // Inactive (set by the ES in the roster): can look, can't turn in.
-    const paused = session.student.active === false && !esUpload;
+    // A student who withdrew can still turn in samples for the LPs they owe (the server checks which).
+    const paused = session.student.active === false && !session.student.withdrew && !esUpload;
     $('#paused-note').hidden = !paused;
     $$('#step-pages, #step-review').forEach(el => el.classList.toggle('paused', paused));
     if (current === 'upload') renderWizard();
