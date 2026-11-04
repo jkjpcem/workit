@@ -286,13 +286,22 @@
     $('#dash-title').textContent = [range ? `${niceDate(range.start)} – ${niceDate(range.end)}` : '', viewLp === data.currentLp ? 'current LP' : ''].filter(Boolean).join(' · ');
     const items = data.items;
     const count = (st) => items.filter(i => status(i) === st).length;
-    const submitted = new Set(items.map(i => i.studentId));
+    // Out of the students who owe samples this LP: active, with classes this LP.
+    const owing = data.students.filter(s => s.active !== false && Classes.forLp(s, viewLp).length);
+    const submitted = owing.filter(s => items.some(i => i.studentId === s.id)).length;
+    // Every student needs exactly 2 annotated samples per LP: no fewer, and no more.
+    const annotated = owing.map(s => ({ s, n: annotatedCount(s.id, viewLp) }));
+    const done = annotated.filter(a => a.n === ANNOTATED_NEEDED).length;
+    const over = annotated.filter(a => a.n > ANNOTATED_NEEDED);
+    const samples = annotated.reduce((t, a) => t + Math.min(a.n, ANNOTATED_NEEDED), 0);
+    const extra = items.filter(i => status(i) === 'finalized' && i.filedAs === 'Extra').length;
     $('#tiles').innerHTML = [
-      ['', data.students.length, 'Students'],
-      ['', `${submitted.size}`, `Have uploaded to ${viewLp}`],
+      ['', `${submitted} <small>of ${owing.length}</small>`, `Have uploaded to ${viewLp}`],
       ['', count('new'), 'To review'],
       ['approved', count('approved'), 'Approved, not filed yet'],
-      ['finalized', count('finalized'), 'Filed (Annotated or Extra)'],
+      ['finalized', `${done} <small>of ${owing.length}</small>`, `Filed (Annotated): students with ${ANNOTATED_NEEDED} · ${samples} of ${owing.length * ANNOTATED_NEEDED} samples`],
+      ['', extra, 'Filed as Extra'],
+      over.length ? ['redo over', `⚠ ${over.length}`, `More than ${ANNOTATED_NEEDED} annotated: ${over.map(a => `${a.s.name} (${a.n})`).join(', ')}`] : null,
       ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
       Meetings.tile(viewLp, data.students),
     ].filter(Boolean).map(([cls, n, label]) => `<div class="tile ${cls}"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
@@ -345,7 +354,7 @@
           by[k] ? `<i class="${k}" style="width:${(by[k] / Math.max(active.length, needed)) * 100}%"></i>` : '').join('')}</div>
         <div class="card-uploads">${mine.length ? `
           <div class="counts"><b>${active.length}</b> upload${active.length !== 1 ? 's' : ''} ·
-            ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${owed ? ` · <b style="color:var(--st-redo)">${owed} redo</b>` : ''}</div>
+            ${by.new} to review · ${annoLine(annotatedCount(s.id, viewLp))}${owed ? ` · <b style="color:var(--st-redo)">${owed} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`}</div>
         ${subjects ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
@@ -376,6 +385,12 @@
     });
     fitClasses();
     evenUploads();
+  }
+
+  // "1 of 2 annotated"; more than 2 is flagged, since each student needs exactly 2 per LP.
+  function annoLine(n) {
+    if (n > ANNOTATED_NEEDED) return `<b class="anno-over" title="Each student needs exactly ${ANNOTATED_NEEDED} annotated samples per LP">⚠ ${n} annotated (only ${ANNOTATED_NEEDED})</b>`;
+    return `<span class="${n === ANNOTATED_NEEDED ? 'met' : ''}">${n} of ${ANNOTATED_NEEDED} annotated</span>`;
   }
 
   // The "+3" tile: yellow when one of the samples it hides still needs review, green when they've all been reviewed.
@@ -792,7 +807,7 @@
         : !it.approved ? 'You can annotate now. Click ✓ Approve when it’s ready, then Export as Annotated or Export as Extra.'
         : (noHeader && !asExtra ? `<span class="need-header">This sample has no header box, so it can’t be exported as Annotated yet.
             <button type="button" class="btn small" data-addheader>＋ Add the header</button></span>` : '') +
-          `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n >= ANNOTATED_NEEDED ? ' ✓' : ''}</span>` +
+          `<span class="anno-count ${n >= ANNOTATED_NEEDED ? 'met' : ''}">${esc(it.lp)} annotated samples: ${n} of ${ANNOTATED_NEEDED}${n === ANNOTATED_NEEDED ? ' ✓' : n > ANNOTATED_NEEDED ? ` ⚠ That’s more than ${ANNOTATED_NEEDED}. Each student needs exactly ${ANNOTATED_NEEDED} per LP.` : ''}</span>` +
           (!finalized ? `Annotate and Export as Annotated to save it to Approved › ${esc(it.lp)} Annotated, or Export as Extra to save it as is to ${esc(it.lp)} Extra.`
           : `${it.finalStale ? 'You changed the annotations after exporting. Click Update annotated copy to save them.' : ''}
            <button type="button" class="btn small undo-export" data-unfile>↶ Undo export</button>`) +

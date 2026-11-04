@@ -57,6 +57,9 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .tile span { font-size: 13px; color: var(--muted); font-weight: 600; }
 .tile.redo::before { background: var(--st-redo); }
 .tile.redo b { color: var(--st-redo); }
+.tile b small { font-size: 16px; font-weight: 700; color: var(--muted); letter-spacing: 0; }
+.tile.over { background: color-mix(in srgb, var(--st-redo) 10%, var(--card)); }
+.anno-over { color: var(--st-redo); }
 .tile.finalized::before { background: var(--st-finalized); }
 .tile.finalized b { color: var(--st-finalized-text); }
 .tile.approved::before { background: var(--st-approved); }
