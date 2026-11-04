@@ -696,9 +696,13 @@
     } else if (pageBad) {
       stop = true;
       lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(pageBad)} Fix the date at the top of page 1, then take the picture again.</p>`);
+    } else if (res.date && res.date !== typed && wiz.check.override === typed) {
+      // WiSH can misread handwriting: the student said the page really says the date they entered.
+      lines.push(`<p class="pc-warn">⚠ You said the date on your page is <b>${esc(niceDate(typed))}</b>. WiSH read <b>${esc(niceDate(res.date))}</b>, so your ES will double-check it.</p>`);
     } else if (res.date && res.date !== typed) {
       stop = true;
-      lines.push(`<p class="pc-bad">✗ The date on your assignment is <b>${esc(niceDate(res.date))}</b>, but you entered <b>${esc(niceDate(typed))}</b>. Fix the date above, or retake the picture.</p>`);
+      lines.push(`<p class="pc-bad">✗ WiSH read the date on your assignment as <b>${esc(niceDate(res.date))}</b>, but you entered <b>${esc(niceDate(typed))}</b>. Fix the date above, or retake the picture.</p>
+        <p class="pc-override">If your page really says <b>${esc(niceDate(typed))}</b> and WiSH misread it: <button type="button" class="btn small" id="page-override">It matches. Upload anyway</button></p>`);
     } else if (res.date) {
       lines.push(`<p class="pc-ok">✓ Date on your page matches: ${esc(niceDate(res.date))}</p>`);
     } else {
@@ -719,13 +723,16 @@
     box.hidden = false;
     const retake = $('#page-retake');
     if (retake) retake.addEventListener('click', () => go('pages'));
+    const override = $('#page-override');
+    if (override) override.addEventListener('click', () => { wiz.check.override = typed; $('#step-review').requestSubmit(); });
     if (stop || warnOnly) {
       if (warnOnly) { wiz.check.warned = true; $('#upload-btn').textContent = 'Submit anyway'; }
       box.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return null;
     }
-    const date = res.date || typed;
-    const notes = [res.date ? 'date read' : `date typed by ${esUpload ? 'ES' : 'student'}`];
+    const overridden = res.date && res.date !== typed && wiz.check.override === typed;
+    const date = overridden ? '' : res.date || typed;
+    const notes = [overridden ? `student says the date matches (WiSH read ${res.date})` : res.date ? 'date read' : `date typed by ${esUpload ? 'ES' : 'student'}`];
     if (res.read && res.name === false) notes.push('name not found');
     if (res.read && res.subject === false) notes.push('subject not found');
     return { pageDate: date, pageCheck: notes.join(', ') };

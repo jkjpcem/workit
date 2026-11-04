@@ -651,7 +651,7 @@
           <div><span>Minutes spent</span>${esc(it.minutes || '—')}</div>
           <div><span>Pages</span>${it.pageCount}</div>
           <div><span>Uploaded</span>${esc(new Date(it.receivedAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</div>
-          ${it.pageDate || it.pageCheck ? `<div class="${/typed|not found|not checked|confirmed/.test(it.pageCheck || '') ? 'page-flag' : ''}"><span>Date on page</span>${it.pageDate ? esc(niceDate(it.pageDate)) : '—'}${it.pageCheck && it.pageCheck !== 'date read' ? ` <small>(${esc(it.pageCheck)})</small>` : ''}</div>` : ''}
+          ${it.pageDate || it.pageCheck ? `<div class="${/typed|not found|not checked|confirmed|says/.test(it.pageCheck || '') ? 'page-flag' : ''}"><span>Date on page</span>${it.pageDate ? esc(niceDate(it.pageDate)) : '—'}${it.pageCheck && it.pageCheck !== 'date read' ? ` <small>(${esc(it.pageCheck)})</small>` : ''}</div>` : ''}
         </div>
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
         <div class="info-text"><span>Comments</span>${esc(it.comments || '—')}</div>
