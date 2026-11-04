@@ -298,7 +298,7 @@
       ['', `${submitted} <small>of ${owing.length}</small>`, `Have uploaded to ${viewLp}`],
       ['', count('new'), 'To review'],
       ['approved', count('approved'), 'Approved, not filed yet'],
-      ['finalized', `${samples}<small>/${owing.length * ANNOTATED_NEEDED}</small>`, 'Annotated'],
+      ['finalized', `${samples} <small>out of ${owing.length * ANNOTATED_NEEDED}</small>`, 'Annotated'],
       ['', extra, 'Filed as Extra'],
       over.length ? ['redo over', `⚠ ${over.length}`, `More than ${ANNOTATED_NEEDED} annotated: ${over.map(a => `${a.s.name} (${a.n})`).join(', ')}`] : null,
       ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
@@ -2066,7 +2066,7 @@
     busy('Loading students…');
     try {
       const res = await call('adminRoster');
-      roster = res.rows.map(r => ({ ...blankRow(), ...r }));
+      roster = activeFirst(res.rows.map(r => ({ ...blankRow(), ...r })));
       for (let i = 0; i < 5; i++) roster.push(blankRow());
       setDirty(false);
       currentStudent = null;
@@ -2094,11 +2094,14 @@
     $('#roster-state').textContent = on ? 'Unsaved changes' : '';
   }
 
+  // Inactive students go to the bottom; each group keeps its order.
+  const activeFirst = (rows) => rows.filter(r => r.status !== 'Inactive').concat(rows.filter(r => r.status === 'Inactive'));
+
   // Inactive students get a Withdrew date: they still owe samples for every LP that started by then.
   function withdrewBox(r, i) {
     if (r.status !== 'Inactive') return '';
-    return `<label class="withdrew ${r.withdrew ? '' : 'nudge'}" title="They still owe samples for every LP that started on or before this date">
-      <span>${r.withdrew ? 'Withdrew' : 'Add withdraw date'}</span><input type="date" data-k="withdrew" value="${esc(r.withdrew || '')}" aria-label="Withdraw date row ${i + 1}"></label>`;
+    return `<input type="date" data-k="withdrew" class="${r.withdrew ? '' : 'nudge'}" value="${esc(r.withdrew || '')}" aria-label="Withdraw date row ${i + 1}"
+      title="${r.withdrew ? 'They still owe samples for every LP that started on or before this date' : 'Add the date they withdrew'}">`;
   }
 
   function renderRoster() {
@@ -2114,7 +2117,8 @@
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
-          <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>${withdrewBox(r, i)}`}</td>
+          <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
+        <td class="withdrew-cell">${withdrewBox(r, i)}</td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
@@ -2201,6 +2205,7 @@
     const i = Number(inp.closest('tr').dataset.r);
     const wasEmpty = isEmpty(roster[i]);
     roster[i][inp.dataset.k] = inp.value;
+    if (inp.dataset.k === 'withdrew') inp.classList.toggle('nudge', !inp.value);
     setDirty(true);
     if (wasEmpty !== isEmpty(roster[i])) {  // the Status box appears or goes with the row's content
       $('.status-cell', inp.closest('tr')).innerHTML = isEmpty(roster[i]) ? ''
@@ -2267,8 +2272,7 @@
     const r = roster[Number(tr.dataset.r)];
     r.status = sel.value;
     if (sel.value !== 'Inactive') r.withdrew = '';
-    $('.withdrew', tr)?.remove();
-    sel.insertAdjacentHTML('afterend', withdrewBox(r, Number(tr.dataset.r)));
+    $('.withdrew-cell', tr).innerHTML = withdrewBox(r, Number(tr.dataset.r));
     sel.className = sel.value === 'Inactive' ? 'off' : 'on';
     tr.classList.toggle('inactive', sel.value === 'Inactive');
     setDirty(true);
@@ -2276,7 +2280,7 @@
   });
 
   $('#roster-save').addEventListener('click', async () => {
-    const rows = roster.filter(r => !isEmpty(r));
+    const rows = activeFirst(roster.filter(r => !isEmpty(r)));
     if ($('#roster-body tr.bad')) return toast('Fix the rows marked in red first.');
     busy('Saving students…');
     try {
