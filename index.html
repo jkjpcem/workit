@@ -122,7 +122,7 @@
             <input name="dateCompleted" type="date" required aria-describedby="date-day date-note date-hint">
             <span class="date-day" id="date-day" aria-live="polite" hidden></span>
             <span class="check off-check" id="off-check" hidden><input type="checkbox" id="off-seen"> <span id="off-seen-text"></span></span>
-            <span class="field-hint date-note" id="date-note">Use the date written at the top of your assignment. It has to match.</span>
+            <span class="field-hint date-note" id="date-note">Your assignment doesn’t need a date written on it. If it has one, it must be this same date, and only one date (no date ranges).</span>
             <span class="field-hint" id="date-hint"></span>
           </label>
           <label><span>Grade / Score <span class="req" aria-hidden="true">*</span></span>
@@ -137,7 +137,7 @@
         <fieldset class="card stack confirm-box" id="confirm-box">
           <legend>Before you submit, check each box</legend>
           <label class="check"><input type="checkbox" name="ok1" required> Assignment has my full name</label>
-          <label class="check"><input type="checkbox" name="ok2" required> <span id="ok2-text">Date of assignment is not on a weekend or holiday</span></label>
+          <label class="check"><input type="checkbox" name="ok2" required> <span id="ok2-text">If I wrote a date on my work, it matches the date above and isn’t a weekend or holiday</span></label>
           <label class="check"><input type="checkbox" name="ok3" required> Assignment has a score, grade or feedback</label>
         </fieldset>
         <p class="summary-line" id="summary-line"></p>

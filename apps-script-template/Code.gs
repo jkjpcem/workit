@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 36;
+const WORKIT_VERSION = 37;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -299,8 +299,9 @@ function upload_(body) {
   const source = SOURCES.indexOf(body.source) !== -1 ? body.source : 'scan';
   if (source === 'gdoc' ? !body.link : !body.data) return { ok: false, error: 'No file was attached.' };
   // A weekend or holiday date goes through only when the family confirmed it (saved in Page check).
-  // The ES can turn in work dated on a weekend or holiday, or that doesn't match the page.
-  const offDay = body.offDayConfirmed === true || es;
+  // Weekends and holidays aren't allowed (2026-11-04); only the ES can turn in work dated on one,
+  // or work whose page date doesn't match.
+  const offDay = es;
   const dateProblem = checkDate_(body.lp, clean_(body.dateCompleted, 20), '', offDay);
   if (dateProblem) return { ok: false, error: dateProblem };
   // The date written on page 1, read by the page check or typed by the student (see checkPage_).
@@ -1692,13 +1693,13 @@ function checkDate_(lp, ymd, what, allowOff) {
   what = what || 'The date completed';
   if (!isYmd_(ymd)) return 'Enter the date you completed it.';
   const day = new Date(ymd + 'T12:00:00Z').getUTCDay();
-  if (!allowOff && (day === 0 || day === 6)) return what + ' must be a weekday (Monday to Friday).';
+  if (!allowOff && (day === 0 || day === 6)) return 'That date is not allowed: ' + niceDay_(ymd) + ' is a weekend. ' + what + ' must be a school day (Monday to Friday).';
   const range = getLpDates_()[lp];
   if (range && (ymd < range.start || ymd > range.end)) {
     return what + ' must be during ' + lp + ' (' + niceDay_(range.start) + ' to ' + niceDay_(range.end) + ').';
   }
   const holiday = !allowOff && schoolHoliday_(ymd);
-  if (holiday) return what + ' can’t be ' + niceDay_(ymd) + ', a school holiday (' + holiday + ').';
+  if (holiday) return 'That date is not allowed: ' + niceDay_(ymd) + ' is a school holiday (' + holiday + '). ' + what + ' must be a school day.';
   return '';
 }
 
@@ -1822,8 +1823,10 @@ function checkPage_(body) {
 function pageCheck_(text, student, subject, lp) {
   const dates = findDates_(text, getLpDates_()[lp]);
   const date = dates.filter(d => !checkDate_(lp, d))[0] || dates[0] || '';
+  // A page may have only one date. Only dates inside the LP count, so a score like 9/10 isn't taken for one.
+  const inLp = dates.filter(d => !checkDate_(lp, d, '', true));
   return {
-    read: /[a-z0-9]/i.test(text), date: date,
+    read: /[a-z0-9]/i.test(text), date: date, dates: inLp,
     dateProblem: date ? checkDate_(lp, date, 'The date on your page') : '',
     name: wordsOnPage_(text, [student.firstName, student.lastName].join(' ').split(/[\s-]+/)),
     subject: wordsOnPage_(text, subjectWords_(subject)),

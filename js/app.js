@@ -263,11 +263,13 @@
   // School holidays come from the ES's LP dates page (Code.gs getHolidays_).
   const holidayOn = (ymd) => ((session && session.holidays) || []).find(h => ymd >= h.from && ymd <= h.to);
   // allowOff: a weekend or holiday is only a warning (the family can confirm it; the ES sees a flag).
+  // Weekends and holidays aren't allowed (Joon, 2026-11-04); only the ES turning work in for a student may use one.
   function dateProblem(ymd, lp, what = 'The date completed', allowOff = false) {
     if (!ymd) return 'Enter the date you completed it.';
-    if (!allowOff && isWeekend(ymd)) return `That’s a weekend. ${what} must be a school day (Monday to Friday).`;
+    allowOff = allowOff && !!esUpload;
+    if (!allowOff && isWeekend(ymd)) return `That date is not allowed: it’s a weekend. ${what} must be a school day (Monday to Friday).`;
     const h = !allowOff && holidayOn(ymd);
-    if (h) return `That’s a school holiday (${h.name || 'no school'}). ${what} must be a school day.`;
+    if (h) return `That date is not allowed: it’s a school holiday (${h.name || 'no school'}). ${what} must be a school day.`;
     if (ymd > today()) return `${what} can’t be in the future.`;
     const r = lpRange(lp);
     if (r && (ymd < r.start || ymd > r.end)) return `${what} must be during ${lp} (${niceDate(r.start)} to ${niceDate(r.end)}).`;
@@ -280,8 +282,8 @@
     inp.max = max;
     inp.min = r ? r.start : '';
     $('#date-hint').textContent = r
-      ? `A school day from ${niceDate(r.start)} to ${niceDate(r.end)} (no weekends or holidays).`
-      : 'A school day (no weekends or holidays).';
+      ? `${wiz.lp} is ${niceDate(r.start)} to ${niceDate(r.end)}. Pick a school day in ${wiz.lp} (no weekends or holidays).`
+      : 'Pick a school day (no weekends or holidays).';
     // Left blank on purpose so the student types the date from the assignment.
     if (inp.value && dateProblem(inp.value, wiz.lp, undefined, true)) inp.value = '';
     showDay();
@@ -319,7 +321,7 @@
     syncConfirm();
     $('#ok2-text').textContent = off
       ? `Yes, this work was done on ${short} even though it’s ${off}`
-      : 'Date of assignment is not on a weekend or holiday';
+      : 'If I wrote a date on my work, it matches the date above and isn’t a weekend or holiday';
   }
   // 'a weekend', 'a school holiday (Veterans Day)', or '' for a school day.
   function offDayOf(ymd) {
@@ -685,9 +687,13 @@
     const typed = $('#step-review').dateCompleted.value;
     const lines = [];
     let stop = false;
-    // A weekend or holiday on the page is fine once they confirmed that date above.
+    // A date on the page isn't required, but if there is one it must be one school day that matches.
     const pageBad = res.date && dateProblem(res.date, wiz.lp, 'The date on your page', true);
-    if (pageBad) {
+    const several = (res.dates || []).length > 1;
+    if (several && !esUpload) {
+      stop = true;
+      lines.push(`<p class="pc-bad">✗ Your page has more than one date (${res.dates.map(d => `<b>${esc(niceDate(d))}</b>`).join(', ')}). A work sample can have only one date, the day you did it, and no date ranges. Fix the top of page 1, then take the picture again.</p>`);
+    } else if (pageBad) {
       stop = true;
       lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(pageBad)} Fix the date at the top of page 1, then take the picture again.</p>`);
     } else if (res.date && res.date !== typed) {
