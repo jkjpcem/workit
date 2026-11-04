@@ -291,7 +291,6 @@
     const submitted = owing.filter(s => items.some(i => i.studentId === s.id)).length;
     // Every student needs exactly 2 annotated samples per LP: no fewer, and no more.
     const annotated = owing.map(s => ({ s, n: annotatedCount(s.id, viewLp) }));
-    const done = annotated.filter(a => a.n === ANNOTATED_NEEDED).length;
     const over = annotated.filter(a => a.n > ANNOTATED_NEEDED);
     const samples = annotated.reduce((t, a) => t + Math.min(a.n, ANNOTATED_NEEDED), 0);
     const extra = items.filter(i => status(i) === 'finalized' && i.filedAs === 'Extra').length;
@@ -299,7 +298,7 @@
       ['', `${submitted} <small>of ${owing.length}</small>`, `Have uploaded to ${viewLp}`],
       ['', count('new'), 'To review'],
       ['approved', count('approved'), 'Approved, not filed yet'],
-      ['finalized', `${done} <small>of ${owing.length}</small>`, `Filed (Annotated): students with ${ANNOTATED_NEEDED} · ${samples} of ${owing.length * ANNOTATED_NEEDED} samples`],
+      ['finalized', `${samples}<small>/${owing.length * ANNOTATED_NEEDED}</small>`, 'Annotated'],
       ['', extra, 'Filed as Extra'],
       over.length ? ['redo over', `⚠ ${over.length}`, `More than ${ANNOTATED_NEEDED} annotated: ${over.map(a => `${a.s.name} (${a.n})`).join(', ')}`] : null,
       ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
