@@ -60,6 +60,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .tile b small { font-size: 16px; font-weight: 700; color: var(--muted); letter-spacing: 0; }
 .tile.over { background: color-mix(in srgb, var(--st-redo) 10%, var(--card)); }
 .anno-over { color: var(--st-redo); }
+.scard .no-need { font-size: 13px; font-weight: 650; color: var(--muted); background: var(--field); border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px 12px; }
 .tile.finalized::before { background: var(--st-finalized); }
 .tile.finalized b { color: var(--st-finalized-text); }
 .tile.approved::before { background: var(--st-approved); }
@@ -844,3 +845,5 @@ a.brand:hover { opacity: .9; }
   background: var(--brand-soft); color: var(--brand); border: 1.5px solid color-mix(in srgb, var(--brand) 25%, transparent);
 }
 .grp-line b { font-size: 13px; font-weight: 800; letter-spacing: 0; background: var(--card, #fff); color: inherit; border-radius: 99px; padding: 2px 10px; }
+.grp-4 .grp-line { background: var(--field); color: var(--muted); }
+.grp-4 .scard { opacity: .7; }

@@ -317,7 +317,7 @@
     }
     // Four groups, each under a colored bar: no uploads yet this LP, some uploads, "Turned in"
     // (every class has its samples), and "Reviewed and Exported" (all of them exported too).
-    const groups = [[], [], [], []];
+    const groups = [[], [], [], [], []];
     for (const s of students) {
       const groupsOf = pairUp(items.filter(i => i.studentId === s.id).sort((a, b) => b.receivedAt - a.receivedAt));
       const mine = groupsOf.flat();
@@ -355,8 +355,9 @@
           <div class="counts"><b>${active.length}</b> upload${active.length !== 1 ? 's' : ''} ·
             ${by.new} to review · ${annoLine(annotatedCount(s.id, viewLp))}${owed ? ` · <b style="color:var(--st-redo)">${owed} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
-        : `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`}</div>
-        ${subjects ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
+        : owes(s, viewLp) ? `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`
+        : `<div class="no-need">No work samples needed for ${esc(viewLp)}${s.withdrew ? ': they withdrew before it started' : ': inactive'}.</div>`}</div>
+        ${subjects && (owes(s, viewLp) || mine.length) ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
         <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
       card.addEventListener('click', (e) => {
         const img = e.target.closest('img[data-id]');
@@ -368,10 +369,10 @@
         }
       });
       const turnedIn = classes.length > 0 && classes.every(c => mine.filter(i => i.subject === c.name && !i.redo).length >= c.need);
-      groups[allFiled ? 3 : turnedIn ? 2 : mine.length ? 1 : 0].push(card);
+      groups[!owes(s, viewLp) && !mine.length ? 4 : allFiled ? 3 : turnedIn ? 2 : mine.length ? 1 : 0].push(card);
     }
     grid.classList.add('grouped');
-    ['No uploads yet', 'Some uploads', 'Turned in', 'Reviewed and Exported'].forEach((name, g) => {
+    ['No uploads yet', 'Some uploads', 'Turned in', 'Reviewed and Exported', 'Withdrawn: no samples needed'].forEach((name, g) => {
       if (!groups[g].length) return;
       const sec = document.createElement('section');
       sec.className = `grp grp-${g}`;
