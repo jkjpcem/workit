@@ -642,7 +642,7 @@
     function renderInfo(it) {
       const original = it.resubmitOf && (studentCache[it.studentId] || data.items).find(i => i.id === it.resubmitOf);
       $('#v-info').innerHTML = `
-        <h2>${esc(it.subject)}</h2>
+        <h2 class="subj-head"><span>${esc(it.subject)}</span><button type="button" class="btn small" id="v-subject">Change class</button></h2>
         <div class="info-grid">
           <div><span>Student</span>${esc(student ? student.name : it.name)}</div>
           <div><span>Learning Period</span>${esc(it.lp)}</div>
@@ -660,6 +660,39 @@
         ${it.resubmitted ? '<p class="meta">The student has resubmitted this. The new version is in their uploads.</p>' : ''}
 `;
     }
+
+    // Uploaded to the wrong class: move it (the file names in Drive change with it).
+    $('#v-info').addEventListener('click', async (e) => {
+      const it = item();
+      if (!it) return;
+      const head = $('#v-info .subj-head');
+      if (e.target.closest('#v-subject')) {
+        const who = student || data.students.find(s => s.id === it.studentId);
+        const classes = who ? Classes.forLp(who, it.lp).map(c => c.name) : [];
+        if (!classes.includes(it.subject)) classes.unshift(it.subject);
+        head.innerHTML = `<select id="v-subject-pick" aria-label="Class">${classes.map(c => `<option ${c === it.subject ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+          <button type="button" class="btn small primary" id="v-subject-save">Save</button><button type="button" class="btn small" id="v-subject-cancel">Cancel</button>`;
+        $('#v-subject-pick').focus();
+      } else if (e.target.closest('#v-subject-cancel')) {
+        renderInfo(it);
+      } else if (e.target.closest('#v-subject-save')) {
+        const subject = $('#v-subject-pick').value;
+        if (subject === it.subject) return renderInfo(it);
+        busy('Moving it…');
+        try {
+          await call('adminSetSubject', { studentId: it.studentId, id: it.id, subject });
+          it.subject = subject;
+          syncCaches(it, ['subject']);
+          $('#v-title').textContent = `${student ? student.name : it.name} · ${it.subject}`;
+          renderInfo(it);
+          toast(`Moved to ${subject}.`);
+        } catch (err) {
+          toast(/unknown request/i.test(err.message) ? 'Say “update WiSH school” to turn on changing the class.' : err.message);
+        } finally {
+          busy(false);
+        }
+      }
+    });
 
     function renderReview(it) {
       const finalized = !!it.finalizedAt;

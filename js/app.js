@@ -1312,6 +1312,7 @@
             <button class="btn" data-act="view">View</button>
             ${canAnnotate(item) ? '<button class="btn" data-act="annotate">✏️ Annotate</button>' : ''}
             ${needsRedo ? '<button class="btn primary" data-act="resubmit">Resubmit</button>' : ''}
+            ${item.status === 'sent' && !item.approved && !item.finalized && (!item.byEs || esUpload) ? '<button class="btn" data-act="subject">Change class</button>' : ''}
             ${item.status !== 'sent' ? '<button class="btn primary" data-act="retry">Send now</button><button class="btn" data-act="discard">Delete</button>' : ''}
             ${item.status === 'sent' && !item.approved && !item.finalized && (!item.byEs || esUpload) ? '<button class="btn danger" data-act="delete">Delete</button>' : ''}
           </div>
@@ -1459,6 +1460,30 @@
       } finally {
         busy(false);
       }
+    } else if (act === 'subject') {
+      // Uploaded to the wrong class: pick the right one (until the ES approves it).
+      const box = e.target.closest('.actions');
+      const classes = Classes.forLp(session.student, item.lp).map(c => c.name);
+      if (!classes.includes(item.subject)) classes.unshift(item.subject);
+      box.innerHTML = `<label class="subj-pick">Move to <select>${classes.map(c => `<option ${c === item.subject ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+        <button class="btn primary" data-act="subject-save">Save</button><button class="btn" data-act="subject-cancel">Cancel</button>`;
+      $('select', box).focus();
+    } else if (act === 'subject-cancel') {
+      renderHistory();
+    } else if (act === 'subject-save') {
+      const subject = $('.subj-pick select', e.target.closest('.actions')).value;
+      if (subject === item.subject) return renderHistory();
+      busy('Saving…');
+      try {
+        await Api.call('setSubject', { studentId: session.student.id, id: item.id, subject });
+        await Store.update(item.id, { subject });
+        toast(`Moved to ${subject}.`);
+      } catch (err) {
+        toast(/unknown request/i.test(err.message) ? 'Changing the class isn’t turned on yet. Ask your ES.' : err.message);
+      } finally {
+        busy(false);
+      }
+      renderHistory();
     } else if (act === 'retry') {
       busy('Sending…');
       const r = await send(item);

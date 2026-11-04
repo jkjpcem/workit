@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 37;
+const WORKIT_VERSION = 38;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -203,11 +203,11 @@ function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const student = {
-      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_, checkPage: checkPage_,
+      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, setSubject: setSubject_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_, checkPage: checkPage_,
     };
     const admin = {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
-      adminReview: adminReview_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
+      adminReview: adminReview_, adminSetSubject: adminSetSubject_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
@@ -499,6 +499,54 @@ function cleanNote_(n) {
     text: String(n.text == null ? '' : n.text).slice(0, 2000),
     rot: Math.round(num(n.rot, 0, 359, 0)),
   };
+}
+
+/**
+ * Moves a sample to another class: the Subject on its row, and the names of its files in Drive
+ * (the upload, and the exported copy if there is one), e.g. Lopez_Maya_LP3_Biology.pdf.
+ */
+function changeSubject_(subs, student, item, subject) {
+  subs.sheet.getRange(item.row, SUB.SUBJECT).setValue(cell_(subject));
+  [item.fileId, item.finalId].filter(Boolean).forEach(id => {
+    try {
+      const file = DriveApp.getFileById(id);
+      const parents = file.getParents();
+      const base = workName_(student, item.lp, subject);
+      if (file.getName().indexOf(base) === 0) return; // already named for this class
+      file.setName(parents.hasNext() ? uniqueName_(parents.next(), base) : base + '.pdf');
+    } catch (err) { /* the row is what counts; a file that can't be renamed keeps its old name */ }
+  });
+  item.subject = subject;
+}
+
+/** A student fixes the class of an upload, until the ES approves it. */
+function setSubject_(body) {
+  const student = findStudent_(body.studentId);
+  if (!student) return { ok: false, error: 'Your account was not found.' };
+  const subject = clean_(body.subject, 60);
+  if (!subject) return { ok: false, error: 'Pick a class.' };
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, student.id, clean_(body.id, 60));
+    if (!item) return { ok: false, error: 'Upload not found.' };
+    if (item.approved || item.finalizedAt) return { ok: false, error: 'Your ES already approved this sample, so ask your ES to change its class.' };
+    changeSubject_(subs, student, item, subject);
+    return { ok: true, subject: subject };
+  });
+}
+
+/** The ES moves any sample to another class (dashboard viewer > Change class). */
+function adminSetSubject_(body) {
+  const subject = clean_(body.subject, 60);
+  if (!subject) return { ok: false, error: 'Pick a class.' };
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
+    if (!item) return { ok: false, error: 'Upload not found.' };
+    const student = findStudent_(item.studentId) || { firstName: item.name, lastName: '' };
+    changeSubject_(subs, student, item, subject);
+    return { ok: true, subject: subject };
+  });
 }
 
 /** A student takes back something they trashed themselves. */
