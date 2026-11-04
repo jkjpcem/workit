@@ -690,23 +690,28 @@
     // A date on the page isn't required, but if there is one it must be one school day that matches.
     const pageBad = res.date && dateProblem(res.date, wiz.lp, 'The date on your page', true);
     const several = (res.dates || []).length > 1;
-    if (several && !esUpload) {
+    // WiSH can misread a page (a chapter number, a score, handwriting), so the student may say it's fine.
+    const read = (several ? res.dates : [res.date]).filter(Boolean);
+    const overridden = (several || pageBad || (res.date && res.date !== typed)) && wiz.check.override === typed;
+    if (overridden) {
+      lines.push(`<p class="pc-warn">⚠ You said your page has no date, or one date that matches <b>${esc(niceDate(typed))}</b>. WiSH read ${read.map(d => `<b>${esc(niceDate(d))}</b>`).join(', ')}, so your ES will double-check it.</p>`);
+    } else if (several && !esUpload) {
       stop = true;
       lines.push(`<p class="pc-bad">✗ Your page has more than one date (${res.dates.map(d => `<b>${esc(niceDate(d))}</b>`).join(', ')}). A work sample can have only one date, the day you did it, and no date ranges. Fix the top of page 1, then take the picture again.</p>`);
     } else if (pageBad) {
       stop = true;
       lines.push(`<p class="pc-bad">✗ Your page says <b>${esc(niceDate(res.date))}</b>. ${esc(pageBad)} Fix the date at the top of page 1, then take the picture again.</p>`);
-    } else if (res.date && res.date !== typed && wiz.check.override === typed) {
-      // WiSH can misread handwriting: the student said the page really says the date they entered.
-      lines.push(`<p class="pc-warn">⚠ You said the date on your page is <b>${esc(niceDate(typed))}</b>. WiSH read <b>${esc(niceDate(res.date))}</b>, so your ES will double-check it.</p>`);
     } else if (res.date && res.date !== typed) {
       stop = true;
-      lines.push(`<p class="pc-bad">✗ WiSH read the date on your assignment as <b>${esc(niceDate(res.date))}</b>, but you entered <b>${esc(niceDate(typed))}</b>. Fix the date above, or retake the picture.</p>
-        <p class="pc-override">If your page really says <b>${esc(niceDate(typed))}</b> and WiSH misread it: <button type="button" class="btn small" id="page-override">It matches. Upload anyway</button></p>`);
+      lines.push(`<p class="pc-bad">✗ WiSH read the date on your assignment as <b>${esc(niceDate(res.date))}</b>, but you entered <b>${esc(niceDate(typed))}</b>. Fix the date above, or retake the picture.</p>`);
     } else if (res.date) {
       lines.push(`<p class="pc-ok">✓ Date on your page matches: ${esc(niceDate(res.date))}</p>`);
     } else {
       lines.push(`<p class="pc-warn">⚠ ${res.read ? 'WiSH couldn’t read a date at the top of page 1' : 'WiSH couldn’t read the top of page 1'}, so your ES will check that it says ${esc(niceDate(typed))}.</p>`);
+    }
+    if (stop && !esUpload) {
+      lines.push(`<p class="pc-override">Did WiSH misread it? If your page has <b>no date</b>, or its only date is <b>${esc(niceDate(typed))}</b> (not a weekend or holiday):
+        <button type="button" class="btn small" id="page-override">That’s right. Upload anyway</button></p>`);
     }
     const missing = [res.name === false && 'your full name', res.subject === false && 'the subject'].filter(Boolean);
     if (res.read && missing.length) {
@@ -730,9 +735,8 @@
       box.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return null;
     }
-    const overridden = res.date && res.date !== typed && wiz.check.override === typed;
     const date = overridden ? '' : res.date || typed;
-    const notes = [overridden ? `student says the date matches (WiSH read ${res.date})` : res.date ? 'date read' : `date typed by ${esUpload ? 'ES' : 'student'}`];
+    const notes = [overridden ? `student says no date or it matches (WiSH read ${read.join(' ')})` : res.date ? 'date read' : `date typed by ${esUpload ? 'ES' : 'student'}`];
     if (res.read && res.name === false) notes.push('name not found');
     if (res.read && res.subject === false) notes.push('subject not found');
     return { pageDate: date, pageCheck: notes.join(', ') };
