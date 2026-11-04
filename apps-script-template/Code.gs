@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 38;
+const WORKIT_VERSION = 39;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -56,13 +56,13 @@ const SUB = {
   FEEDBACK: 8, COMMENTS: 9, PAGES: 10, FILE: 11, FAVORITE: 12, UPLOAD_ID: 13, FILE_ID: 14, THUMB: 15,
   APPROVED: 16, REDO: 17, REASONS: 18, NOTIFIED: 19, REPLACED_BY: 20, RESUBMIT_OF: 21,
   ANNOTATIONS: 22, FINALIZED: 23, FINAL_FILE: 24, FINAL_ID: 25, MINUTES: 26, SOURCE: 27, FILED_AS: 28, REDO_NOTE: 29, FAMILY_NOTES: 30, TRASHED: 31, TRASHED_BY: 32, REDO_MARKED: 33, APPROVED_AT: 34,
-  PAGE_DATE: 35, PAGE_CHECK: 36, OLD_EXPORTS: 37,
+  PAGE_DATE: 35, PAGE_CHECK: 36, OLD_EXPORTS: 37, SET_ASIDE: 38,
 };
 const SUB_HEADERS = ['Received', 'Student ID', 'Student name', 'LP', 'Subject', 'Date completed',
   'Grade / score', 'Feedback', 'Comments', 'Pages', 'File', 'Favorite', 'Upload ID', 'File ID', 'Thumbnail',
   'Approved', 'Redo', 'Redo reasons', 'Student saw redo', 'Resubmitted as', 'Resubmission of',
   'Annotations', 'Finalized', 'Final file', 'Final file ID', 'Minutes spent', 'Uploaded as', 'Filed as', 'Redo note', 'Family notes', 'Trashed', 'Trashed by', 'Redo marked', 'Approved at',
-  'Date on page', 'Page check', 'Taken-back exports'];
+  'Date on page', 'Page check', 'Taken-back exports', 'Set aside'];
 // Where each LP's start and end dates live on the Settings tab (header row, then LP1..LP8).
 const LP_DATES_ROW = 5;
 const SOURCES = ['scan', 'photo', 'pdf', 'docx', 'gdoc', 'mixed'];
@@ -207,7 +207,7 @@ function doPost(e) {
     };
     const admin = {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
-      adminReview: adminReview_, adminSetSubject: adminSetSubject_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
+      adminReview: adminReview_, adminSetSubject: adminSetSubject_, adminSetAside: adminSetAside_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
@@ -546,6 +546,20 @@ function adminSetSubject_(body) {
     const student = findStudent_(item.studentId) || { firstName: item.name, lastName: '' };
     changeSubject_(subs, student, item, subject);
     return { ok: true, subject: subject };
+  });
+}
+
+/**
+ * The ES keeps a sent-back sample as a reference (gray dashed on the dashboard). It stays
+ * viewable but doesn't count toward samples. Students don't see this.
+ */
+function adminSetAside_(body) {
+  return withLock_(() => {
+    const subs = readSubs_();
+    const item = findItem_(subs, String(body.studentId || '').toUpperCase(), clean_(body.id, 60));
+    if (!item) return { ok: false, error: 'Upload not found.' };
+    subs.sheet.getRange(item.row, SUB.SET_ASIDE).setValue(body.on ? new Date() : '');
+    return { ok: true, setAside: !!body.on };
   });
 }
 
@@ -1490,6 +1504,7 @@ function readSubs_() {
       pageDate: dateText_(v[SUB.PAGE_DATE - 1] || ''),
       pageCheck: String(v[SUB.PAGE_CHECK - 1] || ''),
       oldExports: parseJson_(v[SUB.OLD_EXPORTS - 1]),
+      setAsideAt: v[SUB.SET_ASIDE - 1] instanceof Date ? v[SUB.SET_ASIDE - 1].getTime() : (Date.parse(v[SUB.SET_ASIDE - 1]) || 0),
     });
   }
   memoPut_('subs', items);
@@ -1531,6 +1546,7 @@ function adminItem_(i) {
   p.pageDate = i.pageDate;
   p.pageCheck = i.pageCheck;
   p.oldExports = (i.oldExports || []).map(oldExport_);
+  p.setAside = i.setAsideAt || 0;
   return p;
 }
 

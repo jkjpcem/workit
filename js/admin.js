@@ -226,14 +226,47 @@
 
   // ---------- Status ----------
 
+  // A sent-back sample the student has replaced, or one you set aside, is kept as a Reference:
+  // gray dashed, viewable, but it doesn't count toward samples or need review.
   function status(item) {
-    if (item.redo) return item.resubmitted ? 'resubmitted' : 'redo';
+    if (item.redo) return item.resubmitted || item.setAside ? 'reference' : 'redo';
     if (item.finalizedAt) return 'finalized';
     if (item.approved) return 'approved';
     return 'new';
   }
-  const STATUS_LABEL = { new: 'To review', approved: 'Approved', finalized: 'Finalized', redo: 'Redo', resubmitted: 'Resubmitted' };
-  const statusLabel = (i) => status(i) === 'finalized' ? (i.filedAs === 'Extra' ? 'Extra' : 'Annotated') : STATUS_LABEL[status(i)];
+  const STATUS_LABEL = { new: 'To review', approved: 'Approved', finalized: 'Finalized', redo: 'Redo' };
+  const statusLabel = (i) => status(i) === 'finalized' ? (i.filedAs === 'Extra' ? 'Extra' : 'Annotated')
+    : status(i) === 'reference' ? (i.resubmitted ? 'Replaced' : 'Set aside') : STATUS_LABEL[status(i)];
+  // Still owed by the student: sent back and not resubmitted yet (set aside or not).
+  const waitingRedo = (i) => i.redo && !i.resubmitted;
+
+  // Puts each replaced sample right after the new version that replaced it (and that one's
+  // own original after it), so a redo and its original always sit together.
+  function pairUp(list) {
+    const byId = new Map(list.map(i => [i.id, i]));
+    const used = new Set();
+    const out = [];
+    for (const i of list) {
+      if (used.has(i.id)) continue;
+      const chain = [i];
+      used.add(i.id);
+      let cur = i;
+      while (cur.resubmitOf && byId.has(cur.resubmitOf) && !used.has(cur.resubmitOf)) {
+        cur = byId.get(cur.resubmitOf);
+        used.add(cur.id);
+        chain.push(cur);
+      }
+      // An original whose new version is in the list waits for it.
+      if (i.resubmitted && list.some(n => n.resubmitOf === i.id && !used.has(n.id))) {
+        chain.forEach(c => used.delete(c.id));
+        continue;
+      }
+      out.push(chain);
+    }
+    // Anything skipped above (its new version wasn't reached) still shows.
+    for (const i of list) if (!used.has(i.id)) { used.add(i.id); out.push([i]); }
+    return out;
+  }
 
   // Joon needs 2 annotated samples per student per LP; the rest are filed as Extra.
   const ANNOTATED_NEEDED = 2;
@@ -260,7 +293,7 @@
       ['', count('new'), 'To review'],
       ['approved', count('approved'), 'Approved, not filed yet'],
       ['finalized', count('finalized'), 'Filed (Annotated or Extra)'],
-      ['redo', count('redo'), 'Waiting on redo'],
+      ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
       Meetings.tile(viewLp, data.students),
     ].filter(Boolean).map(([cls, n, label]) => `<div class="tile ${cls}"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
 
@@ -278,36 +311,41 @@
     // (every class has its samples), and "Reviewed and Exported" (all of them exported too).
     const groups = [[], [], [], []];
     for (const s of students) {
-      const mine = items.filter(i => i.studentId === s.id).sort((a, b) => b.receivedAt - a.receivedAt);
-      const by = { new: 0, approved: 0, finalized: 0, redo: 0, resubmitted: 0 };
+      const groupsOf = pairUp(items.filter(i => i.studentId === s.id).sort((a, b) => b.receivedAt - a.receivedAt));
+      const mine = groupsOf.flat();
+      const by = { new: 0, approved: 0, finalized: 0, redo: 0, reference: 0 };
       mine.forEach(i => by[status(i)]++);
+      const active = mine.filter(i => status(i) !== 'reference');
+      const owed = mine.filter(waitingRedo).length;
       const card = document.createElement('div');
       // Light blue once every class has its samples and every upload is annotated and filed.
       const classes = Classes.forLp(s, viewLp);
       // The bar is out of the samples this LP needs, so the empty part is what's still missing.
       const needed = classes.reduce((n, c) => n + c.need, 0);
-      const allFiled = mine.length > 0 && by.finalized === mine.length &&
+      const allFiled = active.length > 0 && by.finalized === active.length &&
         classes.every(c => mine.filter(i => i.subject === c.name).length >= c.need);
-      card.className = `scard ${by.redo ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${s.active === false ? 'inactive' : ''}`;
+      card.className = `scard ${owed ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${s.active === false ? 'inactive' : ''}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter') card.click(); });
       // Sem 1 classes for LP1-4, Sem 2 for LP5-8; an accelerated class needs 2 samples.
       const subjects = classes.map(c => {
-        const n = mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
+        const n = mine.filter(i => i.subject === c.name && !i.redo).length;
         const label = ''; // no counts on the class names; the color shows done, partly done or missing
         return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
       }).join('');
-      const thumbs = mine.slice(0, mine.length > 6 ? 5 : 6).map(i =>
-        `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}" class="st-${status(i)}" data-id="${esc(i.id)}">`).join('') +
-        (mine.length > 6 ? moreTile(mine.slice(5)) : '');
+      // A redo and the sample it replaced share one spot: the new one in front, the old one behind.
+      const thumb = (i, cls = '') => `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}${status(i) === 'reference' ? ` (${statusLabel(i)})` : ''}" class="st-${status(i)} ${cls}" data-id="${esc(i.id)}" title="${esc(i.subject)}: ${esc(statusLabel(i))}">`;
+      const thumbs = groupsOf.slice(0, groupsOf.length > 6 ? 5 : 6).map(g => g.length > 1
+        ? `<span class="pair">${thumb(g[1], 'behind')}${thumb(g[0])}</span>` : thumb(g[0])).join('') +
+        (groupsOf.length > 6 ? moreTile(groupsOf.slice(5).flat()) : '');
       card.innerHTML = `
         <div class="top"><h3>${esc(s.name)}</h3>${s.active === false ? '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders">Inactive</span>' : ''}<span class="sid">Grade ${esc(s.grade)}</span></div>
-        <div class="bar" aria-hidden="true">${['finalized', 'approved', 'resubmitted', 'redo', 'new'].map(k =>
-          by[k] ? `<i class="${k}" style="width:${(by[k] / Math.max(mine.length, needed)) * 100}%"></i>` : '').join('')}</div>
+        <div class="bar" aria-hidden="true">${['finalized', 'approved', 'redo', 'new'].map(k =>
+          by[k] ? `<i class="${k}" style="width:${(by[k] / Math.max(active.length, needed)) * 100}%"></i>` : '').join('')}</div>
         <div class="card-uploads">${mine.length ? `
-          <div class="counts"><b>${mine.length}</b> upload${mine.length > 1 ? 's' : ''} ·
-            ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${by.redo ? ` · <b style="color:var(--st-redo)">${by.redo} redo</b>` : ''}</div>
+          <div class="counts"><b>${active.length}</b> upload${active.length !== 1 ? 's' : ''} ·
+            ${by.new} to review · <span class="${annotatedCount(s.id, viewLp) >= ANNOTATED_NEEDED ? 'met' : ''}">${annotatedCount(s.id, viewLp)} of ${ANNOTATED_NEEDED} annotated</span>${owed ? ` · <b style="color:var(--st-redo)">${owed} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`}</div>
         ${subjects ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
@@ -321,7 +359,7 @@
           openStudent(s.id, viewLp).catch(err => toast(err.message));
         }
       });
-      const turnedIn = classes.length > 0 && classes.every(c => mine.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length >= c.need);
+      const turnedIn = classes.length > 0 && classes.every(c => mine.filter(i => i.subject === c.name && !i.redo).length >= c.need);
       groups[allFiled ? 3 : turnedIn ? 2 : mine.length ? 1 : 0].push(card);
     }
     grid.classList.add('grouped');
@@ -342,7 +380,7 @@
 
   // The "+3" tile: yellow when one of the samples it hides still needs review, green when they've all been reviewed.
   function moreTile(hidden) {
-    const waiting = hidden.filter(i => ['new', 'resubmitted'].includes(status(i))).length;
+    const waiting = hidden.filter(i => status(i) === 'new').length;
     const tip = waiting ? `${waiting} of these ${hidden.length} still to review` : `All ${hidden.length} reviewed`;
     return `<span class="more ${waiting ? '' : 'st-approved'}" title="${tip}">+${hidden.length}</span>`;
   }
@@ -421,7 +459,7 @@
 
   function studentItems() {
     const all = studentCache[currentStudent.id] || data.items.filter(i => i.studentId === currentStudent.id);
-    return all.filter(i => studentLp === 'all' || i.lp === studentLp).sort((a, b) => b.receivedAt - a.receivedAt);
+    return pairUp(all.filter(i => studentLp === 'all' || i.lp === studentLp).sort((a, b) => b.receivedAt - a.receivedAt)).flat();
   }
 
   // Opens the student Turn in steps in a new tab, as this student. The new tab picks up a note
@@ -462,7 +500,7 @@
       return;
     }
     grid.innerHTML = items.map((i, idx) => `
-      <button class="utile st-${status(i)}" data-idx="${idx}">
+      <button class="utile st-${status(i)} ${i.resubmitted && items[idx - 1] && items[idx - 1].resubmitOf === i.id ? 'paired' : ''}" data-idx="${idx}">
         ${i.thumb ? `<img src="${esc(i.thumb)}" alt="">` : '<div class="noimg">📄</div>'}
         <span class="cap">
           <span class="tag">${statusLabel(i)}</span>
@@ -477,7 +515,7 @@
     if (studentLp === 'all' || (loadingStudent === s.id && studentLp !== viewLp)) { box.hidden = true; return; }
     const classes = Classes.forLp(s, studentLp);
     const all = studentCache[s.id] || data.items.filter(i => i.studentId === s.id);
-    const mine = all.filter(i => i.lp === studentLp && !(i.redo && !i.resubmitted));
+    const mine = all.filter(i => i.lp === studentLp && !i.redo);
     let short = 0;
     const rows = classes.map(c => {
       const got = mine.filter(i => i.subject === c.name).sort((a, b) => b.receivedAt - a.receivedAt);
@@ -641,6 +679,7 @@
 
     function renderInfo(it) {
       const original = it.resubmitOf && (studentCache[it.studentId] || data.items).find(i => i.id === it.resubmitOf);
+      const replacement = it.resubmitted && (studentCache[it.studentId] || data.items).find(i => i.resubmitOf === it.id);
       $('#v-info').innerHTML = `
         <h2 class="subj-head"><span>${esc(it.subject)}</span><button type="button" class="btn small" id="v-subject">Change class</button></h2>
         <div class="info-grid">
@@ -656,8 +695,10 @@
         ${it.feedback ? `<div class="info-text"><span>Feedback</span>${esc(it.feedback)}</div>` : ''}
         <div class="info-text"><span>Comments</span>${esc(it.comments || '—')}</div>
         ${it.familyNotes && it.familyNotes.length ? `<p class="meta family-line">✏️ The student or family added ${it.familyNotes.length} text box${it.familyNotes.length > 1 ? 'es' : ''} on the pages (marked Family). You can change or delete them like your own, and they’re included when you export.</p>` : ''}
-        ${it.resubmitOf ? `<p class="meta">↺ Resubmission${original ? ` of the ${esc(niceDate(original.dateCompleted))} upload` : ''}.</p>` : ''}
-        ${it.resubmitted ? '<p class="meta">The student has resubmitted this. The new version is in their uploads.</p>' : ''}
+        ${it.resubmitOf ? `<p class="meta ref-link">↺ This is a redo${original ? ` of the ${esc(niceDate(original.dateCompleted))} upload` : ''}.${original && list.includes(original) ? ' <button type="button" class="btn small" data-goto="' + esc(original.id) + '">See the original</button>' : ''}</p>` : ''}
+        ${status(it) === 'reference' ? `<p class="meta ref-note">${it.resubmitted
+          ? 'Replaced: the student sent a new version.'
+          : 'Set aside: you sent this back and kept it as a reference.'} It stays here to look at, but doesn’t count toward samples.${replacement && list.includes(replacement) ? ' <button type="button" class="btn small" data-goto="' + esc(replacement.id) + '">See the new version</button>' : ''}</p>` : ''}
 `;
     }
 
@@ -665,6 +706,12 @@
     $('#v-info').addEventListener('click', async (e) => {
       const it = item();
       if (!it) return;
+      const goto = e.target.closest('[data-goto]');
+      if (goto) {
+        const n = list.findIndex(i => i.id === goto.dataset.goto);
+        if (n !== -1) go(n - idx);
+        return;
+      }
       const head = $('#v-info .subj-head');
       if (e.target.closest('#v-subject')) {
         const who = student || data.students.find(s => s.id === it.studentId);
@@ -714,6 +761,10 @@
         ? 'This was sent back to the student. To change the reasons, click Redo to take it back, then pick Redo again.'
         : 'Why does it need a redo? Pick all that apply, and type your own reason if you like. Nothing goes to the student until you click Send back to student.';
       $('#t-send').hidden = !!it.redo;
+      // Set aside: only for a sample sent back that the student hasn't replaced yet.
+      $('#t-aside').hidden = !(it.redo && !it.resubmitted);
+      $('#t-aside').setAttribute('aria-pressed', String(!!it.setAside));
+      $('#t-aside').textContent = it.setAside ? '✓ Set aside as a reference' : '📌 Set aside as a reference';
       $('#t-send').disabled = !hasReason(it);
       // Annotate works any time except on a redo; filing needs Approve first.
       $('#finish-row').hidden = redoing;
@@ -788,6 +839,11 @@
       fn(it);
       if (it.redo) it.approved = false;
       if (!it.redo) { it.reasons = []; it.redoNote = ''; }
+      if (!it.redo && it.setAside) {
+        it.setAside = 0;
+        syncCaches(it, ['setAside']);
+        call('adminSetAside', { studentId: it.studentId, id: it.id, on: false }).catch(() => {});
+      }
       if (it.redo) setAnnotating(false);
       syncCaches(it, ['approved', 'approvedAt', 'redo', 'reasons', 'redoNote', 'redoSentAt']);
       renderReview(it);
@@ -853,6 +909,23 @@
       i.approvedAt = i.approved ? Date.now() : 0;
       if (i.approved) { i.redo = false; i.redoSentAt = 0; }
       });
+    });
+    $('#t-aside').addEventListener('click', async () => {
+      const it = item();
+      const on = !it.setAside;
+      it.setAside = on ? Date.now() : 0;
+      syncCaches(it, ['setAside']);
+      renderReview(it);
+      renderInfo(it);
+      try {
+        await call('adminSetAside', { studentId: it.studentId, id: it.id, on });
+        if (item() === it) $('#v-save').textContent = 'Saved ✓';
+      } catch (err) {
+        it.setAside = on ? 0 : Date.now();
+        syncCaches(it, ['setAside']);
+        if (item() === it) { renderReview(it); renderInfo(it); }
+        toast(/Unknown request/.test(err.message) ? 'Set aside works after the next WiSH school update.' : `Couldn’t save: ${err.message}`);
+      }
     });
     $('#t-redo').addEventListener('click', () => {
       const it = item();

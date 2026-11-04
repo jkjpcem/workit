@@ -7,14 +7,14 @@
   --st-finalized-soft: #e3e8f6;
   --st-finalized-text: #1f2f6b;
   --st-redo: #d0342c;
-  --st-resubmitted: #c99a00;
-  --st-resubmitted-text: #8a6d00;
+  --st-reference: #8b90a0;
+  --st-reference-text: #5d6272;
   --st-missing: transparent;
   --all-filed-bg: #e6eeff;
   --meet-bg: #dff3fb; --meet-text: #0b5470; --meet-bar: #2a9fd0;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --st-new: #7a6a2e; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-resubmitted: #ffcf3a; --st-resubmitted-text: #ffcf3a; --all-filed-bg: #1c2744; --meet-bg: #12303d; --meet-text: #9fdcf2; --meet-bar: #4cb8e6; }
+  :root:not([data-theme="light"]) { --st-new: #7a6a2e; --st-approved: #3f8f62; --st-finalized: #8fa3e8; --st-finalized-soft: #222b4a; --st-finalized-text: #b9c7f5; --st-redo: #ff6b61; --st-reference: #8b92a8; --st-reference-text: #b3b9cc; --all-filed-bg: #1c2744; --meet-bg: #12303d; --meet-text: #9fdcf2; --meet-bar: #4cb8e6; }
 }
 
 /* The dashboard uses the whole window; the logo lines up with the page's left edge. */
@@ -69,7 +69,7 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .sw.approved { background: var(--st-approved); }
 .sw.finalized { background: var(--st-finalized); }
 .sw.redo { background: var(--st-redo); }
-.sw.resubmitted { background: var(--st-resubmitted); }
+.sw.reference { border: 2px dashed var(--st-reference); }
 .sw.missing { border: 1.5px dashed var(--muted); }
 
 /* Student cards */
@@ -95,7 +95,6 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .bar .approved { background: var(--st-approved); }
 .bar .finalized { background: var(--st-finalized); }
 .bar .redo { background: var(--st-redo); }
-.bar .resubmitted { background: var(--st-resubmitted); }
 .counts { font-size: 13px; color: var(--muted); }
 .counts b { color: var(--text); }
 .subjects { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -113,7 +112,13 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .st-approved { border-color: var(--st-approved) !important; }
 .st-finalized { border-color: var(--st-finalized) !important; }
 .st-redo { border-color: var(--st-redo) !important; }
-.st-resubmitted { border-color: var(--st-resubmitted) !important; }
+/* Reference (replaced or set aside): gray dashed and faded, but still there to open. */
+.st-reference { border-color: var(--st-reference) !important; border-style: dashed !important; opacity: .6; }
+.thumbs .pair { position: relative; display: block; }
+.thumbs .pair img { position: relative; z-index: 1; }
+.thumbs .pair img.behind { position: absolute; inset: 0; z-index: 0; transform: translate(5px, -5px) rotate(5deg); }
+.thumbs .pair:hover img.behind { transform: translate(9px, -7px) rotate(8deg); opacity: .9; }
+.thumbs .pair img.behind { transition: transform .2s var(--ease), opacity .2s; }
 .empty-card { color: var(--muted); font-size: 14px; }
 
 /* One student's uploads */
@@ -135,7 +140,15 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .utile.st-approved .tag { color: var(--st-finalized); }
 .utile.st-finalized .tag { color: var(--st-finalized); }
 .utile.st-redo .tag { color: var(--st-redo); }
-.utile.st-resubmitted .tag { color: var(--st-resubmitted-text); }
+.utile.st-reference .tag { color: var(--st-reference-text); }
+.utile.st-reference { opacity: .7; box-shadow: none; }
+.utile.st-reference:hover, .utile.st-reference:focus-visible { opacity: 1; }
+/* The replaced original sits right after its redo, tucked toward it. */
+.utile.paired { margin-left: -10px; transform: scale(.94); transform-origin: left center; }
+.utile.paired:hover, .utile.paired:focus-visible { transform: scale(.94) translateY(-4px); }
+.aside-btn { justify-self: start; margin-top: 8px; }
+.aside-btn[aria-pressed="true"] { border: 2px dashed var(--st-reference); color: var(--st-reference-text); }
+.ref-note, .ref-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 
 /* Viewer */
 .viewer { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; flex-direction: column; animation: rise .25s var(--ease); }
