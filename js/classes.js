@@ -33,5 +33,8 @@ const Classes = (() => {
     return list || (student.classes || []).map(name => ({ name, need: 1 }));
   }
 
-  return { semOf, parse, toB, sem2From, forLp };
+  // PE has no work sample: the family fills out the school's PE form and checks a box in WiSH.
+  const isPe = (name) => /^\s*(p\.?\s?e\.?|physical\s+education)\b/i.test(String(name || ''));
+
+  return { semOf, parse, toB, sem2From, forLp, isPe };
 })();

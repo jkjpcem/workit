@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 40;
+const WORKIT_VERSION = 41;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -38,6 +38,11 @@ const TRASH_DAYS = 60;  // a sample in WiSH's Trash is deleted for good this man
 const OLD_FINAL_FOLDER_NAME = 'Approved and Annotated'; // used before 2026-10-04; setup() moves its files
 const FILED_AS = ['Annotated', 'Extra'];
 const ANNOTATED_NEEDED = 2;
+// PE has no work sample: the family fills out the school's PE form (not the ES's, so no
+// notice comes) and checks a box in WiSH saying they did. Once per LP.
+const PE_FORM_URL = 'https://app.jotform.com/232096532242148/260785766957176?item=260785766957176';
+const PE_TAB = 'PE forms';
+const isPe_ = (name) => /^\s*(p\.?\s?e\.?|physical\s+education)\b/i.test(String(name || ''));
 // LP1-LP4 are Semester 1 and LP5-LP8 are Semester 2.
 const SEM2_FIRST_LP = 5;
 const STUDENT_HEADERS = ['First name', 'Last name', 'Grade', 'City', 'Student ID',
@@ -203,11 +208,11 @@ function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const student = {
-      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, setSubject: setSubject_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_, checkPage: checkPage_,
+      login: login_, upload: upload_, list: list_, favorite: favorite_, file: file_, remove: remove_, restore: restore_, setSubject: setSubject_, familyNotes: familyNotes_, ackAlerts: ackAlerts_, checkLink: checkLink_, checkPage: checkPage_, peConfirm: peConfirm_,
     };
     const admin = {
       adminOverview: adminOverview_, adminStudent: adminStudent_, adminFile: adminFile_,
-      adminReview: adminReview_, adminSetSubject: adminSetSubject_, adminSetAside: adminSetAside_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
+      adminReview: adminReview_, adminSetSubject: adminSetSubject_, adminSetAside: adminSetAside_, adminPeConfirm: adminPeConfirm_, adminSetLp: adminSetLp_, adminAnnotate: adminAnnotate_, adminFinalize: adminFinalize_,
       adminRoster: adminRoster_, adminSaveRoster: adminSaveRoster_, adminSetLpDates: adminSetLpDates_,
       adminCore: adminCore_, adminCoreMark: adminCoreMark_, adminCoreSort: adminCoreSort_,
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
@@ -255,7 +260,63 @@ function login_(body) {
     .map(i => ({ id: i.id, lp: i.lp, subject: i.subject, dateCompleted: i.dateCompleted, reasons: i.reasons, redoNote: i.redoNote }));
   // The student's uploads come along, so the app doesn't have to ask a second time.
   return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), holidays: allHolidays_(), alerts: alerts,
-    items: mine.map(publicItem_), trash: studentTrash_(all), meetings: studentMeetings_(student.id) };
+    items: mine.map(publicItem_), trash: studentTrash_(all), meetings: studentMeetings_(student.id),
+    pe: peForms_()[student.id] || {}, peFormUrl: PE_FORM_URL };
+}
+
+// ----- PE form: the family says they filled it out (one row per student per LP) -----
+
+function peSheet_(create) {
+  const ss = getAdmin_();
+  let sheet = ss.getSheetByName(PE_TAB);
+  if (!sheet && create) {
+    sheet = ss.insertSheet(PE_TAB);
+    sheet.getRange(1, 1, 1, 4).setValues([['Student ID', 'LP', 'Confirmed at', 'Confirmed by']]).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+/** { MA10SP: { LP3: { at: 1730000000000, by: 'Family' } } } */
+function peForms_() {
+  const sheet = peSheet_(false);
+  const out = {};
+  if (!sheet || sheet.getLastRow() < 2) return out;
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues().forEach(v => {
+    const id = String(v[0] || '').toUpperCase(), lp = String(v[1] || '').toUpperCase();
+    if (!id || LEARNING_PERIODS.indexOf(lp) === -1) return;
+    (out[id] = out[id] || {})[lp] = { at: v[2] instanceof Date ? v[2].getTime() : (Date.parse(v[2]) || 0), by: String(v[3] || '') };
+  });
+  return out;
+}
+
+function setPe_(id, lp, done, by) {
+  return withLock_(() => {
+    const sheet = peSheet_(true);
+    const last = sheet.getLastRow();
+    const rows = last > 1 ? sheet.getRange(2, 1, last - 1, 2).getValues() : [];
+    for (let r = rows.length - 1; r >= 0; r--) {
+      if (String(rows[r][0]).toUpperCase() === id && String(rows[r][1]).toUpperCase() === lp) sheet.deleteRow(r + 2);
+    }
+    if (done) sheet.appendRow([id, lp, new Date(), by]);
+    return { ok: true, pe: peForms_()[id] || {} };
+  });
+}
+
+/** The student or family checks "We filled out the PE form" (or unchecks it). */
+function peConfirm_(body) {
+  const student = findStudent_(body.studentId);
+  if (!student) return { ok: false, error: 'Your account was not found.' };
+  const lp = String(body.lp || '').toUpperCase();
+  if (LEARNING_PERIODS.indexOf(lp) === -1) return { ok: false, error: 'Unknown Learning Period.' };
+  return setPe_(student.id, lp, body.done === true, byEs_(body) ? 'ES' : 'Family');
+}
+
+/** The ES marks a PE form done (or not) from the dashboard. */
+function adminPeConfirm_(body) {
+  const id = String(body.studentId || '').toUpperCase();
+  const lp = String(body.lp || '').toUpperCase();
+  if (!findStudent_(id) || LEARNING_PERIODS.indexOf(lp) === -1) return { ok: false, error: 'Student or LP not found.' };
+  return setPe_(id, lp, body.done === true, 'ES');
 }
 
 /** Remembers when each student last signed in (shown in the Student Roster). Kept apart from the
@@ -1109,6 +1170,7 @@ function adminOverview_(body) {
     holidays: getHolidays_(),
     students: getStudents_(),
     items: readSubs_().items.filter(i => i.lp === lp && !i.trashedAt).map(adminItem_),
+    pe: peForms_(),
   };
 }
 
@@ -2652,11 +2714,16 @@ function emailState_() {
   students.forEach(x => { byId[x.id] = x; });
   const subs = readSubs_();
   const items = subs.items.filter(i => !i.trashedAt && i.lp === lp);
+  const pe = peForms_();
   const rows = students.map(student => {
     const mine = items.filter(i => i.studentId === student.id);
     const classes = Number(lp.replace(/\D/g, '')) >= 5 ? student.sem2 : student.sem1;
     const missing = [];
     classes.forEach(c => {
+      if (isPe_(c.name)) {
+        if (!(pe[student.id] && pe[student.id][lp])) missing.push({ name: c.name + ' form', need: 1, have: 0 });
+        return;
+      }
       const have = mine.filter(i => i.subject === c.name && !(i.redo && !i.replacedBy)).length;
       if (have < c.need) missing.push({ name: c.name, need: c.need, have: have });
     });
@@ -2668,7 +2735,7 @@ function emailState_() {
       student: student, uploads: mine.length, missing: missing, redos: redos, allApproved: allApproved,
       allIn: classes.length > 0 && !missing.length && !redos.length,
       toReview: live.filter(i => !i.approved && !i.finalizedAt && !i.redo).length,
-      needed: classes.reduce((n, c) => n + c.need, 0),
+      needed: classes.reduce((n, c) => n + (isPe_(c.name) ? 0 : c.need), 0),
     };
   });
   return {

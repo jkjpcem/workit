@@ -599,3 +599,10 @@ dialog.viewer { position: relative; }
 .es-banner p { margin: 0; flex: 1 1 260px; }
 .es-upload #account, .es-upload #confirm-box, .es-upload #off-check { display: none !important; }
 .badge.by-es { background: var(--brand-soft); color: var(--brand); }
+/* PE: no sample, just the school's PE form and a checkbox */
+.missing-list li.pe-line { flex-wrap: wrap; }
+.missing-list li.pe-line.done { background: color-mix(in srgb, var(--good) 10%, transparent); }
+.pe-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pe-check { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; cursor: pointer; white-space: nowrap; margin: 0; }
+.pe-check input { flex: none; width: 20px; height: 20px; margin: 0; padding: 0; accent-color: var(--brand); }
+.pe-check small { font-weight: 500; color: var(--muted); }

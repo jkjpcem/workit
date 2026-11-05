@@ -56,7 +56,7 @@
     try {
       const asked = Date.now();
       const res = await Api.call('login', { studentId: id });
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '' });
       showAlerts(res.alerts);
       loginForm.reset();
       resetWizard();
@@ -86,7 +86,7 @@
       const res = await Api.call('login', { studentId: session.student.id });
       // Follow the new current LP unless the student deliberately picked another one.
       if (wiz.lp === session.currentLp) wiz.lp = res.currentLp;
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '' });
       showAlerts(res.alerts);
       renderAll();
       if (res.items) applyItems(res.items, asked, res.trash); else syncHistory(true);
@@ -142,9 +142,7 @@
       </div>` : '') + (missing.length ? `
       <div class="card stack missing">
         <h2>Still needed for ${esc(lp)} <span class="count">${missing.length} of ${classes.length} subjects</span></h2>
-        <ul class="missing-list">${missing.map(c => `<li><span>${esc(c.name)}${c.need > 1
-          ? ` <span class="need">${have(c)} of ${c.need} · accelerated</span>` : ''}</span>
-          <button class="btn small primary" type="button" data-turnin="${esc(c.name)}" data-lp="${esc(lp)}">Turn in</button></li>`).join('')}</ul>
+        <ul class="missing-list">${missing.map(c => missingLine(c, lp, have)).join('')}</ul>
       </div>` : '') +
       '<p class="hint todo-or">Or turn in other work below.</p>';
   }
@@ -375,7 +373,7 @@
 
   function renderSubjects() {
     const sel = $('#subject-select');
-    const classes = Classes.forLp(session.student, wiz.lp || session.currentLp).map(c => c.name);
+    const classes = Classes.forLp(session.student, wiz.lp || session.currentLp).map(c => c.name).filter(c => !Classes.isPe(c));
     const keep = sel.value;
     sel.innerHTML = '<option value="">Choose a subject</option>' +
       classes.map(c => `<option>${esc(c)}</option>`).join('');
@@ -1241,24 +1239,59 @@
   function missingFor(items, lp) {
     const classes = Classes.forLp(session.student, lp);
     const inLp = items.filter(i => i.lp === lp);
-    const have = (c) => inLp.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
+    const have = (c) => Classes.isPe(c.name) ? (peDone(lp) ? 1 : 0)
+      : inLp.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
     return { classes, have, missing: classes.filter(c => have(c) < c.need) };
   }
+  const peDone = (lp) => !!(session && session.pe && session.pe[lp]);
+  // One line of a missing list: Turn in, or for PE the form link and the checkbox.
+  function missingLine(c, lp, have) {
+    if (Classes.isPe(c.name)) return peLine(c, lp);
+    return `<li><span>${esc(c.name)}${c.need > 1 ? ` <span class="need">${have(c)} of ${c.need} · accelerated</span>` : ''}</span>
+      <button class="btn small primary" type="button" data-turnin="${esc(c.name)}" data-lp="${esc(lp)}">Turn in</button></li>`;
+  }
+  function peLine(c, lp) {
+    const done = session.pe && session.pe[lp];
+    return `<li class="pe-line ${done ? 'done' : ''}"><span><b>${esc(c.name)}</b> <span class="need">${done ? 'PE form done' : 'No sample: fill out the PE form'}</span></span>
+      <span class="pe-acts">${session.peFormUrl ? `<a class="btn small" href="${esc(session.peFormUrl)}" target="_blank" rel="noopener">Open the PE form ↗</a>` : ''}
+      <label class="pe-check"><input type="checkbox" data-pe="${esc(lp)}" ${done ? 'checked' : ''}> ${done ? `Done ✓ <small>${esc(new Date(done.at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))}</small>` : `We filled out the ${esc(lp)} PE form`}</label></span></li>`;
+  }
+  // Checking (or unchecking) the PE box saves it for this LP.
+  async function setPeDone(box) {
+    const lp = box.dataset.pe;
+    box.disabled = true;
+    try {
+      const res = await Api.call('peConfirm', { studentId: session.student.id, lp, done: box.checked });
+      saveSession({ ...session, pe: res.pe || {} });
+      toast(box.checked ? 'Thanks! The PE form is marked done.' : 'The PE form is marked not done.');
+    } catch (err) {
+      box.checked = !box.checked;
+      toast(/Unknown request/.test(err.message) ? 'This works after your ES’s next WiSH update.' : err.message);
+    }
+    box.disabled = false;
+    if (current === 'upload') renderTodo();
+    if (current === 'history') renderHistory();
+  }
+  document.addEventListener('change', (e) => {
+    const box = e.target.closest('input[data-pe]');
+    if (box) setPeDone(box);
+  });
   function renderMissing(items) {
     const lp = historyFilter.lp === 'all' ? session.currentLp : historyFilter.lp;
     const { classes, have, missing } = missingFor(items, lp);
     const box = $('#missing');
     if (!classes.length) { box.hidden = true; return; }
     const accel = classes.some(c => c.need > 1);
+    // A PE form already marked done stays here, so it can be unchecked.
+    const pe = classes.filter(c => Classes.isPe(c.name) && peDone(lp));
+    const donePe = pe.length ? `<ul class="missing-list">${pe.map(c => peLine(c, lp)).join('')}</ul>` : '';
     box.hidden = false;
     box.className = `card stack missing ${missing.length ? '' : 'all-done'}`;
     box.innerHTML = missing.length
       ? `<h2>Missing samples for ${esc(lp)} <span class="count">${missing.length} of ${classes.length} subjects</span></h2>
          <p class="hint">Every subject needs one sample each LP${accel ? ', and an accelerated subject needs two' : ''}.</p>
-         <ul class="missing-list">${missing.map(c => `<li><span>${esc(c.name)}${c.need > 1
-           ? ` <span class="need">${have(c)} of ${c.need} · accelerated</span>` : ''}</span>
-           <button class="btn small primary" type="button" data-turnin="${esc(c.name)}" data-lp="${esc(lp)}">Turn in</button></li>`).join('')}</ul>`
-      : `<h2>✓ Every subject has its samples for ${esc(lp)}</h2>`;
+         <ul class="missing-list">${missing.map(c => missingLine(c, lp, have)).join('')}</ul>${donePe}`
+      : `<h2>✓ Every subject has its samples for ${esc(lp)}</h2>${donePe}`;
   }
   $('#missing').addEventListener('click', (e) => {
     const b = e.target.closest('[data-turnin]');
@@ -1640,7 +1673,7 @@
       try {
         const asked = Date.now();
         const res = await Api.call('login', { studentId: esUpload.studentId });
-        saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null });
+        saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '' });
         if (esUpload.lp && res.lps.includes(esUpload.lp)) wiz.lp = esUpload.lp;
         $('#es-banner-name').textContent = res.student.name;
         $('#es-banner').hidden = false;

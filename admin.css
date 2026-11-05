@@ -847,3 +847,4 @@ a.brand:hover { opacity: .9; }
 .grp-line b { font-size: 13px; font-weight: 800; letter-spacing: 0; background: var(--card, #fff); color: inherit; border-radius: 99px; padding: 2px 10px; }
 .grp-4 .grp-line { background: var(--field); color: var(--muted); }
 .grp-4 .scard { opacity: .7; }
+.cc-list li .btn { justify-self: start; padding: 2px 10px; }

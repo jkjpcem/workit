@@ -329,18 +329,18 @@
       // Light blue once every class has its samples and every upload is annotated and filed.
       const classes = Classes.forLp(s, viewLp);
       // The bar is out of the samples this LP needs, so the empty part is what's still missing.
-      const needed = classes.reduce((n, c) => n + c.need, 0);
+      const needed = classes.reduce((n, c) => n + (Classes.isPe(c.name) ? 0 : c.need), 0);
       const allFiled = active.length > 0 && by.finalized === active.length &&
-        classes.every(c => mine.filter(i => i.subject === c.name).length >= c.need);
+        classes.every(c => have(s, c, mine, viewLp) >= c.need);
       card.className = `scard ${owed ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${owes(s, viewLp) ? '' : 'inactive'}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter') card.click(); });
       // Sem 1 classes for LP1-4, Sem 2 for LP5-8; an accelerated class needs 2 samples.
       const subjects = classes.map(c => {
-        const n = mine.filter(i => i.subject === c.name && !i.redo).length;
+        const n = have(s, c, mine, viewLp);
         const label = ''; // no counts on the class names; the color shows done, partly done or missing
-        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
+        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${Classes.isPe(c.name) ? (n ? 'PE form done' : 'PE form not done yet') : c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
       }).join('');
       // A redo and the sample it replaced share one spot: the new one in front, the old one behind.
       const thumb = (i, cls = '') => `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}${status(i) === 'reference' ? ` (${statusLabel(i)})` : ''}" class="st-${status(i)} ${cls}" data-id="${esc(i.id)}" title="${esc(i.subject)}: ${esc(statusLabel(i))}">`;
@@ -368,7 +368,7 @@
           openStudent(s.id, viewLp).catch(err => toast(err.message));
         }
       });
-      const turnedIn = classes.length > 0 && classes.every(c => mine.filter(i => i.subject === c.name && !i.redo).length >= c.need);
+      const turnedIn = classes.length > 0 && classes.every(c => have(s, c, mine, viewLp) >= c.need);
       groups[!owes(s, viewLp) && !mine.length ? 4 : allFiled ? 3 : turnedIn ? 2 : mine.length ? 1 : 0].push(card);
     }
     grid.classList.add('grouped');
@@ -398,6 +398,13 @@
     if (s.active !== false) return '';
     if (s.withdrew) return `<span class="sid off" title="${owes(s, viewLp) ? `Still owes ${esc(viewLp)} samples` : `Doesn’t owe ${esc(viewLp)} samples`}">Withdrew ${esc(niceDate(s.withdrew))}</span>`;
     return '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders. Add a withdraw date in the Student Roster if they withdrew.">Inactive</span>';
+  }
+
+  // How many of a class's samples are in: for PE, 1 once the family says the PE form is done.
+  const peForm = (sid, lp) => ((data.pe || {})[sid] || {})[lp] || null;
+  function have(s, c, list, lp) {
+    if (Classes.isPe(c.name)) return peForm(s.id, lp) ? 1 : 0;
+    return list.filter(i => i.subject === c.name && !i.redo && i.lp === lp).length;
   }
 
   // "1 of 2 annotated"; more than 2 is flagged, since each student needs exactly 2 per LP.
@@ -546,6 +553,13 @@
     const mine = all.filter(i => i.lp === studentLp && !i.redo);
     let short = 0;
     const rows = classes.map(c => {
+      if (Classes.isPe(c.name)) {
+        const f = peForm(s.id, studentLp);
+        if (!f) short++;
+        return `<li class="${f ? 'ok' : 'no'}"><span class="cc-mark">${f ? '✓' : '✗'}</span><b>${esc(c.name)}</b>
+          <small>${f ? `PE form done (${f.by === 'ES' ? 'marked by you' : 'the family said so'}, ${esc(new Date(f.at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))})` : 'PE form not done yet'}</small>
+          <button type="button" class="btn small" data-pe="${f ? 'undo' : 'done'}">${f ? 'Mark not done' : 'Mark done'}</button></li>`;
+      }
       const got = mine.filter(i => i.subject === c.name).sort((a, b) => b.receivedAt - a.receivedAt);
       const ok = got.length >= c.need;
       if (!ok) short++;
@@ -558,6 +572,22 @@
       ${classes.length ? `<ul class="cc-list">${rows.join('')}</ul>` : '<p class="meta">No classes set for this semester.</p>'}`;
     box.hidden = false;
   }
+
+  // PE form: you can mark it done (or not) for the family.
+  $('#student-classes').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pe]');
+    if (!b || !currentStudent) return;
+    b.disabled = true;
+    try {
+      const res = await call('adminPeConfirm', { studentId: currentStudent.id, lp: studentLp, done: b.dataset.pe === 'done' });
+      data.pe = data.pe || {};
+      data.pe[currentStudent.id] = res.pe || {};
+      renderStudent();
+    } catch (err) {
+      b.disabled = false;
+      toast(/Unknown request/.test(err.message) ? 'The PE form works after the next WiSH school update.' : err.message);
+    }
+  });
 
   $('#student-lps').addEventListener('click', (e) => {
     const b = e.target.closest('.chip');
