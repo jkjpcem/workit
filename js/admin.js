@@ -1061,7 +1061,7 @@
       if (!it.annotations) it.annotations = [];
       if (!force && (it.headerDeleted || it.annotations.some(a => isHeader(a, it)))) return false;
       it.annotations.push({
-        ...style, page: 0, x: 0.6, y: 0.03, w: 0.36, header: true,
+        ...style, page: 0, x: 0.6, y: 0.03, w: 0.27, header: true,
         text: [it.name, it.subject, 'Grade:', 'Minutes:', 'Date:', 'Standard:'].join('\n'),
       });
       return true;
