@@ -2721,7 +2721,7 @@ function emailState_() {
     const missing = [];
     classes.forEach(c => {
       if (isPe_(c.name)) {
-        if (!(pe[student.id] && pe[student.id][lp])) missing.push({ name: c.name + ' form', need: 1, have: 0 });
+        if (!(pe[student.id] && pe[student.id][lp])) missing.push({ name: c.name + ' form', need: 1, have: 0, pe: true });
         return;
       }
       const have = mine.filter(i => i.subject === c.name && !(i.redo && !i.replacedBy)).length;
@@ -2959,7 +2959,7 @@ function studentVars_(s, st, x) {
   return {
     first: x.student.firstName || x.student.name, student_first_name: x.student.firstName || x.student.name, lp: st.lp,
     count: toDoCount_(x),
-    'missing classes': x.missing.map(m => '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
+    'missing classes': x.missing.map(m => '  • ' + m.name + (m.pe ? ': fill out the PE form at ' + PE_FORM_URL + ', then check "We filled out the PE form" in WiSH' : m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
     'to do': toDo_(x),
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
