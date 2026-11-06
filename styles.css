@@ -606,3 +606,4 @@ dialog.viewer { position: relative; }
 .pe-check { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; cursor: pointer; white-space: nowrap; margin: 0; }
 .pe-check input { flex: none; width: 20px; height: 20px; margin: 0; padding: 0; accent-color: var(--brand); }
 .pe-check small { font-weight: 500; color: var(--muted); }
+.pe-note { font-size: 12px; color: var(--muted); }

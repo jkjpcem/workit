@@ -1252,9 +1252,11 @@
   }
   function peLine(c, lp) {
     const done = session.pe && session.pe[lp];
-    return `<li class="pe-line ${done ? 'done' : ''}"><span><b>${esc(c.name)}</b> <span class="need">${done ? 'PE form done' : 'No sample: fill out the PE form'}</span></span>
-      <span class="pe-acts">${session.peFormUrl ? `<a class="btn small" href="${esc(session.peFormUrl)}" target="_blank" rel="noopener">Open the PE form ↗</a>` : ''}
-      <label class="pe-check"><input type="checkbox" data-pe="${esc(lp)}" ${done ? 'checked' : ''}> ${done ? `Done ✓ <small>${esc(new Date(done.at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))}</small>` : `We filled out the ${esc(lp)} PE form`}</label></span></li>`;
+    return `<li class="pe-line ${done ? 'done' : ''}"><span><b>${esc(c.name)}</b> <span class="need">${done ? 'PE form received' : 'No sample: fill out the PE form'}</span></span>
+      <span class="pe-acts">${done
+        ? `<span class="pe-check">Received ✓ <small>${esc(new Date(done.at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))}</small></span>`
+        : `${session.peFormUrl ? `<a class="btn small primary" href="${esc(session.peFormUrl)}" target="_blank" rel="noopener">Open the PE form ↗</a>` : ''}
+          <small class="pe-note">WiSH checks this off once your ES gets the form.</small>`}</span></li>`;
   }
   // Checking (or unchecking) the PE box saves it for this LP.
   async function setPeDone(box) {

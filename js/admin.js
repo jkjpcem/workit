@@ -372,6 +372,9 @@
       groups[!owes(s, viewLp) && !mine.length ? 4 : allFiled ? 3 : turnedIn ? 2 : mine.length ? 1 : 0].push(card);
     }
     grid.classList.add('grouped');
+    // PE form emails whose student name isn't on the roster: mark those by hand on the student page.
+    const odd = (data.peUnmatched || []).filter(u => Date.now() - u.at < 30 * 864e5);
+    if (odd.length) grid.insertAdjacentHTML('beforeend', `<p class="pe-unmatched">PE form emails WiSH couldn’t match to a student: ${odd.map(u => `<b>${esc(u.name)}</b>`).join(', ')}. Open that student and click Mark done next to PE.</p>`);
     ['No uploads yet', 'Some uploads', 'Turned in', 'Reviewed and Exported', 'Withdrawn: no samples needed'].forEach((name, g) => {
       if (!groups[g].length) return;
       const sec = document.createElement('section');

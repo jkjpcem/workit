@@ -328,6 +328,8 @@ function checkPeEmails() {
   const norm = (t) => String(t || '').toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
   const lpDates = getLpDates_();
   const pe = peForms_();
+  let unmatched = [];
+  try { unmatched = JSON.parse(props.getProperty('PE_MAIL_UNMATCHED') || '[]'); } catch (err) { unmatched = []; }
   let marked = 0;
   threads.forEach(t => t.getMessages().forEach(m => {
     const id = m.getId();
@@ -341,7 +343,7 @@ function checkPeEmails() {
     const student = students.filter(s => norm(s.firstName + ' ' + s.lastName) === name)[0] ||
       students.filter(s => s.firstName && s.lastName && words.indexOf(norm(s.firstName).split(' ')[0]) !== -1 &&
         norm(s.lastName).split(' ').every(w => words.indexOf(w) !== -1))[0];
-    if (!student) return;
+    if (!student) { unmatched.push({ name: (nameMatch[1] || '').trim().slice(0, 80), at: m.getDate().getTime() }); return; }
     const lpMatch = /Learning\s*Period[^\r\n]*?[\r\n\s:]*LP\s*([1-8])/i.exec(body) || /\bLP\s*([1-8])\b/i.exec(body);
     let lp = lpMatch ? 'LP' + lpMatch[1] : '';
     if (!lp) { // no LP in the email: the LP the email arrived in
@@ -354,6 +356,7 @@ function checkPeEmails() {
     marked++;
   }));
   props.setProperty('PE_MAIL_SEEN', JSON.stringify(seen.slice(-400)));
+  props.setProperty('PE_MAIL_UNMATCHED', JSON.stringify(unmatched.slice(-20)));
   memoClear_();
   return marked;
 }
@@ -1218,6 +1221,7 @@ function adminOverview_(body) {
     students: getStudents_(),
     items: readSubs_().items.filter(i => i.lp === lp && !i.trashedAt).map(adminItem_),
     pe: peForms_(),
+    peUnmatched: JSON.parse(PropertiesService.getScriptProperties().getProperty('PE_MAIL_UNMATCHED') || '[]'),
   };
 }
 
@@ -3007,7 +3011,7 @@ function studentVars_(s, st, x) {
   return {
     first: x.student.firstName || x.student.name, student_first_name: x.student.firstName || x.student.name, lp: st.lp,
     count: toDoCount_(x),
-    'missing classes': x.missing.map(m => '  • ' + m.name + (m.pe ? ': fill out the PE form at ' + PE_FORM_URL + ', then check "We filled out the PE form" in WiSH' : m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')).join('\n'),
+    'missing classes': x.missing.map(missingLine_).join('\n'),
     'to do': toDo_(x),
     'days left': st.daysLeft === null ? '' : String(Math.max(0, st.daysLeft)),
     'end date': st.range ? niceDay_(st.range.end) : '', link: s.link, class: '', reasons: '',
@@ -3022,8 +3026,17 @@ function toDoMissing_(x) {
 }
 
 function toDoCount_(x) {
-  const n = toDoMissing_(x).length + x.redos.length;
-  return n + ' sample' + (n === 1 ? '' : 's');
+  const missing = toDoMissing_(x);
+  const n = missing.length + x.redos.length;
+  // The PE form isn't a work sample, so a list that has it counts "items".
+  const word = missing.some(m => m.pe) ? ' item' : ' sample';
+  return n + word + (n === 1 ? '' : 's');
+}
+
+/** One line of a still-missing list. The PE form line carries the form's link. */
+function missingLine_(m) {
+  if (m.pe) return '  • ' + m.name + ': please fill out the PE form here: ' + PE_FORM_URL + '\n    (WiSH checks it off for you once the form is received.)';
+  return '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '');
 }
 
 /** What's missing and what needs a redo, as one list for the "still to do" email. */
@@ -3032,7 +3045,7 @@ function toDo_(x) {
   const missing = toDoMissing_(x);
   if (missing.length) {
     out.push('Still missing:');
-    missing.forEach(m => out.push('  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '')));
+    missing.forEach(m => out.push(missingLine_(m)));
   }
   if (x.redos.length) {
     if (out.length) out.push('');
