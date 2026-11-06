@@ -317,7 +317,7 @@ function peConfirm_(body) {
  * ES's Gmail (read only) and marks that student's PE form done for that LP. Run it once from the
  * editor to allow Gmail. Names that don't match a student on the roster are left for the ES.
  */
-const PE_MAIL_QUERY = 'from:jotform.com "Physical Education Log" newer_than:60d';
+const PE_MAIL_QUERY = 'subject:"Physical Education Log" newer_than:60d';
 function checkPeEmails() {
   const props = PropertiesService.getScriptProperties();
   let seen = [];
