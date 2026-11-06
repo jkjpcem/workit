@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 42;
+const WORKIT_VERSION = 43;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -318,31 +318,34 @@ function peConfirm_(body) {
  * editor to allow Gmail. Names that don't match a student on the roster are left for the ES.
  */
 const PE_MAIL_QUERY = 'subject:"Physical Education Log" newer_than:60d';
+const PE_SEEN_KEY = 'PE_MAIL_SEEN_2';
 function checkPeEmails() {
   const props = PropertiesService.getScriptProperties();
   let seen = [];
-  try { seen = JSON.parse(props.getProperty('PE_MAIL_SEEN') || '[]'); } catch (err) { seen = []; }
+  // v43 key: emails v42 skipped get read again. Only emails that marked a PE form are remembered,
+  // so one with a name that isn't on the roster yet is tried again after the roster is fixed.
+  try { seen = JSON.parse(props.getProperty(PE_SEEN_KEY) || '[]'); } catch (err) { seen = []; }
   const threads = GmailApp.search(PE_MAIL_QUERY, 0, 50);
+  Logger.log('PE form emails found: ' + threads.length + ' (search: ' + PE_MAIL_QUERY + ')');
   if (!threads.length) return 0;
   const students = getStudents_();
   const norm = (t) => String(t || '').toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
   const lpDates = getLpDates_();
   const pe = peForms_();
-  let unmatched = [];
-  try { unmatched = JSON.parse(props.getProperty('PE_MAIL_UNMATCHED') || '[]'); } catch (err) { unmatched = []; }
+  const unmatched = []; // rebuilt each time, since unmatched emails are read again
   let marked = 0;
   threads.forEach(t => t.getMessages().forEach(m => {
     const id = m.getId();
     if (seen.indexOf(id) !== -1) return;
-    seen.push(id);
     const body = m.getPlainBody() || '';
     const nameMatch = /Student\s*Name\s*[:\t ]*\r?\n?\s*([^\r\n]+)/i.exec(body);
     const name = norm(nameMatch && nameMatch[1]);
-    if (!name) return;
+    if (!name) { Logger.log('No student name found in "' + m.getSubject() + '". Start of the email: ' + body.slice(0, 300)); return; }
     const words = name.split(' ');
     const student = students.filter(s => norm(s.firstName + ' ' + s.lastName) === name)[0] ||
       students.filter(s => s.firstName && s.lastName && words.indexOf(norm(s.firstName).split(' ')[0]) !== -1 &&
         norm(s.lastName).split(' ').every(w => words.indexOf(w) !== -1))[0];
+    if (!student) Logger.log('No student on the roster named "' + name + '"');
     if (!student) { unmatched.push({ name: (nameMatch[1] || '').trim().slice(0, 80), at: m.getDate().getTime() }); return; }
     const lpMatch = /Learning\s*Period[^\r\n]*?[\r\n\s:]*LP\s*([1-8])/i.exec(body) || /\bLP\s*([1-8])\b/i.exec(body);
     let lp = lpMatch ? 'LP' + lpMatch[1] : '';
@@ -350,15 +353,26 @@ function checkPeEmails() {
       const day = ymd_(m.getDate(), tz_());
       lp = LEARNING_PERIODS.filter(l => lpDates[l] && lpDates[l].start <= day && day <= lpDates[l].end)[0] || '';
     }
-    if (!lp || (pe[student.id] && pe[student.id][lp])) return;
+    Logger.log(student.name + ': ' + (lp || 'no LP found') + (lp && pe[student.id] && pe[student.id][lp] ? ' (already done)' : ''));
+    if (!lp) return;
+    seen.push(id);
+    if (pe[student.id] && pe[student.id][lp]) return;
     setPe_(student.id, lp, true, 'Jotform email');
     (pe[student.id] = pe[student.id] || {})[lp] = { at: Date.now(), by: 'Jotform email' };
     marked++;
   }));
-  props.setProperty('PE_MAIL_SEEN', JSON.stringify(seen.slice(-400)));
+  props.setProperty(PE_SEEN_KEY, JSON.stringify(seen.slice(-400)));
   props.setProperty('PE_MAIL_UNMATCHED', JSON.stringify(unmatched.slice(-20)));
   memoClear_();
+  Logger.log('Marked ' + marked + ' PE form' + (marked === 1 ? '' : 's') + ' done.');
   return marked;
+}
+
+/** Run from the editor to read every PE form email again (for example after fixing a name on the roster). */
+function recheckPeEmails() {
+  PropertiesService.getScriptProperties().deleteProperty(PE_SEEN_KEY);
+  PropertiesService.getScriptProperties().deleteProperty('PE_MAIL_UNMATCHED');
+  return checkPeEmails();
 }
 
 /** The ES marks a PE form done (or not) from the dashboard. */
