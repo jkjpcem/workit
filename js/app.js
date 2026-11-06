@@ -1241,7 +1241,9 @@
     const inLp = items.filter(i => i.lp === lp);
     const have = (c) => Classes.isPe(c.name) ? (peDone(lp) ? 1 : 0)
       : inLp.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
-    return { classes, have, missing: classes.filter(c => have(c) < c.need) };
+    // An LP that ended before the student enrolled needs no samples.
+    const notNeeded = (session.student.skipLps || []).includes(lp);
+    return { classes, have, notNeeded, missing: notNeeded ? [] : classes.filter(c => have(c) < c.need) };
   }
   const peDone = (lp) => !!(session && session.pe && session.pe[lp]);
   // One line of a missing list: Turn in, or for PE the form link and the checkbox.
@@ -1280,9 +1282,15 @@
   });
   function renderMissing(items) {
     const lp = historyFilter.lp === 'all' ? session.currentLp : historyFilter.lp;
-    const { classes, have, missing } = missingFor(items, lp);
+    const { classes, have, missing, notNeeded } = missingFor(items, lp);
     const box = $('#missing');
     if (!classes.length) { box.hidden = true; return; }
+    if (notNeeded) {
+      box.hidden = false;
+      box.className = 'card stack missing all-done';
+      box.innerHTML = `<h2>No work samples needed for ${esc(lp)}</h2><p class="hint">You started after it, on ${esc(niceDate(session.student.started))}.</p>`;
+      return;
+    }
     const accel = classes.some(c => c.need > 1);
     // A PE form already marked done stays here, so it can be unchecked.
     const pe = classes.filter(c => Classes.isPe(c.name) && peDone(lp));

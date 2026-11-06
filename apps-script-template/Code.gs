@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 44;
+const WORKIT_VERSION = 45;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -48,7 +48,19 @@ const SEM2_FIRST_LP = 5;
 const STUDENT_HEADERS = ['First name', 'Last name', 'Grade', 'City', 'Student ID',
   'Sem 1 classes (comma separated; add (Accel) after an accelerated class)',
   'Sem 2 classes (leave blank to use Sem 1 with A changed to B)', 'Student email', 'Family email (more than one: separate with commas)',
-  'Status (Active or Inactive)', 'Withdrew (date; owes samples for every LP that started by then)'];
+  'Status (Active or Inactive)', 'Withdrew (date; owes samples for every LP that started by then)',
+  'Started (date they enrolled; LPs that ended before it need no samples)'];
+// A student who starts partway through an LP: 'always' = they owe that LP, 'half' = only if they start
+// in its first half, 'next' = their samples begin with the next LP.
+const START_MID_LP = 'always';
+/** Does a student who started on this date owe samples for an LP with these dates? */
+function startOwes_(started, range) {
+  if (!started || !range || started <= range.start) return true;
+  if (started > range.end) return false;
+  if (START_MID_LP === 'next') return false;
+  if (START_MID_LP === 'half') return daysBetween_(range.start, started) * 2 <= daysBetween_(range.start, range.end);
+  return true;
+}
 const LEARNING_PERIODS = ['LP1', 'LP2', 'LP3', 'LP4', 'LP5', 'LP6', 'LP7', 'LP8'];
 const GRADES = ['8', '9', '10', '11', '12'];
 const REDO_REASONS = ['Missing name', 'Missing date', 'Missing subject', 'Missing score/grade/feedback'];
@@ -441,6 +453,7 @@ function upload_(body) {
     if (!student.withdrew) return { ok: false, error: 'Turning in work is paused on your account. Ask your ES.' };
     if (range && range.start > student.withdrew) return { ok: false, error: 'You withdrew on ' + niceDay_(student.withdrew) + ', so you don’t need samples for ' + body.lp + '.' };
   }
+  if (!es && (student.skipLps || []).indexOf(body.lp) !== -1) return { ok: false, error: 'You started on ' + niceDay_(student.started) + ', so you don’t need samples for ' + body.lp + '.' };
   if (!clean_(body.subject, 60)) return { ok: false, error: 'Pick a subject.' };
   const source = SOURCES.indexOf(body.source) !== -1 ? body.source : 'scan';
   if (source === 'gdoc' ? !body.link : !body.data) return { ok: false, error: 'No file was attached.' };
@@ -1519,6 +1532,7 @@ function adminRoster_() {
       classes: text_(v[5]).trim(), classes2: text_(v[6]).trim(), email: String(v[7] || '').trim(), family: String(v[8] || '').trim(),
       status: /^\s*inactive/i.test(String(v[9] || '')) ? 'Inactive' : 'Active',
       withdrew: isYmd_(dateText_(v[10]).trim()) ? dateText_(v[10]).trim() : '',
+      started: isYmd_(dateText_(v[11]).trim()) ? dateText_(v[11]).trim() : '',
     };
     row.lastSignIn = seen[makeId_(row.first, row.grade, row.city)] || 0;
     if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family) rows.push(row);
@@ -1539,6 +1553,7 @@ function adminSaveRoster_(body) {
       city: clean_(r.city, 60), classes: clean_(r.classes, 500), classes2: clean_(r.classes2, 500),
       email: clean_(r.email, 120), family: clean_(r.family, 300), status: r.status === 'Inactive' ? 'Inactive' : 'Active',
       withdrew: r.status === 'Inactive' && isYmd_(String(r.withdrew || '')) ? String(r.withdrew) : '',
+      started: isYmd_(String(r.started || '')) ? String(r.started) : '',
     };
     if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family) return;
     const id = makeId_(row.first, row.grade, row.city);
@@ -1558,13 +1573,13 @@ function adminSaveRoster_(body) {
     const last = sheet.getLastRow();
     if (last > 1) {
       sheet.getRange(2, 1, last - 1, 4).clearContent();
-      sheet.getRange(2, 6, last - 1, 6).clearContent();
+      sheet.getRange(2, 6, last - 1, 7).clearContent();
     }
     studentHeaders_();
     if (rows.length) {
       sheet.getRange(2, 1, rows.length, 4).setValues(rows.map(r => [cell_(r.first), cell_(r.last), r.grade, cell_(r.city)]));
-      sheet.getRange(2, 11, rows.length, 1).setNumberFormat('@');
-      sheet.getRange(2, 6, rows.length, 6).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew]));
+      sheet.getRange(2, 11, rows.length, 2).setNumberFormat('@');
+      sheet.getRange(2, 6, rows.length, 7).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started]));
     }
     return { ok: true, count: rows.length };
   } finally {
@@ -1810,6 +1825,7 @@ function getStudents_() {
   }
   const values = getSheet_('Students').getDataRange().getValues();
   const out = [];
+  const lpDates = getLpDates_();
   for (let r = 1; r < values.length; r++) {
     const v = values[r];
     const id = makeId_(v[0], v[2], v[3]);
@@ -1833,6 +1849,10 @@ function getStudents_() {
     // Withdrew: still owes samples for every LP that started on or before this date.
     const withdrew = dateText_(v[10]).trim();
     st.withdrew = !st.active && isYmd_(withdrew) ? withdrew : '';
+    // Started: LPs that ended before they enrolled need no samples (skipLps lists them).
+    const started = dateText_(v[11]).trim();
+    st.started = isYmd_(started) ? started : '';
+    st.skipLps = st.started ? LEARNING_PERIODS.filter(l => !startOwes_(st.started, lpDates[l])) : [];
   }
   memoPut_('students', out);
   return out;
@@ -1871,7 +1891,7 @@ function semesterB_(name) {
 /** Names the Sem 1 / Sem 2 class columns on the Students tab (older sheets had one Classes column). */
 function studentHeaders_() {
   const sheet = getSheet_('Students');
-  sheet.getRange(1, 6, 1, 6).setValues([STUDENT_HEADERS.slice(5)]).setFontWeight('bold');
+  sheet.getRange(1, 6, 1, STUDENT_HEADERS.length - 5).setValues([STUDENT_HEADERS.slice(5)]).setFontWeight('bold');
   sheet.setColumnWidth(7, 320);
 }
 
@@ -2791,7 +2811,8 @@ function emailState_() {
   const tz = tz_();
   const today = ymd_(new Date(), tz);
   const daysLeft = range ? daysBetween_(today, range.end) : null;
-  const students = getStudents_().filter(x => x.active !== false);  // inactive students get no reminders
+  // Inactive students get no reminders, nor do students who started after this LP (see startOwes_).
+  const students = getStudents_().filter(x => x.active !== false && (x.skipLps || []).indexOf(lp) === -1);
   const byId = {};
   students.forEach(x => { byId[x.id] = x; });
   const subs = readSubs_();

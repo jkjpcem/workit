@@ -356,7 +356,7 @@
             ${by.new} to review · ${annoLine(annotatedCount(s.id, viewLp))}${owed ? ` · <b style="color:var(--st-redo)">${owed} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
         : owes(s, viewLp) ? `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`
-        : `<div class="no-need">No work samples needed for ${esc(viewLp)}${s.withdrew ? ': they withdrew before it started' : ': inactive'}.</div>`}</div>
+        : `<div class="no-need">No work samples needed for ${esc(viewLp)}${startSkips(s, viewLp) ? `: they started ${esc(niceDate(s.started))}` : s.withdrew ? ': they withdrew before it started' : ': inactive'}.</div>`}</div>
         ${subjects && (owes(s, viewLp) || mine.length) ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
         <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
       card.addEventListener('click', (e) => {
@@ -375,7 +375,7 @@
     // PE form emails whose student name isn't on the roster: mark those by hand on the student page.
     const odd = (data.peUnmatched || []).filter(u => Date.now() - u.at < 30 * 864e5);
     if (odd.length) grid.insertAdjacentHTML('beforeend', `<p class="pe-unmatched">PE form emails WiSH couldn’t match to a student: ${odd.map(u => `<b>${esc(u.name)}</b>`).join(', ')}. Open that student and click Mark done next to PE.</p>`);
-    ['No uploads yet', 'Some uploads', 'Turned in', 'Reviewed and Exported', 'Withdrawn: no samples needed'].forEach((name, g) => {
+    ['No uploads yet', 'Some uploads', 'Turned in', 'Reviewed and Exported', 'No samples needed'].forEach((name, g) => {
       if (!groups[g].length) return;
       const sec = document.createElement('section');
       sec.className = `grp grp-${g}`;
@@ -392,13 +392,19 @@
 
   // Active students owe samples every LP. A student who withdrew still owes them for every LP
   // that started on or before the withdraw date. Inactive with no date: owes nothing.
+  // A student with a start date owes nothing for LPs that ended before it (WiSH lists them in skipLps).
+  const startSkips = (s, lp) => (s.skipLps || []).includes(lp);
   function owes(s, lp) {
+    if (startSkips(s, lp)) return false;
     if (s.active !== false) return true;
     const range = (data.lpDates || {})[lp];
     return !!s.withdrew && (!range || range.start <= s.withdrew);
   }
   function inactiveTag(s) {
-    if (s.active !== false) return '';
+    const range = (data.lpDates || {})[viewLp];
+    const late = s.started && (!range || s.started > range.start);
+    const startTag = late ? `<span class="sid new-start" title="${owes(s, viewLp) ? `Owes ${esc(viewLp)} samples` : `Doesn’t owe ${esc(viewLp)} samples`}">Started ${esc(niceDate(s.started))}</span>` : '';
+    if (s.active !== false) return startTag;
     if (s.withdrew) return `<span class="sid off" title="${owes(s, viewLp) ? `Still owes ${esc(viewLp)} samples` : `Doesn’t owe ${esc(viewLp)} samples`}">Withdrew ${esc(niceDate(s.withdrew))}</span>`;
     return '<span class="sid off" title="Can sign in, but can’t turn in work and gets no reminders. Add a withdraw date in the Student Roster if they withdrew.">Inactive</span>';
   }
@@ -2138,6 +2144,13 @@
       title="${r.withdrew ? 'They still owe samples for every LP that started on or before this date' : 'Add the date they withdrew'}">`;
   }
 
+  // Start date: LPs that ended before a new student enrolled need no samples.
+  function startedBox(r, i) {
+    if (isEmpty(r)) return '';
+    return `<input type="date" data-k="started" value="${esc(r.started || '')}" aria-label="Start date row ${i + 1}"
+      title="The day they enrolled. LPs that ended before it need no samples. Leave blank for students here from the start.">`;
+  }
+
   function renderRoster() {
     const counts = {};
     roster.forEach(r => { const id = rosterId(r); if (id) counts[id] = (counts[id] || 0) + 1; });
@@ -2153,6 +2166,7 @@
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
           <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
         <td class="withdrew-cell">${withdrewBox(r, i)}</td>
+        <td class="started-cell">${startedBox(r, i)}</td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
@@ -2244,6 +2258,7 @@
     if (wasEmpty !== isEmpty(roster[i])) {  // the Status box appears or goes with the row's content
       $('.status-cell', inp.closest('tr')).innerHTML = isEmpty(roster[i]) ? ''
         : '<select data-k="status" class="on" aria-label="Status"><option selected>Active</option><option>Inactive</option></select>';
+      $('.started-cell', inp.closest('tr')).innerHTML = startedBox(roster[i], i);
     }
     refreshIds();
     if (inp.dataset.k === 'first' || inp.dataset.k === 'last' || isEmpty(roster[i]) !== !$(`#classes-body tr[data-r="${i}"]`)) renderClasses();
