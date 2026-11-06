@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 43;
+const WORKIT_VERSION = 44;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -370,6 +370,19 @@ function checkPeEmails() {
   memoClear_();
   Logger.log('Marked ' + marked + ' PE form' + (marked === 1 ? '' : 's') + ' done.');
   return marked;
+}
+
+/**
+ * PE emails are read once a day, and every 30 minutes in the last week (7 days) of an LP,
+ * when families rush to send the form.
+ */
+function peCheckDue_() {
+  const last = Number(PropertiesService.getScriptProperties().getProperty('PE_MAIL_LAST') || 0);
+  const today = ymd_(new Date(), tz_());
+  const weekBefore = (ymd) => ymd_(new Date(new Date(ymd + 'T12:00:00Z').getTime() - 6 * 864e5), 'UTC');
+  const dates = getLpDates_();
+  const lastWeek = LEARNING_PERIODS.some(l => dates[l] && weekBefore(dates[l].end) <= today && today <= dates[l].end);
+  return Date.now() - last >= (lastWeek ? 30 * 60e3 : 24 * 3600e3) - 60e3;
 }
 
 /** Run from the editor to read every PE form email again (for example after fixing a name on the roster). */
@@ -2819,7 +2832,12 @@ function emailState_() {
 
 /** Every 10 minutes: whatever is due goes out. Nothing is sent twice (see the Email log tab). */
 function wishTick() {
-  try { checkPeEmails(); } catch (err) { /* Gmail not allowed yet, or Gmail is busy: try again next time */ }
+  if (peCheckDue_()) {
+    try {
+      checkPeEmails();
+      PropertiesService.getScriptProperties().setProperty('PE_MAIL_LAST', String(Date.now()));
+    } catch (err) { /* Gmail not allowed yet, or Gmail is busy: try again next time */ }
+  }
   // Keeps the LP meeting bookings fresh, so sign-in never waits for the calendar.
   if (Object.keys(meetingSettings_().links).length) { try { readBookings_(true); } catch (err) { /* not allowed yet */ } }
   const s = emailSettings_();
