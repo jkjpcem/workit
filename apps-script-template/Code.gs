@@ -338,7 +338,11 @@ function checkPeEmails() {
     const id = m.getId();
     if (seen.indexOf(id) !== -1) return;
     const body = m.getPlainBody() || '';
-    const nameMatch = /Student\s*Name\s*[:\t ]*\r?\n?\s*([^\r\n]+)/i.exec(body);
+    // Only the form's own emails (a parent's question about the form has no "Learning Period Number").
+    if (!/Learning\s*Period\s*Number/i.test(body)) return;
+    // Gmail often runs the form's fields together ("Student NameCORRIE ARECHIGAGrade Level9…"),
+    // so the name ends at the next field's label or at a line break.
+    const nameMatch = /Student\s*Name\s*[:\t ]*\r?\n?\s*([^\r\n]+?)\s*(?=Grade\s*Level|Education\s*Specialist|Learning\s*Period|[\r\n]|$)/i.exec(body);
     const name = norm(nameMatch && nameMatch[1]);
     if (!name) { Logger.log('No student name found in "' + m.getSubject() + '". Start of the email: ' + body.slice(0, 300)); return; }
     const words = name.split(' ');
