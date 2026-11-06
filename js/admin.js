@@ -557,7 +557,7 @@
         const f = peForm(s.id, studentLp);
         if (!f) short++;
         return `<li class="${f ? 'ok' : 'no'}"><span class="cc-mark">${f ? '✓' : '✗'}</span><b>${esc(c.name)}</b>
-          <small>${f ? `PE form done (${f.by === 'ES' ? 'marked by you' : 'the family said so'}, ${esc(new Date(f.at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))})` : 'PE form not done yet'}</small>
+          <small>${f ? `PE form done (${f.by === 'ES' ? 'marked by you' : /jotform/i.test(f.by) ? 'from the PE form email' : 'the family said so'}, ${esc(new Date(f.at).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))})` : 'PE form not done yet'}</small>
           <button type="button" class="btn small" data-pe="${f ? 'undo' : 'done'}">${f ? 'Mark not done' : 'Mark done'}</button></li>`;
       }
       const got = mine.filter(i => i.subject === c.name).sort((a, b) => b.receivedAt - a.receivedAt);
