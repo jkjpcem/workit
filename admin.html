@@ -98,6 +98,7 @@
           <p class="hint">Follow the steps in order. WiSH remembers where you are, so you can stop and come back any time.</p>
         </div>
         <div class="setup-head-actions">
+          <button class="btn" id="setup-help" type="button">Stuck? Get help</button>
           <button class="btn" id="setup-later" hidden>Go to my dashboard</button>
           <button class="btn ghost" id="setup-signout">Sign out</button>
         </div>
@@ -495,6 +496,19 @@
       <div class="dialog-actions">
         <button class="btn" type="button" id="welcome-close">Close</button>
         <button class="btn primary" type="button" id="welcome-copy">Copy message</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="help-dialog">
+    <div class="stack">
+      <h2>Get help with setup</h2>
+      <p class="hint">Send this to the person who made your WiSH account. It tells them where you are, so they can help quickly. Add anything you see on the screen.</p>
+      <textarea id="help-text" rows="12"></textarea>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="help-close">Close</button>
+        <button class="btn" type="button" id="help-copy">Copy message</button>
+        <a class="btn primary" id="help-email" href="#">Email it</a>
       </div>
     </div>
   </dialog>

@@ -865,3 +865,55 @@ a.brand:hover { opacity: .9; }
   .ink-x, .anno .box-x { width: 32px; height: 32px; font-size: 16px; line-height: 32px; }
   .anno .box-x { right: -18px; top: -18px; }
 }
+
+/* ----- Setup: questions, choices and drawings of Google's screens ----- */
+.ask-box { margin: 16px 0 20px; padding: 16px 18px; border-radius: 14px; background: var(--field); border: 1px solid var(--line); }
+.ask-q { margin: 0 0 6px; font-size: 19px; font-weight: 750; line-height: 1.4; }
+.choice-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.choice-list { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; max-width: 560px; }
+.choice {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 14px 16px; border-radius: 12px; cursor: pointer;
+  font: inherit; font-size: 16px; color: var(--text); background: var(--card); border: 2px solid var(--line); box-shadow: var(--shadow-sm);
+}
+.choice span { font-size: 14px; color: var(--muted); line-height: 1.45; }
+.choice:hover { border-color: var(--brand); }
+.choice.is-picked { border-color: var(--brand); background: var(--brand-soft); }
+.ask-fields { display: flex; gap: 18px; flex-wrap: wrap; margin: 14px 0 6px; }
+.ask-fields .inline-field { margin: 0; }
+.step-actions.split { justify-content: space-between; align-items: center; }
+.summary-list { margin: 10px 0 14px; padding-left: 20px; line-height: 1.6; }
+.summary-list li { margin-bottom: 6px; }
+.private-help { margin-top: 14px; }
+.private-help .how { margin-bottom: 4px; }
+kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--card); font: 600 13px ui-monospace, Menlo, monospace; text-align: center; }
+details.why { margin-top: 8px; }
+details.why summary { cursor: pointer; color: var(--brand); font-weight: 650; }
+details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
+#help-dialog { width: min(600px, calc(100% - 32px)); }
+#help-text { width: 100%; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
+
+/* Google's screens are always light, so these drawings stay light in dark mode too. */
+.gmock { margin: 10px 0 4px; max-width: 470px; }
+.gmock figcaption { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.g-win { padding: 14px 16px; border-radius: 10px; background: #fff; color: #202124; border: 1px solid #dadce0; box-shadow: 0 1px 3px rgba(60, 64, 67, .2); font-family: Roboto, Arial, sans-serif; font-size: 14px; line-height: 1.45; }
+.g-win p { margin: 0 0 8px; line-height: 1.45; }
+.g-title { font-size: 17px; font-weight: 500; margin-bottom: 8px; }
+.g-small { font-size: 12.5px; color: #5f6368; }
+.g-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.g-btn { display: inline-block; padding: 6px 14px; border-radius: 4px; border: 1px solid #dadce0; color: #1a73e8; font-weight: 500; font-size: 13.5px; }
+.g-btn.blue { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+.g-link { color: #1a73e8; text-decoration: underline; font-size: 13.5px; word-break: break-all; }
+.g-check { font-weight: 500; }
+.g-split { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.g-split p { margin: 6px 0; }
+.g-bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #dadce0; font-weight: 500; }
+.g-menu { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 8px; font-size: 13.5px; }
+.g-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f1f3f4; }
+.g-row > span:first-child { color: #5f6368; font-size: 13px; }
+.g-field { display: inline-block; padding: 4px 10px; border: 1px solid #dadce0; border-radius: 4px; font-size: 13px; }
+.g-hit { display: inline-block; padding: 3px; border-radius: 8px; outline: 3px solid #e8453c; outline-offset: 1px; animation: g-pulse 1.6s ease-in-out infinite; }
+.g-no { display: inline-block; position: relative; opacity: .55; }
+.g-no::after { content: ''; position: absolute; left: -4px; right: -4px; top: 50%; border-top: 3px solid #e8453c; transform: rotate(-8deg); }
+@keyframes g-pulse { 50% { outline-color: rgba(232, 69, 60, .35); } }
+@media (prefers-reduced-motion: reduce) { .g-hit { animation: none; } }
+@media (max-width: 560px) { .choice-row { flex-direction: column; } .setup-panel { padding: 20px 16px; } }

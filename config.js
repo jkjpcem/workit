@@ -8,4 +8,6 @@ window.WORKIT_CONFIG = {
   // WiSH's own web address once it moves (for example 'https://wish.example.org/').
   // While empty, nothing changes. When set, the old jkjpcem.github.io/workit address sends everyone here.
   NEW_HOME: '',
+  // Where a new ES's "Stuck? Get help" email goes during setup. Empty: they type the address.
+  HELP_EMAIL: '',
 };

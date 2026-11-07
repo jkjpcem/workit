@@ -60,16 +60,23 @@
     const user = e.target.username.value.trim(), pass = e.target.password.value;
     busy('Signing in…');
     try {
-      let res;
+      let res, pw = pass;
       try {
-        res = await mainCall('esLogin', { user, pass });
+        try {
+          res = await mainCall('esLogin', { user, pass });
+        } catch (err) {
+          // A pasted temporary password often brings a space along.
+          if (pass === pass.trim() || /Unknown request/i.test(err.message)) throw err;
+          pw = pass.trim();
+          res = await mainCall('esLogin', { user, pass: pw });
+        }
       } catch (err) {
         // A main copy from before ES accounts only knows its own username and password.
         if (!/Unknown request/i.test(err.message)) throw err;
         res = { role: 'super' };
       }
       creds = res.role === 'super'
-        ? { role: 'super', user, key: pass }
+        ? { role: 'super', user, key: pw }
         : { role: 'es', user: res.user, key: res.key, url: res.scriptUrl, name: res.name, step: res.step, mustChange: res.mustChange };
       if (creds.role === 'super') await loadOverview();
       saveCreds(creds);
@@ -2422,6 +2429,7 @@
     openDash: () => loadOverview(),
     openRoster: () => { $('#open-roster').click(); rosterBack = 'setup'; $('#roster-back').textContent = '← Back to setup'; },
     openDates: () => openSettings('setup'),
+    bookingLink: () => (data ? Meetings.link(data.currentLp) : ''),
   });
 
   // ---------- LP meetings (js/meetings.js) ----------
