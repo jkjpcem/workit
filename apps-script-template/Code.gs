@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 45;
+const WORKIT_VERSION = 46;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -230,6 +230,7 @@ function doPost(e) {
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
       adminUnfile: adminUnfile_, adminFolders: adminFolders_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
+      esStatus: esStatus_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
     };
     const es = {
@@ -1123,6 +1124,24 @@ function esLookup_(body) {
   if (!es.active) return { ok: false, error: 'This WiSH link is turned off right now. Ask your ES.' };
   if (!es.scriptUrl) return { ok: false, error: 'Your ES hasn’t finished setting up WiSH yet.' };
   return { ok: true, name: es.name, scriptUrl: es.scriptUrl };
+}
+
+/**
+ * For the setup steps and the ES accounts page: who this copy runs as, its versions, whether
+ * every permission is granted, its web app link and whether the reminder timer is on.
+ * (LOADER_VERSION comes from es-copy/Loader.gs, which runs this code in an ES's copy.)
+ */
+function esStatus_() {
+  let owner = '', allowed = false, timer = false;
+  try { owner = Session.getEffectiveUser().getEmail(); } catch (ignored) {}
+  try {
+    allowed = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL).getAuthorizationStatus() === ScriptApp.AuthorizationStatus.NOT_REQUIRED;
+  } catch (ignored) {}
+  try { timer = timerOn_(); } catch (ignored) {}
+  return {
+    ok: true, owner: owner, version: WORKIT_VERSION, loaderVersion: typeof LOADER_VERSION === 'undefined' ? 0 : LOADER_VERSION,
+    allowed: allowed, url: isMain_() ? '' : webAppUrl_(), remindersTimer: timer,
+  };
 }
 
 /**
@@ -2270,7 +2289,7 @@ function getCurrentLp_() {
 const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
-const READ_ONLY_ACTIONS = ['login', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList', 'adminFolders',
+const READ_ONLY_ACTIONS = ['login', 'esStatus', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList', 'adminFolders',
   'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 
