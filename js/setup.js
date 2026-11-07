@@ -128,6 +128,21 @@ function AdminSetup(ctx) {
       </ol></div>`;
   }
 
+  // Signing out of every other Google account first is the simplest fix. A private window is
+  // offered too, for anyone who'd rather stay signed in to their other accounts.
+  function signOutHelp(later) {
+    return `<div class="private-help">
+      <ol class="how">
+        <li>Click <a class="btn" href="https://accounts.google.com/Logout" target="_blank" rel="noopener">Sign out of all Google accounts ↗</a>
+          This signs this browser out of Gmail, YouTube and other Google sites. WiSH stays signed in.</li>
+        <li>Click <a class="btn" href="https://accounts.google.com/" target="_blank" rel="noopener">Sign in with my school account ↗</a>
+          and sign in with your school account only (the one ending in suncoastcharter.org). Don’t add any other account.</li>
+        <li>${later ? 'Come back here and try the step again.' : 'Come back here and click <button class="btn primary" type="button" data-ready="one">Done: only my school account now</button>'}</li>
+      </ol>
+      <details class="by-hand"><summary>Rather not sign out? Use a private window instead</summary>${privateHelp()}</details>
+    </div>`;
+  }
+
   // What each Google permission is for, in the order Google tends to list them.
   const SCOPES = [
     ['Google Drive', 'to save your students’ work samples in your WiSH Homework folder'],
@@ -197,15 +212,15 @@ function AdminSetup(ctx) {
       return `
       <p>WiSH keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the WiSH sheet.</p>
       <div class="ask-box">
-        <p class="ask-q">Before you start: in this browser, are you signed in to more than one Google account?</p>
-        <p class="hint">For example, a personal Gmail and your school account. Google often mixes them up during setup.</p>
+        <p class="ask-q">Before you start: sign out of every Google account except your school one.</p>
+        <p class="hint">If this browser is also signed in to a personal Gmail (or any other Google account), Google mixes them up during setup and WiSH can end up in the wrong account.</p>
         <div class="choice-row">
-          <button type="button" class="choice ${ready === 'one' ? 'is-picked' : ''}" data-ready="one">Just one: my school account</button>
-          <button type="button" class="choice ${ready === 'more' ? 'is-picked' : ''}" data-ready="more">More than one, or not sure</button>
+          <button type="button" class="choice ${ready === 'one' ? 'is-picked' : ''}" data-ready="one">I’m only signed in to my school account</button>
+          <button type="button" class="choice ${ready === 'more' ? 'is-picked' : ''}" data-ready="more">I’m signed in to others too, or not sure</button>
         </div>
-        ${ready === 'more' ? privateHelp() : ''}
+        ${ready === 'more' ? signOutHelp() : ''}
       </div>
-      ${ready ? `
+      ${ready === 'one' ? `
       <ol class="how">
         <li>Click <b>Make my copy</b> below. A Google page opens in a new tab.</li>
         <li>If Google asks you to sign in, use your <b>school Google account</b> (the one ending in suncoastcharter.org).</li>
@@ -238,7 +253,7 @@ function AdminSetup(ctx) {
       <details class="by-hand">
         <summary>Google says “Sorry, unable to open the file” or shows the wrong account</summary>
         <p>This happens when the browser is signed in to more than one Google account.</p>
-        ${privateHelp()}
+        ${signOutHelp(true)}
       </details>
       ${nextBtn('I see “One last step”')}`,
 
