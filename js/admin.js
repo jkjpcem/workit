@@ -1218,20 +1218,28 @@
     }
 
     // ✏️ Pen on: dragging on a page writes; text boxes let the pen pass over them.
+    const TOUCH = matchMedia('(pointer: coarse)').matches;
+    if (TOUCH) $('#anno-hint').textContent = 'Tap anywhere on a page to add a text box. Tap a box or pen mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it. Pinch to zoom.';
     function setPen(on) {
       pen = !!on;
       $('#v-pages').classList.toggle('pen', pen);
       $('#anno-hint').textContent = pen
-        ? 'Write anywhere on a page. Click ✏️ Pen again to go back to text boxes. ⌘Z or Ctrl+Z undoes.'
-        : 'Click anywhere on a page to add a text box. Click a box or pen mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it. ⌘Z or Ctrl+Z undoes.';
+        ? (TOUCH ? 'Write anywhere on a page with your finger or pen. Tap ✏️ Pen again to go back to text boxes.'
+          : 'Write anywhere on a page. Click ✏️ Pen again to go back to text boxes. ⌘Z or Ctrl+Z undoes.')
+        : (TOUCH ? 'Tap anywhere on a page to add a text box. Tap a box or pen mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it. Pinch to zoom.'
+          : 'Click anywhere on a page to add a text box. Click a box or pen mark to change it. Drag the ⠿ handle to move a box and the right edge to resize it. ⌘Z or Ctrl+Z undoes.');
       if (pen && document.activeElement && document.activeElement.isContentEditable) document.activeElement.blur();
       if (pen) select(-1);
       syncToolbar();
     }
     $('#a-pen').addEventListener('click', () => setPen(!pen));
     $('#a-undo').addEventListener('click', undo);
+    // Palm rejection: once an Apple Pencil or S Pen has written, a hand resting on the screen doesn't.
+    let stylusAt = 0;
     $('#v-pages').addEventListener('pointerdown', (e) => {
       if (!annotating || !pen || e.button > 0) return;
+      if (e.pointerType === 'pen') stylusAt = Date.now();
+      else if (e.pointerType === 'touch' && Date.now() - stylusAt < 60e3) return;
       const layer = e.target.closest('.anno-layer');
       if (!layer) return;
       const page = Number(layer.closest('.page-wrap').dataset.page);

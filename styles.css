@@ -461,11 +461,10 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 
 .btn.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 .greeting { margin: 0 0 12px; font-size: 20px; font-weight: 750; letter-spacing: -.01em; }
-.teacher-link { display: none; text-align: center; margin: 24px 0 0; font-size: 14px; }
+.teacher-link { text-align: center; margin: 24px 0 0; font-size: 14px; }
 .teacher-link a { color: var(--muted); font-weight: 600; text-underline-offset: 3px; }
 .teacher-link a:hover { color: var(--brand); }
 /* The teacher dashboard is for computers, so its link only shows on wide screens. */
-@media (min-width: 760px) { .teacher-link { display: block; } }
 
 /* ---------- Upload a file ---------- */
 
