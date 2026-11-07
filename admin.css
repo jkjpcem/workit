@@ -917,3 +917,23 @@ details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 @keyframes g-pulse { 50% { outline-color: rgba(232, 69, 60, .35); } }
 @media (prefers-reduced-motion: reduce) { .g-hit { animation: none; } }
 @media (max-width: 560px) { .choice-row { flex-direction: column; } .setup-panel { padding: 20px 16px; } }
+
+/* ----- Help ----- */
+#help-search { max-width: 340px; }
+.help-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 24px; padding: 18px 22px; margin-bottom: 18px; }
+.help-group h3 { margin: 6px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--brand); }
+.help-group ul { list-style: none; margin: 0 0 8px; padding: 0; }
+.help-group li { margin: 0 0 5px; line-height: 1.4; }
+.help-group a { color: var(--text); text-decoration: none; }
+.help-group a:hover { color: var(--brand); text-decoration: underline; }
+.help-gh { margin: 22px 0 10px; font-size: 20px; }
+.help-topic { padding: 0; margin-bottom: 10px; scroll-margin-top: 150px; }
+.help-topic > summary { cursor: pointer; list-style: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 2px; }
+.help-topic > summary::-webkit-details-marker { display: none; }
+.help-t { font-weight: 700; font-size: 16px; }
+.help-t::before { content: '▸ '; color: var(--brand); }
+.help-topic[open] .help-t::before { content: '▾ '; }
+.help-sum { font-size: 14px; color: var(--muted); padding-left: 18px; }
+.help-topic > .how, .help-topic > .note, .help-topic > p { margin-left: 18px; margin-right: 18px; }
+.help-topic > :last-child { margin-bottom: 18px; }
+.help-topic .note { margin-top: 8px; margin-bottom: 8px; }

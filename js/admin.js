@@ -116,7 +116,7 @@
 
   function show(name) {
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
-    $('#admin-controls').hidden = name === 'login' || name === 'setup';
+    $('#admin-controls').hidden = name === 'login' || name === 'setup' || (name === 'help' && !data);
     const role = creds && creds.role;
     $('#open-accounts').hidden = role !== 'super';
     $('#open-setup').hidden = role !== 'es';
@@ -2431,6 +2431,18 @@
     openDates: () => openSettings('setup'),
     bookingLink: () => (data ? Meetings.link(data.currentLp) : ''),
   });
+
+  // ---------- Help (js/help.js) ----------
+
+  // Help opens from the dashboard pages or from setup, and its back button returns there.
+  let helpFrom = 'dash';
+  const openHelp = () => {
+    const on = $$('.screen').find(sc => !sc.hidden);
+    helpFrom = on && on.id !== 'screen-help' ? on.id.replace('screen-', '') : 'dash';
+  };
+  $('#open-help').addEventListener('click', openHelp, true);
+  $('#setup-open-help').addEventListener('click', () => $('#open-help').click());
+  AdminHelp({ $, $$, esc, show, back: () => show(helpFrom) });
 
   // ---------- LP meetings (js/meetings.js) ----------
 
