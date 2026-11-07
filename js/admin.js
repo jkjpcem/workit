@@ -355,7 +355,8 @@
           <div class="counts"><b>${active.length}</b> upload${active.length !== 1 ? 's' : ''} ·
             ${by.new} to review · ${annoLine(annotatedCount(s.id, viewLp))}${owed ? ` · <b style="color:var(--st-redo)">${owed} redo</b>` : ''}</div>
           <div class="thumbs">${thumbs}</div>`
-        : owes(s, viewLp) ? `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`
+        : owes(s, viewLp) ? (classes.length ? `<div class="counts">No uploads in ${esc(viewLp)} yet</div>`
+          : `<div class="counts no-classes">No classes yet. Add them in the Student Roster so ${esc(viewLp)} counts them.</div>`)
         : `<div class="no-need">No work samples needed for ${esc(viewLp)}${startSkips(s, viewLp) ? `: they started ${esc(niceDate(s.started))}` : s.withdrew ? ': they withdrew before it started' : ': inactive'}.</div>`}</div>
         ${subjects && (owes(s, viewLp) || mine.length) ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
         <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
