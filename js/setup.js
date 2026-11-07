@@ -2,14 +2,14 @@
 // link and QR code, and the ES accounts page (main account only). admin.js wires it in.
 
 function AdminSetup(ctx) {
-  const { $, esc, toast, busy, show, call, mainCall } = ctx;
+  const { $, $$, esc, toast, busy, show, call, mainCall } = ctx;
   const STEPS = [
     { title: 'Choose your password' },
     { title: 'Make your own copy' },
     { title: 'Set up your copy' },
     { title: 'Turn it on for students' },
     { title: 'Add your students' },
-    { title: 'Check the LP' },
+    { title: 'Choose your reminders' },
     { title: 'Share with students' },
   ];
   const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec$/;
@@ -77,6 +77,7 @@ function AdminSetup(ctx) {
     const panel = $('#setup-panel');
     panel.innerHTML = `<p class="step-of">Step ${at} of ${STEPS.length}</p><h2>${esc(STEPS[at - 1].title)}</h2>` + PANELS[at]();
     (BIND[at] || (() => {}))(panel);
+    $$('[data-copy-page]', panel).forEach(b => b.addEventListener('click', () => copy(adminUrl(), 'Link copied. Paste it into the address bar of the private window.')));
   }
   $('#setup-steps').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-step]');
@@ -91,6 +92,102 @@ function AdminSetup(ctx) {
   const nextBtn = (label = 'Next') => `<div class="step-actions"><button class="btn primary big" type="button" data-next>${esc(label)} →</button></div>`;
   const bindNext = (panel) => { const b = panel.querySelector('[data-next]'); if (b) b.addEventListener('click', next); };
 
+  // ---------- Helpers for the Google steps ----------
+
+  // Google's Apps Script pages don't work on phones and tablets (iPads report as a Mac).
+  const onPhone = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+    (/Mac/.test(navigator.platform) && navigator.maxTouchPoints > 1);
+  const READY_KEY = 'wish.setupReady';
+  const readyAnswer = () => { try { return localStorage.getItem(READY_KEY) || ''; } catch { return ''; } };
+  function browser() {
+    const u = navigator.userAgent;
+    if (/Edg\//.test(u)) return 'edge';
+    if (/Firefox\//.test(u)) return 'firefox';
+    if (/Chrome\//.test(u)) return 'chrome';
+    if (/Safari\//.test(u)) return 'safari';
+    return 'other';
+  }
+  // Being signed in to several Google accounts is the most common way setup goes wrong.
+  // A private window has none, so the ES signs in to the school account only.
+  function privateHelp() {
+    const mod = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl';
+    const keys = (k) => `<kbd>${mod}</kbd> + <kbd>Shift</kbd> + <kbd>${k}</kbd>`;
+    const how = {
+      chrome: `click <b>⋮</b> at the top right, then <b>New Incognito window</b>, or press ${keys('N')}`,
+      edge: `click <b>…</b> at the top right, then <b>New InPrivate window</b>, or press ${keys('N')}`,
+      safari: `click <b>File</b>, then <b>New Private Window</b>, or press ${keys('N')}`,
+      firefox: `click <b>☰</b> at the top right, then <b>New private window</b>, or press ${keys('P')}`,
+      other: 'open a private (incognito) window from your browser’s menu',
+    }[browser()];
+    return `<div class="private-help">
+      <p><b>Do setup in a private window, so only your school account is signed in.</b></p>
+      <ol class="how">
+        <li>To open one, ${how}.</li>
+        <li>In the private window, go to <b>${esc(adminUrl())}</b> <button class="btn" type="button" data-copy-page>Copy</button> and sign in to WiSH again. You come right back to this step.</li>
+        <li>When Google asks you to sign in, use only your school account, and do every step in that window.</li>
+      </ol></div>`;
+  }
+
+  // Signing out of every other Google account first is the simplest fix. A private window is
+  // offered too, for anyone who'd rather stay signed in to their other accounts.
+  function signOutHelp(later) {
+    return `<div class="private-help">
+      <ol class="how">
+        <li>Click <a class="btn" href="https://accounts.google.com/Logout" target="_blank" rel="noopener">Sign out of all Google accounts ↗</a>
+          This signs this browser out of Gmail, YouTube and other Google sites. WiSH stays signed in.</li>
+        <li>Click <a class="btn" href="https://accounts.google.com/" target="_blank" rel="noopener">Sign in with my school account ↗</a>
+          and sign in with your school account only (the one ending in suncoastcharter.org). Don’t add any other account.</li>
+        <li>${later ? 'Come back here and try the step again.' : 'Come back here and click <button class="btn primary" type="button" data-ready="one">Done: only my school account now</button>'}</li>
+      </ol>
+      <details class="by-hand"><summary>Rather not sign out? Use a private window instead</summary>${privateHelp()}</details>
+    </div>`;
+  }
+
+  // What each Google permission is for, in the order Google tends to list them.
+  const SCOPES = [
+    ['Google Drive', 'to save your students’ work samples in your WiSH Homework folder'],
+    ['Google Sheets', 'to keep your student list and the list of samples in your WiSH Admin sheet'],
+    ['Send email as you', 'for reminders to families and your own summary emails'],
+    ['Read your email (read only)', 'only to find PE log emails from Jotform, so WiSH can mark PE done'],
+    ['See your calendar (read only)', 'only to see which families booked their LP meeting'],
+    ['Run when you’re not there', 'so reminders go out on schedule'],
+    ['Show boxes in your sheet, connect to outside services, see your email address', 'for the WiSH menu, the website, and knowing which account is yours'],
+  ];
+
+  // Small drawings of Google's screens with the thing to click outlined. They look like
+  // Google's pages, not exactly the same, so each says so.
+  function gmock(kind) {
+    const hit = (t) => `<span class="g-hit">${t}</span>`;
+    const no = (t) => `<span class="g-no">${t}</span>`;
+    const body = {
+      copy: `<div class="g-title">Copy document</div><p>Would you like to make a copy of <b>WiSH template</b>?</p>
+        <p class="g-small">The attached Apps Script file will also be copied.</p><div class="g-btns">${hit('<span class="g-btn blue">Make a copy</span>')}</div>`,
+      auth: `<div class="g-title">Authorization required</div><p>A script attached to this document needs your permission to run.</p>
+        <div class="g-btns"><span class="g-btn">Cancel</span>${hit('<span class="g-btn blue">OK</span>')}</div>`,
+      unverified: `<div class="g-title">Google hasn’t verified this app</div><p class="g-small">The app is requesting access to sensitive info in your Google Account…</p>
+        <div class="g-split"><div>${hit('<span class="g-link">Advanced</span>')}<p class="g-small">…then at the bottom:</p>${hit('<span class="g-link">Go to WiSH (unsafe)</span>')}</div>
+        <div>${no('<span class="g-btn blue">BACK TO SAFETY</span>')}</div></div>`,
+      allow: `<div class="g-title">WiSH wants access to your Google Account</div>
+        <p>${hit('<span class="g-check">☑ Select all</span>')}</p><p class="g-small">☑ See, edit, create, and delete your Google Drive files<br>☑ See, edit, create, and delete your spreadsheets<br>☑ …</p>
+        <div class="g-btns"><span class="g-btn">Cancel</span>${hit('<span class="g-btn blue">Continue</span>')}</div>`,
+      deploy: `<div class="g-bar"><span>Apps Script</span>${hit('<span class="g-btn blue">Deploy ▾</span>')}</div>
+        <div class="g-menu">${hit('<span>New deployment</span>')}<span>Manage deployments</span>${no('<span>Test deployments</span>')}</div>`,
+      webapp: `<div class="g-title">New deployment</div>
+        <div class="g-row"><span>Select type</span>${hit('<span>⚙ Web app</span>')}</div>
+        <div class="g-row"><span>Execute as</span><span class="g-field">Me (you@suncoastcharter.org)</span></div>
+        <div class="g-row"><span>Who has access</span>${hit('<span class="g-field">Anyone</span>')}</div>
+        <div class="g-btns"><span class="g-btn">Cancel</span>${hit('<span class="g-btn blue">Deploy</span>')}</div>`,
+      done: `<div class="g-title">New deployment</div><p class="g-small">Deployment successfully updated.</p>
+        <div class="g-row"><span>Web app</span>${hit('<span class="g-link">https://script.google.com/macros/s/…/exec</span>')}</div>`,
+    }[kind];
+    return `<figure class="gmock"><div class="g-win">${body}</div>
+      <figcaption>Google’s screen looks something like this. Click what’s outlined${/g-no/.test(body) ? ', not what’s crossed out' : ''}.</figcaption></figure>`;
+  }
+
+  // The last thing that went wrong, for the Stuck button's message.
+  let lastError = '';
+  let lastUrl = '';
+
   const PANELS = {
     1: () => `
       <p>Your account was made with a temporary password. Choose your own now. Use at least 8 characters.</p>
@@ -102,53 +199,87 @@ function AdminSetup(ctx) {
 
     2: () => {
       const url = (window.WORKIT_CONFIG || {}).TEMPLATE_COPY_URL;
+      if (onPhone()) {
+        return `
+      <div class="note bad"><b>Please switch to a computer for the next steps.</b> Google’s setup pages don’t work on phones or tablets. It takes about 10 minutes.</div>
+      <ol class="how">
+        <li>On a computer, open this page: <b>${esc(adminUrl())}</b></li>
+        <li>Sign in with the same username and your new password. WiSH brings you right back to this step.</li>
+      </ol>
+      <p><button class="btn" type="button" data-copy-page>Copy the link</button></p>`;
+      }
+      const ready = readyAnswer();
       return `
       <p>WiSH keeps your students and their work in <b>your own Google Drive</b>. Nobody else, including the person who made your account, can see them. First, make your own copy of the WiSH sheet.</p>
-      <div class="note"><b>Which Google account?</b> Use the one you want student work saved in, and use that same account in every step. Use your school Google account (the one ending in suncoastcharter.org).</div>
+      <div class="ask-box">
+        <p class="ask-q">Before you start: sign out of every Google account except your school one.</p>
+        <p class="hint">If this browser is also signed in to a personal Gmail (or any other Google account), Google mixes them up during setup and WiSH can end up in the wrong account.</p>
+        <div class="choice-row">
+          <button type="button" class="choice ${ready === 'one' ? 'is-picked' : ''}" data-ready="one">I’m only signed in to my school account</button>
+          <button type="button" class="choice ${ready === 'more' ? 'is-picked' : ''}" data-ready="more">I’m signed in to others too, or not sure</button>
+        </div>
+        ${ready === 'more' ? signOutHelp() : ''}
+      </div>
+      ${ready === 'one' ? `
       <ol class="how">
         <li>Click <b>Make my copy</b> below. A Google page opens in a new tab.</li>
-        <li>If Google asks you to sign in, sign in with that account. If you’re signed in to more than one Google account, click the round picture at the top right and check it’s the right one.</li>
-        <li>Click the blue <b>Make a copy</b> button. If Google mentions that an Apps Script file is copied too, that’s fine: that file is WiSH.</li>
+        <li>If Google asks you to sign in, use your <b>school Google account</b> (the one ending in suncoastcharter.org).</li>
+        <li>Click the blue <b>Make a copy</b> button. Google may say an Apps Script file is copied too: that file is WiSH.
+          ${gmock('copy')}</li>
         <li>Your copy opens. Keep that tab open and come back to this tab.</li>
       </ol>
       ${url ? `<p><a class="btn big" href="${esc(url)}" target="_blank" rel="noopener">Make my copy ↗</a></p>`
-        : '<p class="note bad">The copy link isn’t ready yet. Ask the person who made your WiSH account.</p>'}
-      ${nextBtn('I made my copy')}`;
+        : '<p class="note bad">The copy link isn’t ready yet. Click <b>Stuck? Get help</b> at the top.</p>'}
+      ${nextBtn('I made my copy')}` : ''}`;
     },
 
     3: () => `
-      <p>Now your copy sets up your folders. Google asks you to approve this once.</p>
+      <p>Now your copy sets up your folders. Google asks you to approve this once. The screens look a little scary, but this is normal for a copy you own.</p>
       <ol class="how">
-        <li>Go to the tab with your copy. Wait a few seconds until <b>WiSH</b> shows up in the menu bar, to the right of <b>Help</b>. If it doesn’t show up, reload the page.</li>
+        <li>Go to the tab with your copy. Wait until <b>WiSH</b> shows up in the menu bar, to the right of <b>Help</b>. It can take up to 20 seconds. If it doesn’t show up, reload the page.</li>
         <li>Click <b>WiSH</b>, then <b>Set up WiSH</b>.</li>
-        <li>A box says <i>Authorization required</i>. Click <b>OK</b> (or <b>Continue</b>).</li>
-        <li>Choose your Google account.</li>
-        <li>Google says <i>Google hasn’t verified this app</i>. That’s normal for your own copy. Click <b>Advanced</b> at the bottom left, then <b>Go to WiSH (unsafe)</b>.</li>
-        <li>If you see checkboxes, tick <b>Select all</b>. Then click <b>Allow</b> (or <b>Continue</b>).</li>
-        <li>Back in your copy, a small <i>Running script</i> bar shows for about 30 seconds. If nothing happens after that, click <b>WiSH</b>, then <b>Set up WiSH</b> once more.</li>
-        <li>A box says <b>Your folders are ready. One last step</b>. Leave it open and click <b>Next</b> here.</li>
+        <li>A box says <i>Authorization required</i>. Click <b>OK</b>.
+          ${gmock('auth')}</li>
+        <li>Choose your <b>school</b> Google account.</li>
+        <li>Google says <i>Google hasn’t verified this app</i>. Click <b>Advanced</b> at the bottom left, then <b>Go to WiSH (unsafe)</b>. Don’t click <i>Back to safety</i>.
+          ${gmock('unverified')}</li>
+        <li>Google lists what WiSH may do. Tick <b>Select all</b>, then click <b>Continue</b>. If you skip one, part of WiSH won’t work.
+          ${gmock('allow')}
+          <details class="why"><summary>Why WiSH needs each one</summary><ul>${SCOPES.map(s => `<li><b>${esc(s[0])}</b>: ${esc(s[1])}</li>`).join('')}</ul>
+          <p class="hint">Everything stays in your own Google account. WiSH never deletes your email or changes your calendar.</p></details></li>
+        <li>A small <i>Running script</i> bar shows for about 30 seconds. If nothing happens after a minute, click <b>WiSH</b>, then <b>Set up WiSH</b> once more. That’s safe.</li>
+        <li>A box says <b>Your folders are ready. One last step</b>. Leave it open and click the button below.</li>
       </ol>
+      <details class="by-hand">
+        <summary>Google says “Sorry, unable to open the file” or shows the wrong account</summary>
+        <p>This happens when the browser is signed in to more than one Google account.</p>
+        ${signOutHelp(true)}
+      </details>
       ${nextBtn('I see “One last step”')}`,
 
     4: () => {
       const c = ctx.creds();
       return `
-      <p>The last step turns your copy on, so your students’ phones can send work to it. Google only lets you do this yourself, in its Deploy box. It’s 5 clicks.</p>
+      <p>The last Google step turns your copy on, so your students’ phones can send work to it. Google only lets you do this yourself. It’s 5 clicks.</p>
       <ol class="how">
         <li>In the box in your copy, click <b>Open the Deploy page</b>. If a box says <i>You’re signed in as…</i>, click <b>OK</b>.</li>
-        <li>At the top right, click the blue <b>Deploy</b> button, then <b>New deployment</b>.</li>
+        <li>At the top right, click the blue <b>Deploy</b> button, then <b>New deployment</b>. Not <i>Test deployments</i>.
+          ${gmock('deploy')}</li>
         <li>Next to <i>Select type</i>, click the gear ⚙ and choose <b>Web app</b>.</li>
-        <li>Who has access: choose <b>Anyone</b> (not <i>Anyone with Google account</i>: students don’t sign in to Google). Click <b>Deploy</b>. If Google asks you to <i>Authorize access</i>, allow it the same way as in step 3.</li>
-        <li>Under <i>Web app</i>, click the link. A page says <b>WiSH is on ✓</b>: click <b>Finish in WiSH</b>. WiSH connects and takes you to the next step.</li>
+        <li>Leave <i>Execute as</i> on <b>Me</b>. Change <i>Who has access</i> to <b>Anyone</b>. It must be just <b>Anyone</b>, because students don’t sign in to Google. Click <b>Deploy</b>.
+          ${gmock('webapp')}
+          If Google asks you to <i>Authorize access</i>, allow it the same way as before.</li>
+        <li>Under <i>Web app</i>, click the link that ends in <b>/exec</b>. A page says <b>WiSH is on ✓</b>. Click <b>Finish in WiSH</b>, and WiSH checks everything and moves you to the next step.
+          ${gmock('done')}</li>
       </ol>
-      <div class="note">If <b>Anyone</b> isn’t in the list, this Google account doesn’t allow WiSH. Ask the person who made your WiSH account for help.</div>
-      <p class="connect-state ${c.url ? '' : 'waiting'}" id="connect-state">${c.url ? '✓ Your copy is connected.' : 'Waiting for you to click Finish in WiSH…'}</p>
+      <div class="note">If <b>Anyone</b> isn’t in the list, Google doesn’t let this account turn WiSH on. Click <b>Stuck? Get help</b> at the top.</div>
+      <div id="connect-box">${c.url ? '<p class="connect-state">✓ Your copy is connected and students can reach it.</p>' : '<p class="connect-state waiting">Waiting for you to click Finish in WiSH…</p>'}</div>
       ${c.url ? nextBtn() : ''}
       <details class="by-hand">
         <summary>The WiSH page didn’t open? Paste the link instead</summary>
         <p class="hint">In the Deploy box, under <i>Web app</i>, click <b>Copy</b>. Paste it here and click <b>Connect</b>.</p>
         <form class="connect-row" id="connect-form">
-          <input name="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || '')}" spellcheck="false" autocomplete="off" aria-label="Web app link">
+          <input name="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || lastUrl || '')}" spellcheck="false" autocomplete="off" aria-label="Web app link">
           <button class="btn primary" type="submit">Connect</button>
         </form>
       </details>`;
@@ -165,21 +296,11 @@ function AdminSetup(ctx) {
       ${nextBtn(n ? 'Next' : 'Skip for now')}`;
     },
 
-    6: () => {
-      const d = ctx.data();
-      const lps = d ? d.lps : [];
-      return `
-      <p><b>Current LP</b> is where students’ uploads go unless they choose another LP. Change it in <b>Settings</b> (click your name at the top right) when a new Learning Period starts.</p>
-      <label class="inline-field">Current LP
-        <select id="setup-lp">${lps.map(lp => `<option ${d && lp === d.currentLp ? 'selected' : ''}>${esc(lp)}</option>`).join('')}</select>
-      </label>
-      <p><b>LP dates</b> are the same for every ES, so they’re already filled in for you. Students can only enter a date completed that is a weekday inside the LP.</p>
-      <p><button class="btn" type="button" id="go-dates">See the LP dates</button></p>
-      ${nextBtn()}`;
-    },
+    6: () => `<div id="rem-flow">${remScreen()}</div>`,
 
     7: () => `
       <p>This is the link your students use. Send it to students and families, show the QR code in class, or print the flyer. You can always find it again with <b>Share link &amp; QR</b> at the top of your dashboard.</p>
+      <div class="note"><b>Use only this link or QR code.</b> A link or flyer from another ES takes students to that ES’s WiSH, where they won’t find their account.</div>
       ${linkBox(ctx.creds().user)}
       <p class="hint">On their phone, students can add WiSH to the home screen: in Safari, tap Share, then <b>Add to Home Screen</b>; in Chrome, tap ⋮, then <b>Add to Home screen</b>.</p>
       ${nextBtn('Finish and open my dashboard')}`,
@@ -208,7 +329,13 @@ function AdminSetup(ctx) {
         }
       });
     },
-    2: bindNext,
+    2: (panel) => {
+      bindNext(panel);
+      $$('[data-ready]', panel).forEach(b => b.addEventListener('click', () => {
+        try { localStorage.setItem(READY_KEY, b.dataset.ready); } catch { /* ignore */ }
+        render();
+      }));
+    },
     3: bindNext,
     4: (panel) => {
       bindNext(panel);
@@ -222,54 +349,318 @@ function AdminSetup(ctx) {
       ensureData().then((fresh) => { if (fresh && at === 5) render(); });
       $('#go-roster', panel).addEventListener('click', () => ctx.openRoster());
     },
-    6: (panel) => {
-      bindNext(panel);
-      ensureData().then((fresh) => { if (fresh && at === 6) render(); });
-      $('#go-dates', panel).addEventListener('click', () => ctx.openDates());
-      const sel = $('#setup-lp', panel);
-      sel.addEventListener('change', async () => {
-        try {
-          await call('adminSetLp', { lp: sel.value });
-          ctx.data().currentLp = sel.value;
-          toast(`${sel.value} is now the current LP.`);
-        } catch (err) {
-          toast(err.message);
-        }
-      });
+    6: () => {
+      ensureData();
+      loadRem();
     },
     7: (panel) => { bindNext(panel); bindLinkBox(panel); },
   };
 
+  // ---------- Step 6: reminders, one question at a time ----------
+  // Every answer fills a setting on the Reminders page, so the ES can change it there later.
+
+  const WEEKS = {  // weeks 1–2, 3, 4, 5+ of an LP
+    light: ['none', 'none', 'once', 'every5'],
+    normal: ['none', 'once', 'once', 'every3'],
+    more: ['none', 'once', 'every3', 'every2'],
+  };
+  const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const hourName = (h) => `${h % 12 || 12}:00 ${h < 12 ? 'AM' : 'PM'}`;
+  const options = (from, to, pick, name) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+    .map(v => `<option value="${v}" ${v === pick ? 'selected' : ''}>${esc(name(v))}</option>`).join('');
+  let rem = null, remErr = '', remQ = 0, ans = null;
+
+  async function loadRem() {
+    if (rem) return drawRem();
+    remErr = '';
+    try {
+      rem = await call('adminEmailSettings');
+      ans = answersFrom(rem.settings);
+      remQ = 0;
+    } catch (err) {
+      remErr = /unknown request/i.test(err.message) ? 'later' : err.message;
+      lastError = remErr;
+    }
+    drawRem();
+  }
+  function answersFrom(s) {
+    return {
+      families: s.families,
+      who: s.parents && !s.students ? 'parents' : s.students && !s.parents ? 'students' : 'both',
+      often: Object.keys(WEEKS).find(k => WEEKS[k].join() === (s.weeks || []).join()) || 'normal',
+      onceDay: s.onceDay, famHour: s.famHour, skipDays: s.noWeekends !== false && s.noHolidays !== false,
+      book: s.book || s.meet ? 'yes' : 'no',
+      report: !s.report ? 'none' : s.daily ? 'daily' : s.weekly ? 'weekly' : 'none',
+      reportHour: s.reportHour, weeklyDay: s.weeklyDay,
+      events: { upload: false, resubmit: false, lpEnd: false, ...(s.esEvents || {}) },
+    };
+  }
+
+  const famOff = () => ans.families === 'off';
+  const QS = [
+    { key: 'families', ask: 'Should WiSH email families when work samples are still missing?',
+      hint: 'They come from your own school email, so families see your name. Only families who still have something to do get one.',
+      choices: [['test', 'Yes, but send them to me first', 'You get each email instead of the family, so you can see what they look like. Switch to families any time on the Reminders page.'],
+        ['on', 'Yes, email families', ''],
+        ['off', 'Not now', 'You can turn them on later on the Reminders page.']] },
+    { key: 'who', skip: famOff, ask: 'Who should get them?',
+      choices: [['both', 'Parents and students', ''], ['parents', 'Parents only', ''], ['students', 'Students only', '']] },
+    { key: 'often', skip: famOff, ask: 'How often, as the LP goes on?', hint: 'Nothing goes out in the first two weeks of an LP.',
+      choices: [['light', 'Now and then', 'Once in week 4, then every 5 days until the LP ends'],
+        ['normal', 'A steady nudge', 'Once in week 3, once in week 4, then every 3 days'],
+        ['more', 'More often', 'Once in week 3, every 3 days in week 4, then every 2 days']] },
+    { key: 'when', skip: famOff, ask: 'What day and time should they go out?', form: () => `
+      <div class="ask-fields">
+        <label class="inline-field">Day <select data-a="onceDay">${options(1, 5, ans.onceDay, d => DAYS[d])}</select></label>
+        <label class="inline-field">Time <select data-a="famHour">${options(5, 19, ans.famHour, hourName)}</select></label>
+      </div>
+      <label class="chk"><input type="checkbox" data-a="skipDays" ${ans.skipDays ? 'checked' : ''}> <span>Don’t send on weekends or school holidays</span></label>` },
+    { key: 'book', skip: () => famOff() || !rem.defaults.book || !ctx.bookingLink(), ask: 'Remind families to book their LP meeting?',
+      hint: 'Families who haven’t booked get your booking link, and everyone gets a reminder before their meeting.',
+      choices: [['yes', 'Yes', ''], ['no', 'No', '']] },
+    { key: 'report', ask: 'Do you want an email for yourself about how the LP is going?',
+      hint: 'A short summary: who turned in work, who still owes samples, and what is waiting for your review.',
+      choices: [['daily', 'Yes, every morning', ''], ['weekly', 'Yes, once a week', ''], ['none', 'No thanks', '']] },
+    { key: 'reportWhen', skip: () => ans.report === 'none', ask: 'When should your summary arrive?', form: () => `
+      <div class="ask-fields">
+        ${ans.report === 'weekly' ? `<label class="inline-field">Day <select data-a="weeklyDay">${options(1, 5, ans.weeklyDay, d => DAYS[d])}</select></label>` : ''}
+        <label class="inline-field">Time <select data-a="reportHour">${options(5, 10, ans.reportHour, hourName)}</select></label>
+      </div>` },
+    { key: 'events', ask: 'Should WiSH also email you right away when…', hint: 'Tick any you want, or none.', form: () => `
+      <div class="stack">
+        ${[['upload', 'a student turns in a sample'], ['resubmit', 'a student turns in a redo'], ['lpEnd', 'an LP ends in 3 days and samples are still missing']]
+          .map(([k, t]) => `<label class="chk"><input type="checkbox" data-ev="${k}" ${ans.events[k] ? 'checked' : ''}> <span>${t}</span></label>`).join('')}
+      </div>` },
+    { key: 'summary' },
+  ];
+  const shown = () => QS.filter(q => !q.skip || !q.skip());
+
+  function remScreen() {
+    if (!rem && !remErr) return '<p class="connect-state waiting">Loading your reminder choices…</p>';
+    if (remErr === 'later') {
+      return `<p>Reminder emails start working after the next WiSH update. You can choose them later on the <b>Reminders</b> page.</p>${nextBtn()}`;
+    }
+    if (remErr) {
+      return `<p class="note bad">${esc(remErr)}</p><p><button class="btn" type="button" data-rem-retry>Try again</button></p>${nextBtn('Skip for now')}`;
+    }
+    const list = shown();
+    const q = QS[remQ];
+    const n = list.indexOf(q) + 1;
+    const back = n > 1 ? '<button class="btn ghost" type="button" data-rem-back>← Back</button>' : '<span></span>';
+    if (q.key === 'summary') return summaryScreen(back);
+    return `
+      <p class="step-of">Question ${n} of ${list.length - 1}</p>
+      <p class="ask-q">${esc(q.ask)}</p>
+      ${q.hint ? `<p class="hint">${esc(q.hint)}</p>` : ''}
+      ${q.choices ? `<div class="choice-list">${q.choices.map(([v, label, more]) => `
+        <button type="button" class="choice ${ans[q.key] === v ? 'is-picked' : ''}" data-pick="${v}">
+          <b>${esc(label)}</b>${more ? `<span>${esc(more)}</span>` : ''}</button>`).join('')}</div>` : q.form()}
+      <div class="step-actions split">${back}${q.form ? '<button class="btn primary big" type="button" data-rem-next>Next →</button>' : ''}</div>`;
+  }
+
+  function summary() {
+    const out = [];
+    const often = { light: 'now and then', normal: 'a steady nudge', more: 'more often' }[ans.often];
+    const who = { both: 'parents and students', parents: 'parents', students: 'students' }[ans.who];
+    if (ans.families === 'off') out.push('No emails to families for now.');
+    else {
+      out.push(ans.families === 'test' ? `Family reminders are sent <b>to you first</b>, so you can see them. Later they go to ${who}.`
+        : `Family reminders go to <b>${who}</b>.`);
+      out.push(`How often: <b>${often}</b>, on <b>${DAYS[ans.onceDay]}</b> at <b>${hourName(ans.famHour)}</b>${ans.skipDays ? ', never on weekends or school holidays' : ''}.`);
+      if (!QS.find(q => q.key === 'book').skip()) out.push(ans.book === 'yes' ? 'Families are reminded to book their LP meeting.' : 'No meeting reminders.');
+    }
+    out.push(ans.report === 'none' ? 'No summary email for you.'
+      : ans.report === 'daily' ? `Your summary arrives <b>every morning at ${hourName(ans.reportHour)}</b>.`
+        : `Your summary arrives <b>every ${DAYS[ans.weeklyDay]} at ${hourName(ans.reportHour)}</b>.`);
+    const ev = [['upload', 'a sample comes in'], ['resubmit', 'a redo comes in'], ['lpEnd', 'an LP ends in 3 days']].filter(([k]) => ans.events[k]).map(([, t]) => t);
+    if (ev.length) out.push(`You also get an email when ${ev.join(', or when ')}.`);
+    return out;
+  }
+  function summaryScreen(back) {
+    const d = ctx.data();
+    const lps = d ? d.lps : [];
+    return `
+      <p class="ask-q">Here’s what you chose</p>
+      <ul class="summary-list">${summary().map(s => `<li>${s}</li>`).join('')}</ul>
+      <p class="hint">You can change any of this, and the wording of each email, on the <b>Reminders</b> page.</p>
+      ${lps.length ? `<label class="inline-field">Uploads go to
+        <select id="setup-lp">${lps.map(lp => `<option ${lp === d.currentLp ? 'selected' : ''}>${esc(lp)}</option>`).join('')}</select>
+        <span class="hint">WiSH set this to the current LP for you.</span></label>` : ''}
+      <div class="step-actions split">${back}<button class="btn primary big" type="button" data-rem-save>Save and continue →</button></div>`;
+  }
+
+  // The full settings, with this step's answers on top of what's already saved.
+  function remSettings() {
+    const s = rem.settings;
+    return {
+      ...s,
+      families: ans.families,
+      parents: ans.who !== 'students', students: ans.who !== 'parents',
+      weeks: WEEKS[ans.often],
+      onceDay: Number(ans.onceDay), famHour: Number(ans.famHour),
+      noWeekends: ans.skipDays, noHolidays: ans.skipDays,
+      book: ans.book === 'yes', meet: ans.book === 'yes',
+      report: ans.report !== 'none', daily: ans.report === 'daily', weekly: ans.report === 'weekly',
+      reportHour: Number(ans.reportHour), weeklyDay: Number(ans.weeklyDay),
+      esEvents: { ...s.esEvents, ...ans.events },
+      redo: false, each: false, received: false, famHow: 'daily',
+      link: Api.studentLink(ctx.creds().user),
+    };
+  }
+
+  function drawRem() {
+    const box = $('#rem-flow');
+    if (!box || at !== 6) return;
+    box.innerHTML = remScreen();
+    bindNext(box);
+    const keep = () => {
+      $$('[data-a]', box).forEach(el => { ans[el.dataset.a] = el.type === 'checkbox' ? el.checked : Number(el.value); });
+      $$('[data-ev]', box).forEach(el => { ans.events[el.dataset.ev] = el.checked; });
+    };
+    const go = (dir) => {
+      keep();
+      const list = shown();
+      const i = list.indexOf(QS[remQ]) + dir;
+      remQ = QS.indexOf(list[Math.max(0, Math.min(i, list.length - 1))]);
+      drawRem();
+    };
+    $$('[data-pick]', box).forEach(b => b.addEventListener('click', () => { ans[QS[remQ].key] = b.dataset.pick; go(1); }));
+    const on = (sel, fn) => { const el = $(sel, box); if (el) el.addEventListener('click', fn); };
+    on('[data-rem-next]', () => go(1));
+    on('[data-rem-back]', () => go(-1));
+    on('[data-rem-retry]', () => { remErr = ''; drawRem(); loadRem(); });
+    on('[data-rem-save]', saveRem);
+    const sel = $('#setup-lp', box);
+    if (sel) {
+      sel.addEventListener('change', async () => {
+        try {
+          await call('adminSetLp', { lp: sel.value });
+          ctx.data().currentLp = sel.value;
+          toast(`Uploads now go to ${sel.value}.`);
+        } catch (err) {
+          lastError = err.message;
+          toast(err.message);
+        }
+      });
+    }
+  }
+
+  async function saveRem() {
+    busy('Saving your reminders…');
+    try {
+      rem = await call('adminSaveEmailSettings', { settings: remSettings() });
+      ans = answersFrom(rem.settings);
+      busy(false);
+      if (rem.needsAllow) toast('Saved. Google still needs to allow WiSH to email on a schedule: click Stuck? Get help.');
+      await next();
+    } catch (err) {
+      lastError = err.message;
+      toast(err.message);
+    } finally {
+      busy(false);
+    }
+  }
+
+  // ---------- Stuck? Get help ----------
+  // A ready-to-send message with what the person who made their account needs to help.
+  function helpText() {
+    const c = ctx.creds() || {};
+    const step = STEPS[at - 1];
+    const ua = navigator.userAgent;
+    return `Hi,
+
+I’m stuck setting up WiSH.
+
+Name: ${c.name || ''}
+Username: ${c.user || ''}
+Step: ${at} of ${STEPS.length}, ${step ? step.title : ''}
+What went wrong: ${lastError || '(describe what you see)'}
+Browser: ${browser()} on ${onPhone() ? 'a phone or tablet' : /Mac/.test(navigator.platform) ? 'a Mac' : /Win/.test(navigator.platform) ? 'Windows' : 'a computer'}
+(${ua})
+Time: ${new Date().toLocaleString()}`;
+  }
+  const helpDialog = $('#help-dialog');
+  $('#setup-help').addEventListener('click', () => {
+    $('#help-text').value = helpText();
+    const to = (window.WORKIT_CONFIG || {}).HELP_EMAIL || '';
+    $('#help-email').href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent('Help with WiSH setup')}&body=${encodeURIComponent($('#help-text').value)}`;
+    helpDialog.showModal();
+  });
+  $('#help-close').addEventListener('click', () => helpDialog.close());
+  $('#help-copy').addEventListener('click', () => copy($('#help-text').value, 'Message copied. Paste it into an email or text.'));
+
   // Links this ES account to their copy: from the copy's "Finish in WiSH" button
   // (admin.html#connect=...), or a link pasted by hand.
   async function connect(url) {
+    lastUrl = url;
     open(4);
-    const state = () => $('#connect-state');
-    const fail = (msg) => {
-      state().textContent = msg;
-      state().className = 'connect-state bad';
+    const fail = (html) => {
+      const box = $('#connect-box');
+      lastError = html.replace(/<button[\s\S]*?<\/button>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!box) return toast(lastError);
+      box.innerHTML = html;
+      box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const again = box.querySelector('[data-retry]');
+      if (again) again.addEventListener('click', () => connect(lastUrl));
+      const restart = box.querySelector('[data-restart]');
+      if (restart) restart.addEventListener('click', () => { at = 2; render(); });
     };
+    const bad = (text) => `<p class="connect-state bad">${text}</p>`;
     if (!SCRIPT_URL_RE.test(url)) {
-      return fail('That isn’t a WiSH link. It starts with https://script.google.com/ and ends in /exec.');
+      return fail(/\/dev$/.test(url)
+        ? bad('That’s Google’s test link (it ends in <b>/dev</b>), which students can’t use. In the Deploy page, click <b>Deploy</b>, then <b>New deployment</b>, and use the link that ends in <b>/exec</b>.')
+        : bad('That isn’t a WiSH link. It starts with https://script.google.com/ and ends in /exec.'));
     }
-    busy('Connecting to your copy…');
+    busy('Checking your copy…');
     try {
       const c = ctx.creds();
       let res;
       try {
         res = await Api.call('esClaim', { esKey: c.key }, { url });
       } catch (err) {
-        if (err.offline) throw new Error('Couldn’t reach your copy. In your copy, click WiSH, then Set up WiSH again, and click Finish in WiSH.');
+        // The copy is on (its page opened), but a browser without a Google sign-in can't reach
+        // it: almost always "Who has access" isn't Anyone, or "Execute as" isn't Me.
+        if (err.offline && navigator.onLine) {
+          return fail(`<div class="note bad">
+            <p><b>Almost there. Students can’t reach your copy yet.</b> This almost always means <i>Who has access</i> isn’t set to <b>Anyone</b>. Here’s the fix. Your link stays the same.</p>
+            <ol class="how">
+              <li>Go to the Apps Script tab. Click <b>Deploy</b>, then <b>Manage deployments</b>.</li>
+              <li>Click the pencil ✎ at the top right.</li>
+              <li>Set <i>Execute as</i> to <b>Me</b> and <i>Who has access</i> to <b>Anyone</b>.</li>
+              <li>Click <b>Deploy</b>, then come back here.</li>
+            </ol>
+            <button class="btn primary" type="button" data-retry>Check again</button></div>`);
+        }
         throw err;
+      }
+      // Copies with the update loader say whose Google account they're in and whether every
+      // permission was allowed. Older copies don't know esStatus; they skip this check.
+      ctx.setCreds({ url });
+      let status = null;
+      try { status = await call('esStatus'); } catch (err) { if (!/unknown request/i.test(err.message)) throw err; }
+      if (status && status.owner && !/@suncoastcharter\.org$/i.test(status.owner)) {
+        ctx.setCreds({ url: c.url || '' });
+        return fail(`<div class="note bad"><p><b>Your copy is in ${esc(status.owner)}, not your school account.</b> Student work would be saved there.</p>
+          <p>Start again from step 2 in a private window, signed in only to your school account (the one ending in suncoastcharter.org).</p>
+          <button class="btn" type="button" data-restart>Go back to step 2</button></div>`);
+      }
+      if (status && status.allowed === false) {
+        ctx.setCreds({ url: c.url || '' });
+        return fail(`<div class="note bad"><p><b>Google didn’t get every permission WiSH needs.</b> One box was probably left unticked.</p>
+          <ol class="how"><li>In your copy (the sheet), click <b>WiSH</b>, then <b>Set up WiSH</b>.</li>
+          <li>When Google asks, tick <b>Select all</b>, then click <b>Continue</b>.</li>
+          <li>Come back here.</li></ol>
+          <button class="btn primary" type="button" data-retry>Check again</button></div>`);
       }
       await mainCall('esSaveSetup', { esUser: c.user, esKey: c.key, scriptUrl: url, version: res.version, step: 4 });
       ctx.setCreds({ url, step: Math.max(c.step || 0, 4) });
       await ctx.loadData();
-      toast('Connected. Your copy is set up and working.');
+      lastError = '';
+      toast('Connected. Your copy is set up and students can reach it.');
       at = 5;
       render();
     } catch (err) {
-      fail(err.message);
+      fail(bad(esc(err.message)));
     } finally {
       busy(false);
     }
@@ -409,6 +800,10 @@ function AdminSetup(ctx) {
     if (a.step >= STEPS.length && a.scriptUrl) return '<span class="tag ok">Ready ✓</span>';
     if (!a.lastSignIn) return '<span class="tag">Not signed in yet</span>';
     const n = Math.min(Math.max(a.step, a.mustChange ? 0 : 1) + 1, STEPS.length);
+    // Not finished and not seen for 2 days or more: they may be stuck, so it stands out.
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(a.lastSignIn);
+    const idle = m ? (Date.now() - new Date(+m[1], m[2] - 1, +m[3])) / 86400000 : 0;
+    if (idle >= 3) return `<span class="tag off">May be stuck: step ${n} of ${STEPS.length}, ${esc(STEPS[n - 1].title)}</span>`;
     return `<span class="tag wait">Step ${n} of ${STEPS.length}: ${esc(STEPS[n - 1].title)}</span>`;
   }
 
