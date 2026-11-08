@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 47;
+const WORKIT_VERSION = 48;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -2995,7 +2995,7 @@ function emailState_() {
     lp: lp, range: range, today: today, daysLeft: daysLeft, tz: tz,
     week: range ? lpWeek_(range, today) : null,
     weeks: range ? Math.ceil((daysBetween_(range.start, range.end) + 1) / 7) : null,
-    students: rows, byId: byId, items: items, subs: subs,
+    students: rows, byId: byId, items: items, subs: subs, pe: pe,
   };
 }
 
@@ -3385,6 +3385,11 @@ function reportGrid_(st) {
     return {
       x: x,
       cells: classes.map(c => {
+        // PE has no sample: its chip shows whether the PE form is done (PE forms tab), like the dashboard.
+        if (isPe_(c.name)) {
+          const done = !!((st.pe || {})[x.student.id] || {})[st.lp];
+          return { name: c.name, short: shortClass_(c.name), status: done ? 'fil' : 'miss', have: done ? 1 : 0, need: 1, pe: true };
+        }
         const mine = live.filter(i => i.subject === c.name);
         const status = mine.length ? worst.filter(k => mine.some(i => itemStatus_(i) === k))[0] : 'miss';
         return { name: c.name, short: shortClass_(c.name), status: status, have: mine.length, need: c.need };
@@ -3398,6 +3403,7 @@ function reportHtml_(s, st, days, fresh, on) {
   const grid = reportGrid_(st);
   const tot = { fil: 0, app: 0, res: 0, rev: 0, redo: 0, miss: 0 };
   grid.forEach(g => g.cells.forEach(c => {
+    if (c.pe) return; // the PE form isn't a sample, so it stays out of the sample counts
     const mine = st.items.filter(i => i.studentId === g.x.student.id && i.subject === c.name && !(i.redo && i.replacedBy));
     mine.forEach(i => { tot[itemStatus_(i)]++; });
     tot.miss += Math.max(0, c.need - mine.length);
@@ -3455,7 +3461,7 @@ function reportHtml_(s, st, days, fresh, on) {
 
   // Quick read: a few plain sentences worked out from the numbers
   const read = [];
-  const nothing = grid.filter(g => g.cells.length && g.cells.every(c => c.status === 'miss')).map(g => esc_(g.x.student.name));
+  const nothing = grid.filter(g => g.cells.some(c => !c.pe) && g.cells.every(c => c.status === 'miss')).map(g => esc_(g.x.student.name));
   if (nothing.length) read.push('<b>' + names(nothing, 4) + '</b> ' + (nothing.length === 1 ? 'has' : 'have') + ' nothing in yet' + (st.daysLeft > 0 ? ' with ' + plural(st.daysLeft, 'day') + ' left' : '') + '.');
   const oldRedos = st.items.filter(i => i.redo && !i.replacedBy && i.redoMarkedAt && Date.now() - i.redoMarkedAt > 3 * 864e5)
     .sort((a, b) => a.redoMarkedAt - b.redoMarkedAt);
@@ -3491,7 +3497,7 @@ function reportHtml_(s, st, days, fresh, on) {
     const chip = (c) => {
       const k = REPORT_COLORS[c.status];
       const part = c.need > 1 && c.have > 0 && c.have < c.need ? ' (' + c.have + '/' + c.need + ')' : '';
-      return '<span title="' + esc_(c.name + ': ' + k.name) + '" style="display:inline-block;margin:2px 4px 2px 0;padding:0 7px;height:22px;line-height:22px;border-radius:5px;' + F + 'font-size:11px;font-weight:bold;white-space:nowrap;background:' + k.bg + ';color:' + k.fg + ';border:1.5px ' + (c.status === 'miss' ? 'dashed #b9c1da' : 'solid ' + k.bg) + '">' + esc_(c.short) + part + '</span>';
+      return '<span title="' + esc_(c.name + ': ' + (c.pe ? (c.have ? 'PE form done' : 'PE form not done yet') : k.name)) + '" style="display:inline-block;margin:2px 4px 2px 0;padding:0 7px;height:22px;line-height:22px;border-radius:5px;' + F + 'font-size:11px;font-weight:bold;white-space:nowrap;background:' + k.bg + ';color:' + k.fg + ';border:1.5px ' + (c.status === 'miss' ? 'dashed #b9c1da' : 'solid ' + k.bg) + '">' + esc_(c.short) + part + '</span>';
     };
     const tz = st.tz;
     const lines = grid.map(g => {
