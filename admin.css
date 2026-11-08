@@ -1014,3 +1014,10 @@ body.has-guide:has(#guide.small) .nav-arrow.next { right: 12px; }
 .theme-swatch em { height: 5px; width: 60%; border-radius: 3px; }
 .mode-picks { display: flex; flex-wrap: wrap; gap: 8px; }
 .mode-pick[aria-checked="true"] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+
+/* Roster: click First name or Last name to sort */
+.roster th.sortable { cursor: pointer; user-select: none; }
+.roster th.sortable:hover { color: var(--brand); }
+.roster th.sortable::after { content: ' ↕'; opacity: .45; }
+.roster th.sortable[data-dir="up"]::after { content: ' ▲'; opacity: 1; color: var(--brand); }
+.roster th.sortable[data-dir="down"]::after { content: ' ▼'; opacity: 1; color: var(--brand); }

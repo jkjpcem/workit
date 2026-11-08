@@ -2224,8 +2224,8 @@
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
           <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
-        <td class="withdrew-cell">${withdrewBox(r, i)}</td>
         <td class="started-cell">${startedBox(r, i)}</td>
+        <td class="withdrew-cell">${withdrewBox(r, i)}</td>
       </tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
@@ -2296,6 +2296,26 @@
   });
   $('#classes-body').addEventListener('focusout', (e) => { if (e.target.closest('.cls-add') && e.target.value.trim()) addClasses(e.target); });
   // The number and name columns stay put while the rest scrolls; each starts where the one before ends.
+  // Clicking First name or Last name sorts the students by it; clicking again reverses.
+  // Empty rows stay at the bottom. Sorting only changes the order, not the students.
+  let rosterSort = { k: '', dir: 1 };
+  $$('#screen-roster th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    rosterSort = { k, dir: rosterSort.k === k ? -rosterSort.dir : 1 };
+    const other = k === 'first' ? 'last' : 'first';
+    const key = (r) => [String(r[k] || '').trim().toLowerCase(), String(r[other] || '').trim().toLowerCase()];
+    const full = roster.filter(r => !isEmpty(r)).sort((a, b) => {
+      const [a1, a2] = key(a), [b1, b2] = key(b);
+      return rosterSort.dir * (a1.localeCompare(b1) || a2.localeCompare(b2));
+    });
+    roster = full.concat(roster.filter(isEmpty));
+    $$('#screen-roster th[data-sort]').forEach(h => {
+      h.classList.toggle('sorted', h.dataset.sort === k);
+      h.dataset.dir = h.dataset.sort === k ? (rosterSort.dir === 1 ? 'up' : 'down') : '';
+    });
+    renderRoster();
+  }));
+
   function pinNames() {
     const ths = $$('#screen-roster th.fz');
     let left = 0;
