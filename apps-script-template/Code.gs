@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 46;
+const WORKIT_VERSION = 47;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -853,7 +853,7 @@ function checkAdmin_(body) {
 function checkSuper_(body) {
   if (!isMain_()) return { ok: false, error: 'Wrong username or password.' };
   if (lockedOut_(ADMIN_USERNAME)) return LOCKED_OUT;
-  if (String(body.adminUser || '').trim().toLowerCase() !== ADMIN_USERNAME.toLowerCase() || !superPassOk_(body.adminKey)) {
+  if (!isSuperName_(body.adminUser) || !superPassOk_(body.adminKey)) {
     wrongPass_(ADMIN_USERNAME);
     return { ok: false, error: 'Wrong username or password.' };
   }
@@ -872,6 +872,25 @@ function wrongPass_(user) {
   cache.put(key, String(Number(cache.get(key) || 0) + 1), 900);
 }
 
+/**
+ * Your school email, the Google account this copy runs as (or Script property ADMIN_EMAIL if set).
+ * You can sign in with it instead of your username, and "Forgot password?" emails it.
+ */
+function superEmail_() {
+  const set = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL');
+  if (set) return set.trim().toLowerCase();
+  try { return String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase(); } catch (err) { return ''; }
+}
+
+/** Your username or your school email. */
+function isSuperName_(typed) {
+  const u = String(typed || '').trim().toLowerCase();
+  if (!u || !isMain_()) return false;
+  if (u === ADMIN_USERNAME.toLowerCase()) return true;
+  const email = superEmail_();
+  return !!email && u === email;
+}
+
 /** Once you change your password in Settings, its hash in Script properties replaces ADMIN_PASSWORD. */
 function superPassOk_(pass) {
   const props = PropertiesService.getScriptProperties();
@@ -885,7 +904,10 @@ function adminChangePassword_(body) {
   const pass = String(body.newPass || '');
   if (pass.length < 8) return { ok: false, error: 'Use at least 8 characters.' };
   const salt = randomHex_(32);
-  PropertiesService.getScriptProperties().setProperties({ ADMIN_PASS_SALT: salt, ADMIN_PASS_HASH: hash_(salt, pass) });
+  const props = PropertiesService.getScriptProperties();
+  props.setProperties({ ADMIN_PASS_SALT: salt, ADMIN_PASS_HASH: hash_(salt, pass) });
+  props.deleteProperty('ADMIN_MUST_CHANGE');
+  props.deleteProperty('ADMIN_RESET');
   return { ok: true };
 }
 
@@ -982,15 +1004,25 @@ function withLock_(fn) {
 /** Dashboard sign-in for everyone: you (super admin) or an ES account. */
 function esLogin_(body) {
   if (!isMain_()) return { ok: false, error: 'Unknown request.' };
-  const user = String(body.user || '').trim().toLowerCase();
+  let user = String(body.user || '').trim().toLowerCase();
   const pass = String(body.pass || '');
-  if (lockedOut_(user)) return LOCKED_OUT;
-  if (user === ADMIN_USERNAME.toLowerCase()) {
-    if (superPassOk_(pass)) return { ok: true, role: 'super', version: WORKIT_VERSION };
-    wrongPass_(user);
+  if (isSuperName_(user)) {
+    // Username and school email share one wrong-password count.
+    if (lockedOut_(ADMIN_USERNAME)) return LOCKED_OUT;
+    if (superPassOk_(pass) || useSuperResetPass_(pass)) {
+      const mustChange = PropertiesService.getScriptProperties().getProperty('ADMIN_MUST_CHANGE') === '1';
+      return { ok: true, role: 'super', user: ADMIN_USERNAME, mustChange: mustChange, version: WORKIT_VERSION };
+    }
+    wrongPass_(ADMIN_USERNAME);
     Utilities.sleep(800);
     return { ok: false, error: 'Wrong username or password.' };
   }
+  // An ES can sign in with their school email too.
+  if (user.indexOf('@') !== -1) {
+    const byEmail = readEs_().list.filter(e => e.email && e.email.toLowerCase() === user)[0];
+    if (byEmail) user = byEmail.user;
+  }
+  if (lockedOut_(user)) return LOCKED_OUT;
   const found = findEs_(user);
   const es = found.es;
   if (!es || !es.hash || (hash_(es.salt, pass) !== es.hash && !useResetPass_(found, pass))) {
@@ -1023,6 +1055,7 @@ function esForgot_(body) {
   const done = { ok: true, message: 'If that matches a WiSH account, we’ve emailed a temporary password to it. It works for 24 hours. Check your spam folder too.' };
   const who = String(body.who || '').trim().toLowerCase();
   if (!who) return { ok: false, error: 'Type your username or school email.' };
+  if (isSuperName_(who)) return superForgot_(body, done);
   const all = readEs_();
   const es = all.list.filter(e => e.user === who || (e.email && e.email.toLowerCase() === who))[0];
   if (!es || !es.active || !es.email) return done;
@@ -1033,9 +1066,7 @@ function esForgot_(body) {
   const pass = tempPassword_();
   const salt = randomHex_(32);
   props.setProperty(key, JSON.stringify({ hash: hash_(salt, pass), salt: salt, sent: Date.now() }));
-  // Anyone can ask, so the link in the email is only ever WiSH's own address.
-  const asked = String(body.link || '');
-  const link = /^https:\/\/(www\.)?worksample\.app\/[^\s]*$|^https:\/\/jkjpcem\.github\.io\/workit\/[^\s]*$/.test(asked) ? asked : 'https://worksample.app/admin';
+  const link = resetLink_(body.link);
   const text = [
     'Hi ' + es.name.split(' ')[0] + ',',
     '',
@@ -1055,6 +1086,56 @@ function esForgot_(body) {
     return { ok: false, error: 'The email didn’t send. Please try again later, or ask the person who made your WiSH account for a new password.' };
   }
   return done;
+}
+
+/** The link in a reset email is only ever WiSH's own address, since anyone can ask for one. */
+function resetLink_(asked) {
+  asked = String(asked || '');
+  return /^https:\/\/(www\.)?worksample\.app\/[^\s]*$|^https:\/\/jkjpcem\.github\.io\/workit\/[^\s]*$/.test(asked) ? asked : 'https://worksample.app/admin';
+}
+
+/**
+ * Your own "Forgot password?": emails a temporary password to your school email only (never to an
+ * address someone types). Your current password keeps working until the temporary one is used.
+ */
+function superForgot_(body, done) {
+  const email = superEmail_();
+  if (!email) return done;
+  const props = PropertiesService.getScriptProperties();
+  const old = JSON.parse(props.getProperty('ADMIN_RESET') || 'null');
+  if (old && Date.now() - old.sent < RESET_WAIT_MINUTES * 60000) return done;
+  const pass = tempPassword_();
+  const salt = randomHex_(32);
+  props.setProperty('ADMIN_RESET', JSON.stringify({ hash: hash_(salt, pass), salt: salt, sent: Date.now() }));
+  const text = [
+    'Hi,',
+    '',
+    'Someone (hopefully you) asked for a new WiSH password for your main account. If it wasn’t you, ignore this email: your current password still works.',
+    '',
+    '1. On a computer, open: ' + resetLink_(body.link),
+    '2. Username: ' + email + ' (or your usual username)',
+    '   Temporary password: ' + pass,
+    '3. Choose your own password right after you sign in.',
+    '',
+    'The temporary password works for ' + RESET_HOURS + ' hours.',
+  ].join('\n');
+  try {
+    MailApp.sendEmail({ to: email, subject: 'Your new WiSH password', body: text, name: 'WiSH' });
+  } catch (err) {
+    props.deleteProperty('ADMIN_RESET');
+    return { ok: false, error: 'The email didn’t send. Please try again later.' };
+  }
+  return done;
+}
+
+/** Your emailed temporary password becomes your password until you choose a new one in Settings. */
+function useSuperResetPass_(pass) {
+  const props = PropertiesService.getScriptProperties();
+  const r = JSON.parse(props.getProperty('ADMIN_RESET') || 'null');
+  if (!r || Date.now() - r.sent > RESET_HOURS * 3600000 || hash_(r.salt, String(pass || '')) !== r.hash) return false;
+  props.setProperties({ ADMIN_PASS_SALT: r.salt, ADMIN_PASS_HASH: r.hash, ADMIN_MUST_CHANGE: '1' });
+  props.deleteProperty('ADMIN_RESET');
+  return true;
 }
 
 /** Signing in with an emailed temporary password makes it their password until they choose one. */

@@ -76,12 +76,21 @@
         res = { role: 'super' };
       }
       creds = res.role === 'super'
-        ? { role: 'super', user, key: pw }
+        ? { role: 'super', user: res.user || user, key: pw }
         : { role: 'es', user: res.user, key: res.key, url: res.scriptUrl, name: res.name, step: res.step, mustChange: res.mustChange };
       if (creds.role === 'super') await loadOverview();
       saveCreds(creds);
       e.target.reset();
       $('#toast').hidden = true;
+      // Signed in with an emailed temporary password: choose your own right away.
+      if (creds.role === 'super' && res.mustChange) {
+        openSettings();
+        const form = $('#password-form');
+        form.current.value = pw;
+        form.scrollIntoView({ block: 'center' });
+        form.next.focus();
+        toast('You signed in with a temporary password. Choose your own password now.');
+      }
       if (creds.role === 'es') await startEs();
     } catch (err) {
       creds = null;
