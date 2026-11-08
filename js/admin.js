@@ -1768,6 +1768,47 @@
 
   // ---------- Helpers ----------
 
+  // ---------- Colors (Settings) ----------
+  // Swatches: top bar, page, card, accent for each theme (light, then dark).
+  const THEME_INFO = {
+    classic: { name: 'Classic', note: 'Navy and blue', light: ['#13204a', '#f3f5fa', '#ffffff', '#3456d6'], dark: ['#0a1230', '#0c1120', '#151c2e', '#6383ff'] },
+    charcoal: { name: 'Charcoal', note: 'Soft grays', light: ['#1f2329', '#f4f4f5', '#ffffff', '#2f6fde'], dark: ['#101113', '#141517', '#1e2023', '#79a8ff'] },
+    paper: { name: 'Paper', note: 'Warm cream', light: ['#2b3a55', '#f6f1e7', '#fffdf8', '#2f5bb7'], dark: ['#15120f', '#1a1714', '#24201b', '#86abff'] },
+    ocean: { name: 'Ocean', note: 'Teal and sea blue', light: ['#0b3b47', '#eef6f7', '#ffffff', '#0f7f91'], dark: ['#071a1f', '#0a171b', '#102328', '#4fcfe0'] },
+    electric: { name: 'Electric', note: 'Bright blue to cyan', light: ['#1d4ed8', '#eef4ff', '#ffffff', '#2563eb'], dark: ['#1e40af', '#070d1f', '#0f1a36', '#60a5fa'] },
+    tangerine: { name: 'Tangerine', note: 'Bold orange', light: ['#c2410c', '#fff5ec', '#ffffff', '#ea580c'], dark: ['#7c2d12', '#1a0f08', '#26170d', '#fb923c'] },
+    bubblegum: { name: 'Bubblegum', note: 'Hot pink', light: ['#be185d', '#fff1f7', '#ffffff', '#db2777'], dark: ['#831843', '#1a0912', '#28101d', '#f472b6'] },
+    bumblebee: { name: 'Bumblebee', note: 'Black and WiSH gold', light: ['#1c1917', '#fffbea', '#ffffff', '#e0a800'], dark: ['#0b0a07', '#12100a', '#1d1a10', '#fbbf24'] },
+  };
+  const MODE_NAMES = { auto: 'Match my device', light: 'Always light', dark: 'Always dark' };
+  function swatch(c) {
+    return `<span class="theme-swatch" aria-hidden="true"><i style="background:${c[0]}"></i><span style="background:${c[1]}"><b style="background:${c[2]}"><em style="background:${c[3]}"></em></b></span></span>`;
+  }
+  function renderColors() {
+    if (!window.WishTheme) { $('#colors-card').hidden = true; return; }
+    const t = WishTheme.get();
+    $('#theme-picks').innerHTML = WishTheme.PALETTES.map(k => {
+      const i = THEME_INFO[k];
+      return `<button type="button" class="theme-pick" role="radio" aria-checked="${t.palette === k}" data-palette="${k}">
+        <span class="theme-swatches">${swatch(i.light)}${swatch(i.dark)}</span>
+        <strong>${i.name}</strong><span class="meta">${i.note}</span></button>`;
+    }).join('');
+    $('#mode-picks').innerHTML = WishTheme.MODES.map(m =>
+      `<button type="button" class="btn small mode-pick" role="radio" aria-checked="${t.mode === m}" data-mode="${m}">${MODE_NAMES[m]}</button>`).join('');
+  }
+  $('#theme-picks').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-palette]');
+    if (!b) return;
+    WishTheme.set(b.dataset.palette, WishTheme.get().mode);
+    renderColors();
+  });
+  $('#mode-picks').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b) return;
+    WishTheme.set(WishTheme.get().palette, b.dataset.mode);
+    renderColors();
+  });
+
   // ---------- LP dates ----------
 
   // Settings page: the current LP and the LP dates.
@@ -1785,6 +1826,7 @@
       <input type="date" data-lp="${esc(lp)}" data-end="0" value="${esc((d[lp] || {}).start || '')}" aria-label="${esc(lp)} start date" ${off}>
       <input type="date" data-lp="${esc(lp)}" data-end="1" value="${esc((d[lp] || {}).end || '')}" aria-label="${esc(lp)} end date" ${off}>`).join('');
     renderHolidays(data.holidays || [], shared);
+    renderColors();
     $('#dates-shared').hidden = !shared;
     $('#dates-save').hidden = shared;
     currentStudent = null;

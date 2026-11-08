@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="themes.css">
+  <script src="js/theme.js"></script>
 </head>
 <body class="admin">
   <header class="topbar">
@@ -179,6 +181,13 @@
         <h2>Current LP</h2>
         <p class="hint">Students’ uploads go to this LP unless they choose another one.</p>
         <select id="current-lp" aria-label="Current LP"></select>
+      </div>
+      <div class="card stack settings-card" id="colors-card">
+        <h2>Colors</h2>
+        <p class="hint">Pick how your dashboard looks. This is saved on this computer or tablet only.</p>
+        <div class="theme-picks" id="theme-picks" role="radiogroup" aria-label="Color theme"></div>
+        <h3>Light or dark</h3>
+        <div class="mode-picks" id="mode-picks" role="radiogroup" aria-label="Light or dark"></div>
       </div>
       <form class="card stack settings-card" id="dates-form">
         <h2>LP dates and school holidays</h2>

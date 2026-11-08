@@ -1,0 +1,54 @@
+/* WiSH color themes. The ES picks one in Settings > Colors (saved in that browser, js/theme.js).
+   "Classic" is the original navy and blue and needs no rules here.
+   Each theme has a light set and a dark set. Status colors (Filed navy, Approved green,
+   Redo red, To review yellow) keep the same meaning in every theme.
+   Made by a script: change a theme by editing all three lines. */
+
+/* Charcoal: soft grays, calm in dark mode */
+:root[data-palette="charcoal"] { --bg: #f4f4f5; --card: #ffffff; --raised: #ffffff; --text: #18181b; --muted: #5f6068; --line: #e4e4e7; --field: #fafafa; --navy: #1f2329; --navy-2: #343a43; --brand: #2f6fde; --brand-2: #2559b8; --brand-ink: #ffffff; --brand-soft: #e8f0fd; --accent: #0f9d94; --st-finalized-soft: #e6eaf3; --all-filed-bg: #eceff5; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="charcoal"]:not([data-theme="light"]) { --bg: #141517; --card: #1e2023; --raised: #25282c; --text: #ececee; --muted: #a1a4ab; --line: #33363c; --field: #191a1d; --navy: #101113; --navy-2: #24272c; --brand: #79a8ff; --brand-2: #5a8ef0; --brand-ink: #0b1220; --brand-soft: #1f2a3d; --accent: #2fc4b8; --st-finalized-soft: #232a38; --all-filed-bg: #1f2633; }
+}
+:root[data-palette="charcoal"][data-theme="dark"] { --bg: #141517; --card: #1e2023; --raised: #25282c; --text: #ececee; --muted: #a1a4ab; --line: #33363c; --field: #191a1d; --navy: #101113; --navy-2: #24272c; --brand: #79a8ff; --brand-2: #5a8ef0; --brand-ink: #0b1220; --brand-soft: #1f2a3d; --accent: #2fc4b8; --st-finalized-soft: #232a38; --all-filed-bg: #1f2633; }
+
+/* Paper: warm cream with slate blue */
+:root[data-palette="paper"] { --bg: #f6f1e7; --card: #fffdf8; --raised: #fffdf8; --text: #2a2118; --muted: #6e6253; --line: #e8dfcf; --field: #fbf8f1; --navy: #2b3a55; --navy-2: #42577c; --brand: #2f5bb7; --brand-2: #264b98; --brand-ink: #ffffff; --brand-soft: #e9eefa; --accent: #b4632a; --st-finalized-soft: #e3e8f6; --all-filed-bg: #ece9e0; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="paper"]:not([data-theme="light"]) { --bg: #1a1714; --card: #24201b; --raised: #2b2620; --text: #f1ebe1; --muted: #b0a493; --line: #3a332a; --field: #1e1a16; --navy: #15120f; --navy-2: #2f2821; --brand: #86abff; --brand-2: #6a93f0; --brand-ink: #0b1220; --brand-soft: #262c3a; --accent: #e3a067; --st-finalized-soft: #262a36; --all-filed-bg: #2a2620; }
+}
+:root[data-palette="paper"][data-theme="dark"] { --bg: #1a1714; --card: #24201b; --raised: #2b2620; --text: #f1ebe1; --muted: #b0a493; --line: #3a332a; --field: #1e1a16; --navy: #15120f; --navy-2: #2f2821; --brand: #86abff; --brand-2: #6a93f0; --brand-ink: #0b1220; --brand-soft: #262c3a; --accent: #e3a067; --st-finalized-soft: #262a36; --all-filed-bg: #2a2620; }
+
+/* Ocean: teal and sea blue */
+:root[data-palette="ocean"] { --bg: #eef6f7; --card: #ffffff; --raised: #ffffff; --text: #0f2328; --muted: #4f6870; --line: #d6e6e9; --field: #f5fafb; --navy: #0b3b47; --navy-2: #11606f; --brand: #0f7f91; --brand-2: #0b6a79; --brand-ink: #ffffff; --brand-soft: #e0f3f5; --accent: #2a6fdb; --st-finalized-soft: #e3e8f6; --all-filed-bg: #e3eef6; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="ocean"]:not([data-theme="light"]) { --bg: #0a171b; --card: #102328; --raised: #152c33; --text: #e4f1f3; --muted: #93acb2; --line: #21393f; --field: #0c1c20; --navy: #071a1f; --navy-2: #0d3c46; --brand: #4fcfe0; --brand-2: #2bb3c5; --brand-ink: #06181c; --brand-soft: #123940; --accent: #79a8ff; --st-finalized-soft: #18293a; --all-filed-bg: #142833; }
+}
+:root[data-palette="ocean"][data-theme="dark"] { --bg: #0a171b; --card: #102328; --raised: #152c33; --text: #e4f1f3; --muted: #93acb2; --line: #21393f; --field: #0c1c20; --navy: #071a1f; --navy-2: #0d3c46; --brand: #4fcfe0; --brand-2: #2bb3c5; --brand-ink: #06181c; --brand-soft: #123940; --accent: #79a8ff; --st-finalized-soft: #18293a; --all-filed-bg: #142833; }
+
+/* Electric: bright royal blue to cyan */
+:root[data-palette="electric"] { --bg: #eef4ff; --card: #ffffff; --raised: #ffffff; --text: #0b1533; --muted: #4a5878; --line: #d7e2fb; --field: #f5f8ff; --navy: #1d4ed8; --navy-2: #06a3c4; --brand: #2563eb; --brand-2: #1d4ed8; --brand-ink: #ffffff; --brand-soft: #dbe8ff; --accent: #06b6d4; --st-finalized-soft: #e3e8f6; --all-filed-bg: #e2ecff; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="electric"]:not([data-theme="light"]) { --bg: #070d1f; --card: #0f1a36; --raised: #142145; --text: #eaf1ff; --muted: #9db0d6; --line: #22325e; --field: #0a142b; --navy: #1e40af; --navy-2: #0e7490; --brand: #60a5fa; --brand-2: #3b82f6; --brand-ink: #06102a; --brand-soft: #142c5c; --accent: #22d3ee; --st-finalized-soft: #1a2a4f; --all-filed-bg: #13254a; }
+}
+:root[data-palette="electric"][data-theme="dark"] { --bg: #070d1f; --card: #0f1a36; --raised: #142145; --text: #eaf1ff; --muted: #9db0d6; --line: #22325e; --field: #0a142b; --navy: #1e40af; --navy-2: #0e7490; --brand: #60a5fa; --brand-2: #3b82f6; --brand-ink: #06102a; --brand-soft: #142c5c; --accent: #22d3ee; --st-finalized-soft: #1a2a4f; --all-filed-bg: #13254a; }
+
+/* Tangerine: bold orange */
+:root[data-palette="tangerine"] { --bg: #fff5ec; --card: #ffffff; --raised: #ffffff; --text: #2b1608; --muted: #7a5a44; --line: #f6dcc6; --field: #fffaf5; --navy: #c2410c; --navy-2: #f97316; --brand: #ea580c; --brand-2: #c2410c; --brand-ink: #ffffff; --brand-soft: #ffe6d3; --accent: #0f9d94; --st-finalized-soft: #e3e8f6; --all-filed-bg: #fdeee2; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="tangerine"]:not([data-theme="light"]) { --bg: #1a0f08; --card: #26170d; --raised: #2e1c10; --text: #fff1e6; --muted: #d0a98c; --line: #4a2c18; --field: #1f120a; --navy: #7c2d12; --navy-2: #c2410c; --brand: #fb923c; --brand-2: #f97316; --brand-ink: #1a0c03; --brand-soft: #42230f; --accent: #2fc4b8; --st-finalized-soft: #262a3a; --all-filed-bg: #2e1c10; }
+}
+:root[data-palette="tangerine"][data-theme="dark"] { --bg: #1a0f08; --card: #26170d; --raised: #2e1c10; --text: #fff1e6; --muted: #d0a98c; --line: #4a2c18; --field: #1f120a; --navy: #7c2d12; --navy-2: #c2410c; --brand: #fb923c; --brand-2: #f97316; --brand-ink: #1a0c03; --brand-soft: #42230f; --accent: #2fc4b8; --st-finalized-soft: #262a3a; --all-filed-bg: #2e1c10; }
+
+/* Bubblegum: hot pink */
+:root[data-palette="bubblegum"] { --bg: #fff1f7; --card: #ffffff; --raised: #ffffff; --text: #2d0f1f; --muted: #7a4a62; --line: #f8d3e5; --field: #fff7fb; --navy: #be185d; --navy-2: #ec4899; --brand: #db2777; --brand-2: #be185d; --brand-ink: #ffffff; --brand-soft: #fde0ee; --accent: #0ea5e9; --st-finalized-soft: #e3e8f6; --all-filed-bg: #fce7f1; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="bubblegum"]:not([data-theme="light"]) { --bg: #1a0912; --card: #28101d; --raised: #311425; --text: #ffeef6; --muted: #d6a2bd; --line: #4d1f37; --field: #200b16; --navy: #831843; --navy-2: #be185d; --brand: #f472b6; --brand-2: #ec4899; --brand-ink: #1f0612; --brand-soft: #4a1631; --accent: #38bdf8; --st-finalized-soft: #262a3d; --all-filed-bg: #311425; }
+}
+:root[data-palette="bubblegum"][data-theme="dark"] { --bg: #1a0912; --card: #28101d; --raised: #311425; --text: #ffeef6; --muted: #d6a2bd; --line: #4d1f37; --field: #200b16; --navy: #831843; --navy-2: #be185d; --brand: #f472b6; --brand-2: #ec4899; --brand-ink: #1f0612; --brand-soft: #4a1631; --accent: #38bdf8; --st-finalized-soft: #262a3d; --all-filed-bg: #311425; }
+
+/* Bumblebee: black and WiSH gold */
+:root[data-palette="bumblebee"] { --bg: #fffbea; --card: #ffffff; --raised: #ffffff; --text: #1c1704; --muted: #6b5d2a; --line: #f3e6b3; --field: #fffdf3; --navy: #1c1917; --navy-2: #3a3226; --brand: #b8860b; --brand-2: #9a7000; --brand-ink: #1c1704; --brand-soft: #fff1c2; --accent: #2563eb; --st-finalized-soft: #e3e8f6; --all-filed-bg: #f7f0d3; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="bumblebee"]:not([data-theme="light"]) { --bg: #12100a; --card: #1d1a10; --raised: #252114; --text: #fff8e1; --muted: #c9b97f; --line: #3b3420; --field: #17140c; --navy: #0b0a07; --navy-2: #2a2412; --brand: #fbbf24; --brand-2: #f2a705; --brand-ink: #1c1704; --brand-soft: #3d3212; --accent: #60a5fa; --st-finalized-soft: #232838; --all-filed-bg: #252114; }
+}
+:root[data-palette="bumblebee"][data-theme="dark"] { --bg: #12100a; --card: #1d1a10; --raised: #252114; --text: #fff8e1; --muted: #c9b97f; --line: #3b3420; --field: #17140c; --navy: #0b0a07; --navy-2: #2a2412; --brand: #fbbf24; --brand-2: #f2a705; --brand-ink: #1c1704; --brand-soft: #3d3212; --accent: #60a5fa; --st-finalized-soft: #232838; --all-filed-bg: #252114; }
