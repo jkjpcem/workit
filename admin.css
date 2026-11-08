@@ -626,7 +626,7 @@ a.brand:hover { opacity: .9; }
 
 /* Student Classes: one tag per class */
 .classes-head { margin-top: 28px; }
-.classes-head h2 { margin: 0 0 4px; }
+.classes-head h2 { margin: 0 0 12px; }
 .classes-head .hint { margin: 0 0 12px; max-width: 90ch; }
 .roster.classes-t { min-width: 700px; }
 .roster.classes-t td { padding: 6px 10px; vertical-align: top; }
