@@ -1297,27 +1297,25 @@
   // K-8 box: what's in this LP, what to turn in (recommended, or required in the last LP of an RP),
   // and the 4 cores for this RP.
   function k8Box(k, lp, missing, have) {
-    const coreLine = (c, tag) => {
+    // All 4 cores: done ones with a check, missing ones recommended (or required in the RP's last LP).
+    const coreLine = (c) => {
+      if (c.done) {
+        return `<li class="k8-done"><span>✓ ${esc(c.area)} <span class="k8-hint">${c.by === 'ES' ? 'marked done by your ES' : `turned in ${esc(c.by)}`}</span></span></li>`;
+      }
       const preset = !c.elective && c.hint.length === 1 ? c.hint[0] : '';
+      const tag = k.last ? ' <span class="k8-tag req">Required</span>' : ' <span class="k8-tag">Recommended</span>';
       return `<li><span>${esc(K8.label(c))}${c.hint.length ? ` <span class="k8-hint">${esc(K8.hint(c))}</span>` : ''}${tag}</span>
         <button class="btn small primary" type="button" data-turnin="${esc(preset)}" data-lp="${esc(lp)}">Turn in</button></li>`;
     };
-    const anyLine = (n) => `<li><span>${n > 1 ? `${n} samples` : n === 1 && (k.required.length || k.recommend.length) ? '1 more sample' : '1 sample'}, any subject</span>
-      <button class="btn small primary" type="button" data-turnin="" data-lp="${esc(lp)}">Turn in</button></li>`;
-    let lines = '', note = '';
-    if (k.required.length) {
-      note = `<p class="hint"><b>${esc(lp)} is the last LP of ${esc(k.rp)}.</b> These core subjects are still missing, so they must be turned in this LP.</p>`;
-      lines = k.required.map(c => coreLine(c, ' <span class="k8-tag req">Required</span>')).join('') +
-        (k.left > k.required.length ? anyLine(k.left - k.required.length) : '');
-    } else if (k.left) {
-      note = `<p class="hint">${K8.PER_LP} samples each LP, in any subjects.${k.recommend.length ? ` We recommend ${k.recommend.length === 1 ? 'this core subject, since' : 'these core subjects, since'} ${esc(k.rp)} still needs ${k.recommend.length === 1 ? 'it' : 'them'}:` : ''}</p>`;
-      lines = k.recommend.map(c => coreLine(c, ' <span class="k8-tag">Recommended</span>')).join('') +
-        (k.left > k.recommend.length ? anyLine(k.left - k.recommend.length) : '');
-    }
+    const extra = Math.max(0, k.left - k.missing.length);
+    const anyLine = extra ? `<li><span>${k.missing.length ? `${extra} more` : extra} sample${extra === 1 ? '' : 's'}, any subject</span>
+      <button class="btn small primary" type="button" data-turnin="" data-lp="${esc(lp)}">Turn in</button></li>` : '';
+    const note = k.required.length
+      ? `<p class="hint"><b>${esc(lp)} is the last LP of ${esc(k.rp)}.</b> The core subjects still missing must be turned in this LP.</p>`
+      : `<p class="hint">${K8.PER_LP} samples each LP, in any subjects. ${esc(k.rp)} needs all 4 core subjects${k.missing.length ? ', so we recommend the ones still missing' : ''}.</p>`;
     const pe = missing.map(c => missingLine(c, lp, have)).join('');
-    const cores = `<div class="k8-cores"><span class="k8-cores-title">${esc(k.rp)} core subjects</span>${k.cores.map(c =>
-      `<span class="k8-core ${c.done ? 'done' : ''}">${esc(c.area)}${c.done ? ' ✓' : ''}</span>`).join('')}</div>`;
-    return { done: k.done && !missing.length, html: `${note}${lines || pe ? `<ul class="missing-list">${lines}${pe}</ul>` : ''}${cores}` };
+    return { done: k.done && !missing.length,
+      html: `${note}<p class="k8-cores-title">${esc(k.rp)} core subjects</p><ul class="missing-list k8-list">${k.cores.map(coreLine).join('')}</ul>${anyLine || pe ? `<ul class="missing-list">${anyLine}${pe}</ul>` : ''}` };
   }
   const peDone = (lp) => !!(session && session.pe && session.pe[lp]);
   // One line of a missing list: Turn in, or for PE the form link and the checkbox.

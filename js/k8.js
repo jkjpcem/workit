@@ -52,18 +52,20 @@ const K8 = (() => {
     const marks = (opts.marks || []).filter(m => m.rp === rp);
     const cores = AREAS.map(a => {
       const mine = classes.filter(c => area(c) === a);
+      const got = mine.length ? inRp.find(i => area(i.subject) === a) : null;
+      const mark = marks.some(m => m.area === a);
       return { area: a, elective: !mine.length, hint: mine.length ? mine : electives,
-        done: marks.some(m => m.area === a) || (!!mine.length && inRp.some(i => area(i.subject) === a)) };
+        done: mark || !!got, by: got ? got.lp : mark ? 'ES' : '' };
     });
     // A core with no class this RP is filled by an elective sample, a different one for each.
     const used = new Set();
     cores.filter(c => c.elective && !c.done).forEach(c => {
       const pick = inRp.find(i => !area(i.subject) && !used.has(i.id));
-      if (pick) { used.add(pick.id); c.done = true; }
+      if (pick) { used.add(pick.id); c.done = true; c.by = pick.lp; }
     });
     const missing = cores.filter(c => !c.done);
     const required = last ? missing : [];
-    const recommend = last ? [] : missing.slice(0, left);
+    const recommend = last ? [] : missing; // every missing core, even past the 2 for this LP
     const toDo = last ? Math.max(left, missing.length) : left;
     const history = lps.slice(0, lps.indexOf(lp) + 1).map(l => ({
       lp: l, subjects: inRp.filter(i => i.lp === l).map(i => i.subject).filter((s, n, a) => a.indexOf(s) === n),

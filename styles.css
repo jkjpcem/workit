@@ -700,3 +700,5 @@ body:has(#screen-find:not([hidden])) .topbar { display: none; }
 .k8-cores-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-right: 2px; }
 .k8-core { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1.5px solid var(--line); color: var(--muted); background: var(--card); }
 .k8-core.done { background: var(--navy-2); border-color: var(--navy-2); color: #fff; }
+.k8-cores-title { margin: 4px 0 0; }
+.missing-list li.k8-done { background: color-mix(in srgb, var(--good) 10%, transparent); color: var(--good); font-weight: 650; min-height: 44px; }

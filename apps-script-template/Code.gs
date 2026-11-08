@@ -1986,14 +1986,16 @@ function k8Plan_(student, items, lp, sorting, marks) {
   const myMarks = (marks || []).filter(m => m.studentId === student.id && m.rp === rp);
   const cores = CORE_AREAS.map(a => {
     const mine = classes.filter(c => area(c) === a);
+    const got = mine.length ? inRp.filter(i => area(i.subject) === a)[0] : null;
+    const mark = myMarks.some(m => m.area === a);
     return { area: a, elective: !mine.length, hint: mine.length ? mine : electives,
-      done: myMarks.some(m => m.area === a) || (!!mine.length && inRp.some(i => area(i.subject) === a)) };
+      done: mark || !!got, by: got ? got.lp : mark ? 'ES' : '' };
   });
   // A core with no class this RP is filled by an elective sample, a different one for each.
   const used = {};
   cores.filter(c => c.elective && !c.done).forEach(c => {
     const pick = inRp.filter(i => !area(i.subject) && !used[i.id])[0];
-    if (pick) { used[pick.id] = true; c.done = true; }
+    if (pick) { used[pick.id] = true; c.done = true; c.by = pick.lp; }
   });
   const missing = cores.filter(c => !c.done);
   const toDo = last ? Math.max(left, missing.length) : left;
@@ -2002,7 +2004,7 @@ function k8Plan_(student, items, lp, sorting, marks) {
   }));
   return {
     lp: lp, rp: rp, last: last, have: have, left: left, history: history, cores: cores, missing: missing,
-    recommend: last ? [] : missing.slice(0, left), required: last ? missing : [], toDo: toDo, done: toDo === 0,
+    recommend: last ? [] : missing, required: last ? missing : [], toDo: toDo, done: toDo === 0,
   };
 }
 
@@ -2015,7 +2017,7 @@ function k8ToDo_(k, lp) {
   const out = ['Turned in so far in ' + k.rp + ':'];
   k.history.forEach(h => out.push('  • ' + h.lp + ': ' + (h.subjects.length ? h.subjects.join(', ') : 'nothing yet')));
   out.push('', 'Core subjects for ' + k.rp + ' (English, Math, Social Studies and Science):');
-  k.cores.forEach(c => out.push('  ' + (c.done ? '✓ ' : '✗ ') + c.area + (c.done ? '' : ', still needed')));
+  k.cores.forEach(c => out.push('  ' + (c.done ? '✓ ' : '✗ ') + c.area + (c.done ? (c.by === 'ES' ? ' (marked done by your ES)' : c.by ? ' (turned in ' + c.by + ')' : '') : ', still needed')));
   out.push('');
   if (k.required.length) {
     out.push(lp + ' is the last LP of ' + k.rp + ', so these must be turned in for ' + lp + ':');
@@ -2023,7 +2025,7 @@ function k8ToDo_(k, lp) {
     if (k.left > k.required.length) out.push('  • and ' + (k.left - k.required.length) + ' more in any subject');
   } else if (k.left) {
     out.push(lp + ' needs ' + k.left + (k.have ? ' more' : '') + ' sample' + (k.left === 1 ? '' : 's') + ', in any subject' + (k.left === 1 ? '' : 's') + '.');
-    if (k.recommend.length) out.push('We recommend ' + k.recommend.map(k8CoreName_).join(' and ') + ', since ' + k.rp + ' still needs ' + (k.recommend.length === 1 ? 'it' : 'them') + '.');
+    if (k.recommend.length) out.push('We recommend ' + k.recommend.map(k8CoreName_).join(k.recommend.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1') + ', since ' + k.rp + ' still needs ' + (k.recommend.length === 1 ? 'it' : 'them') + '.');
   }
   return out.join('\n');
 }
