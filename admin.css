@@ -947,3 +947,9 @@ details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 .roster th.sortable::after { content: ' ↕'; opacity: .45; }
 .roster th.sortable[data-dir="up"]::after { content: ' ▲'; opacity: 1; color: var(--brand); }
 .roster th.sortable[data-dir="down"]::after { content: ' ▼'; opacity: 1; color: var(--brand); }
+
+/* "Reviewed and Exported": the boxes keep their colors, the text goes faint grey so finished cards fade back. */
+.grp-3 .scard { --done-ink: color-mix(in srgb, var(--muted) 60%, var(--all-filed-bg)); }
+.grp-3 .scard h3, .grp-3 .scard .counts, .grp-3 .scard .counts b:not(.anno-over), .grp-3 .scard .counts .met,
+.grp-3 .scard .subj, .grp-3 .scard .sid, .grp-3 .scard .meet { color: var(--done-ink); }
+.grp-3 .scard .thumbs img, .grp-3 .scard .thumbs .more { opacity: .45; }
