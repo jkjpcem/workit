@@ -238,6 +238,7 @@ function doPost(e) {
     };
     const superAdmin = {
       superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_, superChangePassword: adminChangePassword_,
+      superEsConnect: superEsConnect_, superSetMaster: superSetMaster_,
     };
     // Requests that only read use the remembered copy of the sheet; anything else reads the
     // sheet itself and makes the next request read it fresh too.
@@ -245,9 +246,9 @@ function doPost(e) {
     HOLIDAYS_ = null;
     FRESH_ = READ_ONLY_ACTIONS.indexOf(body.action) === -1;
     // Once a day, the first request empties samples that have been in the Trash for 60 days.
-    if (emptyTrashDaily_()) { memoClear_(); FRESH_ = true; }
+    if (!isMaster_() && emptyTrashDaily_()) { memoClear_(); FRESH_ = true; }
     let out;
-    if (student[body.action]) out = student[body.action](body);
+    if (student[body.action]) out = isMaster_() ? MASTER_NO_STUDENTS : student[body.action](body);
     else if (es[body.action]) out = es[body.action](body);
     else if (superAdmin[body.action]) out = checkSuper_(body) || superAdmin[body.action](body);
     else if (admin[body.action]) out = checkAdmin_(body) || admin[body.action](body);
@@ -333,6 +334,7 @@ function peConfirm_(body) {
 const PE_MAIL_QUERY = 'subject:"Physical Education Log" newer_than:60d';
 const PE_SEEN_KEY = 'PE_MAIL_SEEN_2';
 function checkPeEmails() {
+  if (isMaster_()) return;
   const props = PropertiesService.getScriptProperties();
   let seen = [];
   // v43 key: emails v42 skipped get read again. Only emails that marked a PE form are remembered,
@@ -915,6 +917,16 @@ function isMain_() {
   return ADMIN_USERNAME !== '' && ADMIN_PASSWORD !== '';
 }
 
+/**
+ * The master: your main copy once Script property WISH_MASTER is 1. It only keeps the ES accounts
+ * and the school's LP dates and holidays. It has no students: your own students live in your own
+ * ES copy, like every ES's. Its old sheet and folder are left as they are, untouched.
+ */
+function isMaster_() {
+  return isMain_() && PropertiesService.getScriptProperties().getProperty('WISH_MASTER') === '1';
+}
+const MASTER_NO_STUDENTS = { ok: false, error: 'This WiSH link isn’t right. Ask your ES for your WiSH link.' };
+
 // ---------- ES accounts (kept in your copy only) ----------
 
 const ES_SHEET_NAME = 'ES accounts';
@@ -1011,7 +1023,7 @@ function esLogin_(body) {
     if (lockedOut_(ADMIN_USERNAME)) return LOCKED_OUT;
     if (superPassOk_(pass) || useSuperResetPass_(pass)) {
       const mustChange = PropertiesService.getScriptProperties().getProperty('ADMIN_MUST_CHANGE') === '1';
-      return { ok: true, role: 'super', user: ADMIN_USERNAME, mustChange: mustChange, version: WORKIT_VERSION };
+      return { ok: true, role: 'super', user: ADMIN_USERNAME, mustChange: mustChange, master: isMaster_(), version: WORKIT_VERSION };
     }
     wrongPass_(ADMIN_USERNAME);
     Utilities.sleep(800);
@@ -1243,6 +1255,44 @@ function esClaim_(body) {
     if (!have) props.setProperty('ES_KEY', key);
     return { ok: true, version: WORKIT_VERSION };
   });
+}
+
+/**
+ * Connects an ES account to a WiSH copy that is already set up and running (for example, your
+ * school copy once it's no longer the main copy): saves its link, marks setup done, and gives
+ * that copy the account's key so only that account's dashboard can open it.
+ */
+function superEsConnect_(body) {
+  const url = String(body.scriptUrl || '').trim();
+  if (!SCRIPT_URL_RE.test(url)) return { ok: false, error: 'That doesn’t look like a Web app link. It should end in /exec.' };
+  const found = findEs_(body.user);
+  if (!found.es) return { ok: false, error: 'There is no ES account with that username.' };
+  let res;
+  try {
+    const r = UrlFetchApp.fetch(url, {
+      method: 'post', contentType: 'text/plain', muteHttpExceptions: true, followRedirects: true,
+      payload: JSON.stringify({ action: 'esClaim', esKey: found.es.key }),
+    });
+    res = JSON.parse(r.getContentText());
+  } catch (err) {
+    return { ok: false, error: 'That copy didn’t answer. Check that its link is right and it is deployed for Anyone.' };
+  }
+  if (!res || !res.ok) return { ok: false, error: (res && res.error) || 'That copy didn’t accept the account.' };
+  return withLock_(() => {
+    const again = findEs_(body.user);
+    again.sheet.getRange(again.es.row, ES.STEP).setValue(SETUP_STEPS);
+    again.sheet.getRange(again.es.row, ES.SCRIPT_URL).setValue(url);
+    if (res.version) again.sheet.getRange(again.es.row, ES.VERSION).setValue(Number(res.version) || '');
+    return { ok: true, user: again.es.user, version: res.version || 0 };
+  });
+}
+
+/** Turns this main copy into the master (on: true) or back (on: false). See isMaster_. */
+function superSetMaster_(body) {
+  const props = PropertiesService.getScriptProperties();
+  if (body.on) props.setProperty('WISH_MASTER', '1');
+  else props.deleteProperty('WISH_MASTER');
+  return { ok: true, master: isMaster_() };
 }
 
 function superEsList_() {
@@ -2953,6 +3003,7 @@ function emailState_() {
 
 /** Every 10 minutes: whatever is due goes out. Nothing is sent twice (see the Email log tab). */
 function wishTick() {
+  if (isMaster_()) return; // no students, so no reminders or PE emails
   if (peCheckDue_()) {
     try {
       checkPeEmails();

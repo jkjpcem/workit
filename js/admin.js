@@ -29,6 +29,8 @@
     Api.call(action, { adminUser: creds && creds.user, adminKey: creds && creds.key, ...payload }, { url: (creds && creds.url) || '' });
   // Sign-in, ES accounts and setup progress live in the main copy.
   const mainCall = (action, payload = {}) => Api.call(action, payload, { url: '' });
+  // The master account only keeps the ES accounts and the school's LP dates: no students.
+  const isMaster = () => !!(creds && creds.role === 'super' && creds.master);
 
   // ---------- Sign in ----------
 
@@ -76,9 +78,9 @@
         res = { role: 'super' };
       }
       creds = res.role === 'super'
-        ? { role: 'super', user: res.user || user, key: pw }
+        ? { role: 'super', user: res.user || user, key: pw, master: !!res.master }
         : { role: 'es', user: res.user, key: res.key, url: res.scriptUrl, name: res.name, step: res.step, mustChange: res.mustChange };
-      if (creds.role === 'super') await loadOverview();
+      if (creds.role === 'super') await startSuper();
       saveCreds(creds);
       e.target.reset();
       $('#toast').hidden = true;
@@ -112,6 +114,13 @@
     show('login');
   }
 
+  // You: the dashboard, or on the master the ES accounts page (it has no students).
+  async function startSuper() {
+    if (!isMaster()) return loadOverview();
+    await loadOverview(undefined, { stay: true });
+    $('#open-accounts').click();
+  }
+
   // An ES goes through the setup steps until they're done, then gets the dashboard.
   async function startEs() {
     const pending = localStorage.getItem(CONNECT_KEY);
@@ -129,6 +138,8 @@
     const role = creds && creds.role;
     $('#open-accounts').hidden = role !== 'super';
     $('#open-setup').hidden = role !== 'es';
+    const master = isMaster();
+    ['#open-roster', '#open-link', '#open-reminders', '#open-meetings', '#open-trash', '#accounts-back'].forEach(id => { $(id).hidden = master; });
     $('#user-name').textContent = role === 'es' ? (creds.name || creds.user || 'ES') : 'Admin';
     closeUserMenu();
     window.scrollTo(0, 0);
@@ -165,6 +176,7 @@
     e.preventDefault();
     if (!creds || !data || !$('#screen-setup').hidden || !$('#screen-login').hidden) return;
     if (!$('#screen-roster').hidden && rosterDirty && !confirm('You have unsaved changes to the student list. Leave without saving?')) return;
+    if (isMaster()) { $('#open-accounts').click(); return; }
     currentStudent = null;
     renderDash();
     show('dash');
@@ -183,6 +195,7 @@
     } finally {
       busy(false);
     }
+    if (isMaster()) return;
     // Bookings come from the calendar, which can be slow, so they fill in afterwards.
     Meetings.load().then(() => redrawMeetings()).catch(() => {});
     // Checked once per visit, after the dashboard is already showing.
@@ -1825,7 +1838,7 @@
   function openSettings(from) {
     if (!data) return;
     settingsBack = from || 'dash';
-    $('#settings-back').textContent = settingsBack === 'setup' ? '← Back to setup' : '← Dashboard';
+    $('#settings-back').textContent = settingsBack === 'setup' ? '← Back to setup' : isMaster() ? '← ES accounts' : '← Dashboard';
     const d = data.lpDates || {};
     // An ES follows the school's dates, so they only see them.
     const shared = creds.role === 'es' && Object.keys(d).length > 0;
@@ -1873,6 +1886,7 @@
   $('#open-dates').addEventListener('click', () => openSettings('dash'));
   $('#settings-back').addEventListener('click', () => {
     if (settingsBack === 'setup') return Setup.open();
+    if (isMaster()) { $('#open-accounts').click(); return; }
     renderDash();
     show('dash');
   });
@@ -2550,7 +2564,7 @@
   // ---------- Start ----------
 
   if (creds) {
-    (creds.role === 'es' ? startEs() : loadOverview()).catch(err => {
+    (creds.role === 'es' ? startEs() : startSuper()).catch(err => {
       toast(err.message);
       if (/password|sign in again/i.test(err.message)) { creds = null; saveCreds(null); }
       show('login');

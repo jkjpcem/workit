@@ -15,12 +15,17 @@ const Api = (() => {
   const RESERVED = ['', 'index', 'index.html', 'admin', 'admin.html', 'workit'];
   const last = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '').toLowerCase();
   const fromPath = /^[a-z0-9._-]{3,30}$/.test(last) && !RESERVED.includes(last) ? last : '';
-  const param = new URLSearchParams(location.search).get('es') || fromPath;
+  // The plain link (no username) belongs to DEFAULT_ES once the main copy is only the master.
+  const plain = (window.WORKIT_CONFIG || {}).DEFAULT_ES || '';
+  const param = new URLSearchParams(location.search).get('es') || fromPath || (es ? '' : plain);
   if (!isAdminPage && param) {
     const id = param.trim().toLowerCase();
     if (!es || es.es !== id) {
       // Another ES's link: whoever was signed in on this device belongs to someone else.
-      try { localStorage.removeItem('workit.session'); } catch { /* ignore */ }
+      // (The plain link moving to DEFAULT_ES keeps the same students, so they stay signed in.)
+      if (es || id !== plain) {
+        try { localStorage.removeItem('workit.session'); } catch { /* ignore */ }
+      }
       es = { es: id, name: '', url: '' };
       saveEs();
     }
