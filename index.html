@@ -39,6 +39,26 @@
   </header>
 
   <main>
+    <!-- Landing page (worksample.app with no ES name): find your ES by their school email -->
+    <section id="screen-find" class="screen" hidden>
+      <div class="find">
+        <picture><source srcset="icons/logo-dark.svg" media="(prefers-color-scheme: dark)"><img class="find-logo" src="icons/logo.svg" alt="WiSH, Work Sample Herder"></picture>
+        <h1>Find your ES</h1>
+        <p class="lead">Type the first part of their school email.</p>
+        <form id="find-form" class="find-pill" autocomplete="off" novalidate>
+          <label class="sr-only" for="find-handle">Your ES’s school email</label>
+          <input id="find-handle" name="handle" required maxlength="60" autocapitalize="none" autocorrect="off"
+            spellcheck="false" inputmode="email" enterkeyhint="go" placeholder="name" aria-describedby="find-msg">
+          <span class="find-domain" aria-hidden="true">@suncoastcharter.org</span>
+          <button class="find-go" type="submit" aria-label="Find my ES">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+          </button>
+        </form>
+        <p class="find-msg" id="find-msg" role="status" aria-live="polite"></p>
+        <p class="teacher-link"><a href="admin.html">I’m an ES →</a></p>
+      </div>
+    </section>
+
     <!-- Sign in -->
     <section id="screen-login" class="screen" hidden>
       <div class="login-hero">
@@ -48,6 +68,7 @@
         <h1>Sign in</h1>
         <p class="lead">And get your Work Samples Turned in</p>
         <p class="es-name" id="es-name" hidden></p>
+        <p class="not-my-es"><button type="button" class="linkish" id="not-my-es">Not your ES?</button></p>
       </div>
       <form id="login-form" class="card stack" autocomplete="off">
         <label>First two letters of your first name

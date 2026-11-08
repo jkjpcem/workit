@@ -71,6 +71,45 @@
     }
   });
 
+  // ---------- Landing page: find your ES ----------
+  // worksample.app with no ES name, on a device that doesn't know its ES yet. The student types the
+  // first part of the ES's school email; that is the ES's username, so it opens worksample.app/<it>.
+
+  const findForm = $('#find-form');
+  const findMsg = $('#find-msg');
+  const findInput = $('#find-handle');
+  function findSay(kind, text) {
+    findMsg.innerHTML = text ? `<span class="${kind}">${kind === 'found' ? '✓ ' : ''}${esc(text)}</span>` : '';
+  }
+  findInput.addEventListener('input', () => {
+    // Someone who types the whole email: keep only the part before the @.
+    if (findInput.value.includes('@')) findInput.value = findInput.value.split('@')[0];
+    findSay('', '');
+  });
+  findForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const go = $('.find-go', findForm);
+    if (go.classList.contains('is-busy')) return;
+    const handle = findInput.value.trim();
+    if (!handle) { findSay('nope', 'Type the first part of your ES’s school email.'); findInput.focus(); return; }
+    go.classList.add('is-busy');
+    findSay('', '');
+    try {
+      const found = await Api.findEs(handle);
+      findSay('found', found.name || found.es);
+      setTimeout(() => { location.href = Api.studentLink(found.es); }, 700);
+    } catch (err) {
+      go.classList.remove('is-busy');
+      findSay('nope', err.offline ? 'You’re offline. Connect to the internet and try again.' : err.message);
+      findInput.focus();
+      findInput.select();
+    }
+  });
+  $('#not-my-es').addEventListener('click', () => {
+    Api.forgetEs();
+    location.href = Api.studentLink('');
+  });
+
   // On an ES's own student link, say whose WiSH this is.
   Api.ready.then(() => {
     const name = Api.esName();
@@ -170,9 +209,9 @@
   let current = 'login';
   const past = []; // screens visited, for Esc = back
   function show(name, goingBack) {
-    if (!session) name = 'login';
-    if (name === 'login') past.length = 0;
-    else if (!goingBack && name !== current && current !== 'login') past.push(current);
+    if (!session) name = Api.hasEs() || esUpload ? 'login' : 'find';
+    if (name === 'login' || name === 'find') past.length = 0;
+    else if (!goingBack && name !== current && current !== 'login' && current !== 'find') past.push(current);
     if (name === 'history' && current !== 'history') historyFilter.lp = session.currentLp;
     current = name;
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });

@@ -3,8 +3,8 @@ window.WORKIT_CONFIG = {
   // The "Web app URL" Google gives you when you deploy Code.gs (see SETUP.md).
   // It looks like https://script.google.com/macros/s/AKfy.../exec
   SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbw7l29EgCxT6R9zueT5svkwC5SWYNbGVXLosi65NjPpkWzT2thLvMQyt2w7XhbUSnAT/exec',
-  // Once the main copy is only the master (ES accounts, no students): the ES username whose
-  // students use the plain link (worksample.app with no name after it). Empty: the main copy's own.
+  // The ES whose students used the plain link (worksample.app with no name) before it became the
+  // "Find your ES" page. A student still signed in from back then stays with this ES.
   DEFAULT_ES: 'joon',
   // "Make a copy" link for the WiSH template sheet that other ES copy during setup.
   TEMPLATE_COPY_URL: 'https://docs.google.com/spreadsheets/d/1-92QOWZKLkkSaANCjCkpR-uK02izun6nDQ5PPwrHDJ4/copy',

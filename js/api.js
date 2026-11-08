@@ -15,15 +15,18 @@ const Api = (() => {
   const RESERVED = ['', 'index', 'index.html', 'admin', 'admin.html', 'workit'];
   const last = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '').toLowerCase();
   const fromPath = /^[a-z0-9._-]{3,30}$/.test(last) && !RESERVED.includes(last) ? last : '';
-  // The plain link (no username) belongs to DEFAULT_ES once the main copy is only the master.
-  const plain = (window.WORKIT_CONFIG || {}).DEFAULT_ES || '';
-  const param = new URLSearchParams(location.search).get('es') || fromPath || (es ? '' : plain);
+  // The plain link (worksample.app with no name) asks for the ES's school email first, unless
+  // this device already remembers its ES.
+  let param = new URLSearchParams(location.search).get('es') || fromPath;
+  // A student signed in on the plain link back when it went straight to DEFAULT_ES stays there.
+  let legacy = false;
+  try { legacy = !param && !es && !!localStorage.getItem('workit.session'); } catch { /* ignore */ }
+  if (legacy) param = (window.WORKIT_CONFIG || {}).DEFAULT_ES || '';
   if (!isAdminPage && param) {
     const id = param.trim().toLowerCase();
     if (!es || es.es !== id) {
       // Another ES's link: whoever was signed in on this device belongs to someone else.
-      // (The plain link moving to DEFAULT_ES keeps the same students, so they stay signed in.)
-      if (es || id !== plain) {
+      if (!legacy) {
         try { localStorage.removeItem('workit.session'); } catch { /* ignore */ }
       }
       es = { es: id, name: '', url: '' };
@@ -120,8 +123,35 @@ const Api = (() => {
       inner(action, { ...payload, byEs: true, adminUser: o.adminUser, adminKey: o.adminKey }, { url: o.url || '' });
   }
 
+  // The landing page: the ES whose school email starts with this (their username is that part),
+  // or an Error saying it wasn't found. Doesn't change which ES this device belongs to.
+  async function findEs(handle) {
+    const id = String(handle || '').split('@')[0].trim().toLowerCase();
+    const notFound = () => new Error(`There’s no ES in WiSH with ${id || 'that'}@suncoastcharter.org. Check the spelling, or ask your ES for their WiSH link.`);
+    if (!/^[a-z0-9._-]{3,30}$/.test(id) || RESERVED.includes(id)) throw notFound();
+    let res;
+    try {
+      res = await send(home(), { action: 'esLookup', es: id });
+    } catch (err) {
+      if (err.offline) throw err;
+      if (/isn’t right|isn't right/.test(err.message)) throw notFound();
+      if (/turned off/.test(err.message)) throw new Error('That ES’s WiSH is turned off right now. Ask your ES.');
+      if (/finished setting up/.test(err.message)) throw new Error('That ES hasn’t finished setting up WiSH yet. Ask your ES when it’s ready.');
+      throw err;
+    }
+    return { es: id, name: res.name || '' };
+  }
+  // "Not your ES?": forget this device's ES so the landing page asks again.
+  function forgetEs() {
+    es = null;
+    try { localStorage.removeItem(ES_KEY); } catch { /* ignore */ }
+  }
+
   const api = {
     call,
+    findEs,
+    forgetEs,
+    hasEs: () => !!es,
     actAsEs,
     ready,
     studentLink,
