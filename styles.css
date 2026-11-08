@@ -689,3 +689,14 @@ body:has(#screen-find:not([hidden])) .topbar { display: none; }
 .not-my-es { margin: 8px 0 0; }
 .linkish { border: 0; background: none; padding: 2px 4px; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .linkish:hover { color: var(--brand); }
+
+/* K-8: 2 samples per LP, with the RP's 4 core subjects (js/k8.js) */
+.missing.k8 .hint { margin: 0; }
+.missing-list .k8-hint { font-size: 12px; color: var(--muted); margin-left: 4px; }
+.k8-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px;
+  background: var(--brand-soft); color: var(--brand-2); vertical-align: 1px; }
+.k8-tag.req { background: var(--bad-soft); color: var(--bad); }
+.k8-cores { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; }
+.k8-cores-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-right: 2px; }
+.k8-core { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1.5px solid var(--line); color: var(--muted); background: var(--card); }
+.k8-core.done { background: var(--navy-2); border-color: var(--navy-2); color: #fff; }

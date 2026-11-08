@@ -358,9 +358,9 @@
       // Light blue once every class has its samples and every upload is annotated and filed.
       const classes = Classes.forLp(s, viewLp);
       // The bar is out of the samples this LP needs, so the empty part is what's still missing.
-      const needed = classes.reduce((n, c) => n + (Classes.isPe(c.name) ? 0 : c.need), 0);
-      const allFiled = active.length > 0 && by.finalized === active.length &&
-        classes.every(c => have(s, c, mine, viewLp) >= c.need);
+      const k8 = K8.is(s);
+      const needed = k8 ? K8.PER_LP : classes.reduce((n, c) => n + (Classes.isPe(c.name) ? 0 : c.need), 0);
+      const allFiled = active.length > 0 && by.finalized === active.length && allIn(s, classes, mine, viewLp);
       card.className = `scard ${owed ? 'has-redo' : ''} ${allFiled ? 'all-filed' : ''} ${owes(s, viewLp) ? '' : 'inactive'}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
@@ -369,7 +369,9 @@
       const subjects = classes.map(c => {
         const n = have(s, c, mine, viewLp);
         const label = ''; // no counts on the class names; the color shows done, partly done or missing
-        return `<span class="subj ${n >= c.need ? '' : n ? 'short' : 'missing'}" title="${esc(c.name)}: ${Classes.isPe(c.name) ? (n ? 'PE form done' : 'PE form not done yet') : c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
+        // K-8: a class with no sample isn't missing, since any 2 subjects do.
+        const cls = n >= c.need ? '' : n ? 'short' : k8 && !Classes.isPe(c.name) ? 'k8-open' : 'missing';
+        return `<span class="subj ${cls}" title="${esc(c.name)}: ${Classes.isPe(c.name) ? (n ? 'PE form done' : 'PE form not done yet') : k8 ? (n ? 'has a sample' : 'no sample (K-8: 2 samples per LP, any subjects)') : c.need > 1 ? 'accelerated, 2 samples per LP' : '1 sample per LP'}" data-short="${esc(shortClass(c.name) + label)}">${esc(className(c.name))}${label}</span>`;
       }).join('');
       // A redo and the sample it replaced share one spot: the new one in front, the old one behind.
       const thumb = (i, cls = '') => `<img src="${esc(i.thumb || blankThumb())}" alt="${esc(i.subject)}${status(i) === 'reference' ? ` (${statusLabel(i)})` : ''}" class="st-${status(i)} ${cls}" data-id="${esc(i.id)}" title="${esc(i.subject)}: ${esc(statusLabel(i))}">`;
@@ -377,7 +379,7 @@
         ? `<span class="pair">${thumb(g[1], 'behind')}${thumb(g[0])}</span>` : thumb(g[0])).join('') +
         (groupsOf.length > 6 ? moreTile(groupsOf.slice(5).flat()) : '');
       card.innerHTML = `
-        <div class="top"><h3>${esc(s.name)}</h3>${inactiveTag(s)}<span class="sid">Grade ${esc(s.grade)}</span></div>
+        <div class="top"><h3>${esc(s.name)}</h3>${inactiveTag(s)}<span class="sid">Grade ${esc(s.grade)}</span></div>${k8 && owes(s, viewLp) && classes.length ? `<div class="k8-line">K-8: <b>${Math.min(k8Count(mine, viewLp), K8.PER_LP)} of ${K8.PER_LP}</b> samples</div>` : ''}
         <div class="bar" aria-hidden="true">${['finalized', 'approved', 'redo', 'new'].map(k =>
           by[k] ? `<i class="${k}" style="width:${(by[k] / Math.max(active.length, needed)) * 100}%"></i>` : '').join('')}</div>
         <div class="card-uploads">${mine.length ? `
@@ -398,7 +400,7 @@
           openStudent(s.id, viewLp).catch(err => toast(err.message));
         }
       });
-      const turnedIn = classes.length > 0 && classes.every(c => have(s, c, mine, viewLp) >= c.need);
+      const turnedIn = allIn(s, classes, mine, viewLp);
       groups[!owes(s, viewLp) && !mine.length ? 4 : allFiled ? 3 : turnedIn ? 2 : mine.length ? 1 : 0].push(card);
     }
     grid.classList.add('grouped');
@@ -444,6 +446,14 @@
   function have(s, c, list, lp) {
     if (Classes.isPe(c.name)) return peForm(s.id, lp) ? 1 : 0;
     return list.filter(i => i.subject === c.name && !i.redo && i.lp === lp).length;
+  }
+  // K-8 students need 2 samples per LP in any subjects (js/k8.js), plus any PE form.
+  function k8Count(list, lp) {
+    return list.filter(i => i.lp === lp && !i.redo && !i.setAside && !Classes.isPe(i.subject)).length;
+  }
+  function allIn(s, classes, list, lp) {
+    if (!K8.is(s)) return classes.length > 0 && classes.every(c => have(s, c, list, lp) >= c.need);
+    return classes.length > 0 && k8Count(list, lp) >= K8.PER_LP && classes.every(c => !Classes.isPe(c.name) || have(s, c, list, lp));
   }
 
   // "1 of 2 annotated"; more than 2 is flagged, since each student needs exactly 2 per LP.
@@ -590,6 +600,18 @@
     const classes = Classes.forLp(s, studentLp);
     const all = studentCache[s.id] || data.items.filter(i => i.studentId === s.id);
     const mine = all.filter(i => i.lp === studentLp && !i.redo);
+    const k8 = K8.is(s);
+    const k8n = k8 ? k8Count(all, studentLp) : 0;
+    // K-8: which cores this RP still needs, so a missing core shows as recommended or required.
+    const cd = k8 && Core.data();
+    const plan = k8 && K8.plan(s, all.filter(i => !i.trashedAt), studentLp, cd ? { sorting: cd.sorting, marks: cd.marks.filter(m => m.studentId === s.id) } : {});
+    const coreTag = (name) => {
+      if (!plan) return '';
+      const a = K8.areaOf(name, cd && cd.sorting);
+      if (plan.required.some(c => c.area === a)) return `required: ${plan.rp} still needs ${a}`;
+      if (plan.recommend.some(c => c.area === a)) return `recommended: ${plan.rp} still needs ${a}`;
+      return 'optional';
+    };
     let short = 0;
     const rows = classes.map(c => {
       if (Classes.isPe(c.name)) {
@@ -600,6 +622,12 @@
           <button type="button" class="btn small" data-pe="${f ? 'undo' : 'done'}">${f ? 'Mark not done' : 'Mark done'}</button></li>`;
       }
       const got = mine.filter(i => i.subject === c.name).sort((a, b) => b.receivedAt - a.receivedAt);
+      if (k8) {
+        const tag = got.length ? '' : coreTag(c.name);
+        const when = got.length ? `Turned in ${got.map(i => esc(niceDate(i.dateCompleted))).join(', ')}` : `No sample (${esc(tag)})`;
+        const req = /^required/.test(tag);
+        return `<li class="${got.length ? 'ok' : req ? 'no' : 'k8-open'}"><span class="cc-mark">${got.length ? '✓' : req ? '✗' : '·'}</span><b>${esc(c.name)}</b><small>${when}</small></li>`;
+      }
       const ok = got.length >= c.need;
       if (!ok) short++;
       const count = c.need > 1 ? ` <span class="cc-count">${Math.min(got.length, c.need)} of ${c.need}</span>` : '';
@@ -607,7 +635,9 @@
       const when = got.length ? `Turned in ${got.map(i => esc(niceDate(i.dateCompleted))).join(', ')}` : redo ? 'Waiting on a redo' : 'No sample yet';
       return `<li class="${ok ? 'ok' : got.length ? 'short' : 'no'}"><span class="cc-mark">${ok ? '✓' : '✗'}</span><b>${esc(c.name)}</b>${count}<small>${when}</small></li>`;
     });
-    box.innerHTML = `<h2>${esc(studentLp)} work samples <span class="meta">${classes.length ? (short ? `${short} of ${classes.length} classes missing` : 'every class has a sample') : ''}</span></h2>
+    const head = k8 ? `K-8: ${Math.min(k8n, K8.PER_LP)} of ${K8.PER_LP} samples${k8n >= K8.PER_LP ? ' ✓' : ''}${plan && plan.required.length ? ` · ${plan.required.map(c => c.area).join(', ')} required (last LP of ${plan.rp})` : ''}${short ? ' · PE form not done' : ''}`
+      : short ? `${short} of ${classes.length} classes missing` : 'every class has a sample';
+    box.innerHTML = `<h2>${esc(studentLp)} work samples <span class="meta">${classes.length ? head : ''}</span></h2>
       ${classes.length ? `<ul class="cc-list">${rows.join('')}</ul>` : '<p class="meta">No classes set for this semester.</p>'}`;
     box.hidden = false;
   }
@@ -2156,13 +2186,13 @@
   // Spreadsheet order, for pasting. Classes are edited in their own table below the students.
   const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family'];
   const MAIN_COLS = ['first', 'last', 'grade', 'city', 'email', 'family'];
-  const GRADE_LIST = ['8', '9', '10', '11', '12'];
+  const GRADE_LIST = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
   let roster = [];
   let rosterDirty = false;
 
   const onlyLetters = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z]/g, '').toUpperCase();
   function rosterId(r) {
-    const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim();
+    const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim().toUpperCase();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
   const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '', email: '', family: '', status: 'Active' });
@@ -2238,7 +2268,7 @@
     $('#roster-count').textContent = `${roster.filter(r => !isEmpty(r)).length}`;
     $('#roster-body').innerHTML = roster.map((r, i) => {
       const id = rosterId(r);
-      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
+      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade K–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}${r.status === 'Inactive' ? ' inactive' : ''}">
         <td class="num fz fz0">${i + 1}</td>
         ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
@@ -2370,7 +2400,7 @@
     $$('#roster-body tr').forEach(tr => {
       const r = roster[Number(tr.dataset.r)];
       const id = rosterId(r);
-      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade 8–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
+      const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade K–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       tr.classList.toggle('bad', !!problem);
       $('.rem-cell', tr).outerHTML = remCell(r);
       $('.sid-cell', tr).innerHTML = sidCell(r, problem);

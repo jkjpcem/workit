@@ -56,7 +56,7 @@
     try {
       const asked = Date.now();
       const res = await Api.call('login', { studentId: id });
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '' });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '', core: res.core || null });
       showAlerts(res.alerts);
       loginForm.reset();
       resetWizard();
@@ -125,7 +125,7 @@
       const res = await Api.call('login', { studentId: session.student.id });
       // Follow the new current LP unless the student deliberately picked another one.
       if (wiz.lp === session.currentLp) wiz.lp = res.currentLp;
-      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '' });
+      saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '', core: res.core || null });
       showAlerts(res.alerts);
       renderAll();
       if (res.items) applyItems(res.items, asked, res.trash); else syncHistory(true);
@@ -161,7 +161,8 @@
     const { classes, have } = found;
     // A class whose sample is waiting on its redo shows only under the redo.
     const missing = found.missing.filter(c => have(c) + redos.filter(i => i.lp === lp && i.subject === c.name).length < c.need);
-    if (!redos.length && !missing.length) {
+    const k8 = found.k8 && k8Box(found.k8, lp, missing, have);
+    if (!redos.length && (k8 ? k8.done : !missing.length)) {
       box.hidden = !classes.length;
       box.innerHTML = `<div class="card todo-done">✓ You’re all caught up for ${esc(lp)}. You can still turn in more work below.</div>`;
       return;
@@ -178,7 +179,11 @@
             </div>
             <button class="btn primary" type="button" data-todo-redo="${esc(i.id)}">↺ Resubmit</button>
           </div>`).join('')}
-      </div>` : '') + (missing.length ? `
+      </div>` : '') + (k8 ? (k8.done ? '' : `
+      <div class="card stack missing k8">
+        <h2>Still needed for ${esc(lp)} <span class="count">${found.k8.have} of ${K8.PER_LP} turned in</span></h2>
+        ${k8.html}
+      </div>`) : missing.length ? `
       <div class="card stack missing">
         <h2>Still needed for ${esc(lp)} <span class="count">${missing.length} of ${classes.length} subjects</span></h2>
         <ul class="missing-list">${missing.map(c => missingLine(c, lp, have)).join('')}</ul>
@@ -1282,7 +1287,37 @@
       : inLp.filter(i => i.subject === c.name && !(i.redo && !i.resubmitted)).length;
     // An LP that ended before the student enrolled needs no samples.
     const notNeeded = (session.student.skipLps || []).includes(lp);
+    // K-8: 2 samples per LP in any subjects (see js/k8.js). Only the PE form stays per class.
+    if (K8.is(session.student)) {
+      const k8 = notNeeded ? null : K8.plan(session.student, items.filter(i => !i.trashedAt), lp, session.core || {});
+      return { classes, have, notNeeded, k8, missing: notNeeded ? [] : classes.filter(c => Classes.isPe(c.name) && have(c) < c.need) };
+    }
     return { classes, have, notNeeded, missing: notNeeded ? [] : classes.filter(c => have(c) < c.need) };
+  }
+  // K-8 box: what's in this LP, what to turn in (recommended, or required in the last LP of an RP),
+  // and the 4 cores for this RP.
+  function k8Box(k, lp, missing, have) {
+    const coreLine = (c, tag) => {
+      const preset = !c.elective && c.hint.length === 1 ? c.hint[0] : '';
+      return `<li><span>${esc(K8.label(c))}${c.hint.length ? ` <span class="k8-hint">${esc(K8.hint(c))}</span>` : ''}${tag}</span>
+        <button class="btn small primary" type="button" data-turnin="${esc(preset)}" data-lp="${esc(lp)}">Turn in</button></li>`;
+    };
+    const anyLine = (n) => `<li><span>${n > 1 ? `${n} samples` : n === 1 && (k.required.length || k.recommend.length) ? '1 more sample' : '1 sample'}, any subject</span>
+      <button class="btn small primary" type="button" data-turnin="" data-lp="${esc(lp)}">Turn in</button></li>`;
+    let lines = '', note = '';
+    if (k.required.length) {
+      note = `<p class="hint"><b>${esc(lp)} is the last LP of ${esc(k.rp)}.</b> These core subjects are still missing, so they must be turned in this LP.</p>`;
+      lines = k.required.map(c => coreLine(c, ' <span class="k8-tag req">Required</span>')).join('') +
+        (k.left > k.required.length ? anyLine(k.left - k.required.length) : '');
+    } else if (k.left) {
+      note = `<p class="hint">${K8.PER_LP} samples each LP, in any subjects.${k.recommend.length ? ` We recommend ${k.recommend.length === 1 ? 'this core subject, since' : 'these core subjects, since'} ${esc(k.rp)} still needs ${k.recommend.length === 1 ? 'it' : 'them'}:` : ''}</p>`;
+      lines = k.recommend.map(c => coreLine(c, ' <span class="k8-tag">Recommended</span>')).join('') +
+        (k.left > k.recommend.length ? anyLine(k.left - k.recommend.length) : '');
+    }
+    const pe = missing.map(c => missingLine(c, lp, have)).join('');
+    const cores = `<div class="k8-cores"><span class="k8-cores-title">${esc(k.rp)} core subjects</span>${k.cores.map(c =>
+      `<span class="k8-core ${c.done ? 'done' : ''}">${esc(c.area)}${c.done ? ' ✓' : ''}</span>`).join('')}</div>`;
+    return { done: k.done && !missing.length, html: `${note}${lines || pe ? `<ul class="missing-list">${lines}${pe}</ul>` : ''}${cores}` };
   }
   const peDone = (lp) => !!(session && session.pe && session.pe[lp]);
   // One line of a missing list: Turn in, or for PE the form link and the checkbox.
@@ -1321,13 +1356,20 @@
   });
   function renderMissing(items) {
     const lp = historyFilter.lp === 'all' ? session.currentLp : historyFilter.lp;
-    const { classes, have, missing, notNeeded } = missingFor(items, lp);
+    const { classes, have, missing, notNeeded, k8 } = missingFor(items, lp);
     const box = $('#missing');
     if (!classes.length) { box.hidden = true; return; }
     if (notNeeded) {
       box.hidden = false;
       box.className = 'card stack missing all-done';
       box.innerHTML = `<h2>No work samples needed for ${esc(lp)}</h2><p class="hint">You started after it, on ${esc(niceDate(session.student.started))}.</p>`;
+      return;
+    }
+    if (k8) {
+      const b = k8Box(k8, lp, missing, have);
+      box.hidden = false;
+      box.className = `card stack missing k8 ${b.done ? 'all-done' : ''}`;
+      box.innerHTML = `<h2>${b.done ? '✓ ' : ''}${esc(lp)}: ${k8.have} of ${K8.PER_LP} samples turned in</h2>${b.html}`;
       return;
     }
     const accel = classes.some(c => c.need > 1);
@@ -1722,7 +1764,7 @@
       try {
         const asked = Date.now();
         const res = await Api.call('login', { studentId: esUpload.studentId });
-        saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '' });
+        saveSession({ student: res.student, currentLp: res.currentLp, lps: res.lps, lpDates: res.lpDates || {}, holidays: res.holidays || [], meetings: res.meetings || null, pe: res.pe || {}, peFormUrl: res.peFormUrl || '', core: res.core || null });
         if (esUpload.lp && res.lps.includes(esUpload.lp)) wiz.lp = esUpload.lp;
         $('#es-banner-name').textContent = res.student.name;
         $('#es-banner').hidden = false;
