@@ -881,6 +881,8 @@ function wrongPass_(user) {
 function superEmail_() {
   const set = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL');
   if (set) return set.trim().toLowerCase();
+  // A username that is an email address is the address (Google may not tell the script its own).
+  if (ADMIN_USERNAME.indexOf('@') !== -1) return ADMIN_USERNAME.trim().toLowerCase();
   try { return String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase(); } catch (err) { return ''; }
 }
 
