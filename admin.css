@@ -952,3 +952,4 @@ details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 .grp-3 .scard { --done-ink: color-mix(in srgb, var(--muted) 60%, var(--all-filed-bg)); }
 .grp-3 .scard h3, .grp-3 .scard .counts, .grp-3 .scard .counts b:not(.anno-over), .grp-3 .scard .counts .met,
 .grp-3 .scard .subj, .grp-3 .scard .sid, .grp-3 .scard .meet { color: var(--done-ink); }
+.grp-3 .scard .thumbs img, .grp-3 .scard .thumbs .more { opacity: .45; }
