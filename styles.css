@@ -55,6 +55,34 @@
     --shadow-brand: 0 4px 14px rgba(70, 105, 255, .35);
   }
 }
+/* Dark chosen in Settings (any device setting). Same values as the block above. */
+:root[data-theme="dark"] {
+  --bg: #0c1120;
+  --card: #151c2e;
+  --raised: #1b2439;
+  --text: #e8ecf4;
+  --muted: #9aa5b8;
+  --line: #2a3450;
+  --field: #10172a;
+  --navy: #0a1230;
+  --navy-2: #1a2a63;
+  --brand: #6383ff;
+  --brand-2: #4c6cf0;
+  --brand-soft: #1d2950;
+  --accent: #2fc4b8;
+  --good: #3ccf86;
+  --good-soft: #143426;
+  --warn: #ffb648;
+  --warn-soft: #3a2b12;
+  --bad: #ff6b61;
+  --bad-soft: #3d1a1c;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, .5);
+  --shadow-brand: 0 4px 14px rgba(70, 105, 255, .35);
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -232,7 +260,8 @@ fieldset.pair legend { font-weight: 600; font-size: 15px; margin-bottom: 6px; pa
 }
 .idpreview span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 .idpreview strong { font-size: 32px; letter-spacing: .12em; color: var(--brand-2); }
-@media (prefers-color-scheme: dark) { .idpreview strong { color: var(--brand); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .idpreview strong { color: var(--brand); } }
+:root[data-theme="dark"] .idpreview strong { color: var(--brand); }
 
 .pill {
   display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px;

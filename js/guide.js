@@ -181,6 +181,10 @@ function AdminGuide(ctx) {
     'current-lp': [
       { at: '#current-lp', do: 'Under <b>Current LP</b>, pick the LP.', why: 'Students’ uploads go to this LP unless they choose another one.', tag: 'Pick' },
     ],
+    colors: [
+      { at: '#theme-picks', do: 'Under <b>Colors</b>, click the color theme you like.', why: 'It changes right away. It’s saved on this computer or tablet only.', tag: 'Pick a theme' },
+      { at: '#mode-picks', do: 'Under <b>Light or dark</b>, pick the one you like.', why: 'Match my device follows your computer’s or tablet’s own setting.', tag: 'Light or dark' },
+    ],
     holidays: [
       { at: '#holiday-add', click: true, do: 'Under <b>School holidays</b>, click <b>＋ Add a holiday</b>.', why: 'Federal holidays are already included. Add breaks and staff days.' },
       { at: '#holiday-list', tag: '✏️ Pick dates', do: 'Pick the first day, and the last day for a break. Leave To blank for one day.', why: 'Students can’t pick a holiday as the date they finished work, and reminders skip them.' },
@@ -232,7 +236,7 @@ function AdminGuide(ctx) {
     link: ['Share link & QR', ['share']],
     reminders: ['Reminders', ['reminders', 'wording', 'pause', 'my-emails']],
     meetings: ['LP meetings', ['meetings']],
-    settings: ['Settings', ['current-lp', 'holidays', 'password']],
+    settings: ['Settings', ['colors', 'current-lp', 'holidays', 'password']],
     trash: ['Trash', ['delete']],
     setup: ['Setup', ['first-week', 'roster', 'reminders', 'share', 'student-signin']],
   };

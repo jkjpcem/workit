@@ -227,6 +227,14 @@ function AdminHelp() {
           'Under <b>Current LP</b>, pick the LP.',
         ],
         notes: ['LP dates are the school’s, the same for every ES, and fill in by themselves. Students can only pick a completion date that is a school day inside the LP.'] },
+      { id: 'colors', title: 'Change the dashboard colors', go: 'open-dates',
+        sum: 'A color theme, and light or dark.',
+        steps: [
+          'Click your name at the top right, then <b>Settings</b>.',
+          'Under <b>Colors</b>, click the color theme you like.',
+          'Under <b>Light or dark</b>, pick Match my device, Always light, or Always dark.',
+        ],
+        notes: ['It changes right away and is saved on this computer or tablet only.'] },
       { id: 'holidays', title: 'Add a school holiday', go: 'open-dates',
         sum: 'Days off that aren’t federal holidays.',
         steps: [
