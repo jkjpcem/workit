@@ -116,7 +116,8 @@
 
   function show(name) {
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
-    $('#admin-controls').hidden = name === 'login' || name === 'setup' || (name === 'help' && !data);
+    document.dispatchEvent(new CustomEvent('wish:screen', { detail: name }));
+    $('#admin-controls').hidden = name === 'login' || name === 'setup';
     const role = creds && creds.role;
     $('#open-accounts').hidden = role !== 'super';
     $('#open-setup').hidden = role !== 'es';
@@ -2476,15 +2477,11 @@
 
   // ---------- Help (js/help.js) ----------
 
-  // Help opens from the dashboard pages or from setup, and its back button returns there.
-  let helpFrom = 'dash';
-  const openHelp = () => {
-    const on = $$('.screen').find(sc => !sc.hidden);
-    helpFrom = on && on.id !== 'screen-help' ? on.id.replace('screen-', '') : 'dash';
-  };
-  $('#open-help').addEventListener('click', openHelp, true);
-  $('#setup-open-help').addEventListener('click', () => $('#open-help').click());
-  AdminHelp({ $, $$, esc, show, back: () => show(helpFrom) });
+  // Help opens the side panel (js/guide.js): it starts with help for the page you're on, can
+  // search every topic, and opens the page and rings what to click.
+  const Guide = AdminGuide({ $, $$, esc, help: AdminHelp() });
+  $('#open-help').addEventListener('click', () => Guide.toggle());
+  $('#setup-open-help').addEventListener('click', () => Guide.toggle());
 
   // ---------- LP meetings (js/meetings.js) ----------
 

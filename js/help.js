@@ -1,8 +1,7 @@
-// ES dashboard: the Help page. Every topic with step-by-step instructions, a list of all
-// topics at the top, a search box, and "Take me there" buttons. admin.js wires it in.
+// ES dashboard: the Help topics and their written steps. All Help shows in the side panel
+// (js/guide.js), which also holds the guided, click-by-click steps.
 
-function AdminHelp(ctx) {
-  const { $, $$, esc, show } = ctx;
+function AdminHelp() {
 
   // Each topic: id, title, a one-line summary, numbered steps, optional notes, and the
   // dashboard button that opens the page it's about (go).
@@ -228,6 +227,14 @@ function AdminHelp(ctx) {
           'Under <b>Current LP</b>, pick the LP.',
         ],
         notes: ['LP dates are the school’s, the same for every ES, and fill in by themselves. Students can only pick a completion date that is a school day inside the LP.'] },
+      { id: 'colors', title: 'Change the dashboard colors', go: 'open-dates',
+        sum: 'A color theme, and light or dark.',
+        steps: [
+          'Click your name at the top right, then <b>Settings</b>.',
+          'Under <b>Colors</b>, click the color theme you like.',
+          'Under <b>Light or dark</b>, pick Match my device, Always light, or Always dark.',
+        ],
+        notes: ['It changes right away and is saved on this computer or tablet only.'] },
       { id: 'holidays', title: 'Add a school holiday', go: 'open-dates',
         sum: 'Days off that aren’t federal holidays.',
         steps: [
@@ -284,54 +291,8 @@ function AdminHelp(ctx) {
 
   const all = GROUPS.flatMap(g => g.topics.map(t => ({ ...t, group: g.title })));
   const plain = (html) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+  const matches = (t, q) => !q || q.split(/\s+/).every(w => words(t).includes(w));
   const words = (t) => plain([t.title, t.sum, ...t.steps, ...(t.notes || [])].join(' ')).toLowerCase();
 
-  function topicHtml(t) {
-    return `<details class="card help-topic" id="help-${t.id}" data-id="${t.id}">
-      <summary><span class="help-t">${esc(t.title)}</span><span class="help-sum">${esc(t.sum)}</span></summary>
-      <ol class="how">${t.steps.map(s => `<li>${s}</li>`).join('')}</ol>
-      ${(t.notes || []).map(n => `<p class="note">${n}</p>`).join('')}
-      ${t.go ? `<p><button class="btn" type="button" data-go="${t.go}">Take me there →</button></p>` : ''}
-    </details>`;
-  }
-
-  function render(query) {
-    const q = String(query || '').trim().toLowerCase();
-    const match = (t) => !q || q.split(/\s+/).every(w => words(t).includes(w));
-    const groups = GROUPS.map(g => ({ ...g, topics: g.topics.filter(match) })).filter(g => g.topics.length);
-    $('#help-index').innerHTML = groups.length ? groups.map(g => `<div class="help-group">
-        <h3>${esc(g.title)}</h3>
-        <ul>${g.topics.map(t => `<li><a href="#help-${t.id}" data-open="${t.id}">${esc(t.title)}</a></li>`).join('')}</ul>
-      </div>`).join('') : '<p class="hint">No topics match. Try another word, or clear the search.</p>';
-    $('#help-topics').innerHTML = groups.map(g => `<h2 class="help-gh">${esc(g.title)}</h2>${g.topics.map(topicHtml).join('')}`).join('');
-    if (q && groups.length === 1 && groups[0].topics.length === 1) $(`#help-${groups[0].topics[0].id}`).open = true;
-  }
-
-  function open(id) {
-    const el = $(`#help-${id}`);
-    if (!el) return;
-    el.open = true;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  $('#help-index').addEventListener('click', (e) => {
-    const a = e.target.closest('[data-open]');
-    if (!a) return;
-    e.preventDefault();
-    open(a.dataset.open);
-  });
-  $('#help-topics').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-go]');
-    if (b) $(`#${b.dataset.go}`).click();
-  });
-  $('#help-search').addEventListener('input', (e) => render(e.target.value));
-  $('#open-help').addEventListener('click', () => {
-    $('#help-search').value = '';
-    render('');
-    show('help');
-    window.scrollTo(0, 0);
-  });
-  $('#help-back').addEventListener('click', () => ctx.back());
-
-  return { open, count: all.length };
+  return { GROUPS, all, matches, count: all.length };
 }
