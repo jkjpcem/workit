@@ -116,7 +116,6 @@
 
   function show(name) {
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
-    document.dispatchEvent(new CustomEvent('wish:screen', { detail: name }));
     $('#admin-controls').hidden = name === 'login' || name === 'setup';
     const role = creds && creds.role;
     $('#open-accounts').hidden = role !== 'super';
@@ -2494,14 +2493,6 @@
     openDates: () => openSettings('setup'),
     bookingLink: () => (data ? Meetings.link(data.currentLp) : ''),
   });
-
-  // ---------- Help (js/help.js) ----------
-
-  // Help opens the side panel (js/guide.js): it starts with help for the page you're on, can
-  // search every topic, and opens the page and rings what to click.
-  const Guide = AdminGuide({ $, $$, esc, help: AdminHelp() });
-  $('#open-help').addEventListener('click', () => Guide.toggle());
-  $('#setup-open-help').addEventListener('click', () => Guide.toggle());
 
   // ---------- LP meetings (js/meetings.js) ----------
 
