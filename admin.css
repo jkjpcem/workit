@@ -919,24 +919,6 @@ details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 @media (max-width: 560px) { .choice-row { flex-direction: column; } .setup-panel { padding: 20px 16px; } }
 
 /* ----- Help ----- */
-#help-search { max-width: 340px; }
-.help-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 24px; padding: 18px 22px; margin-bottom: 18px; }
-.help-group h3 { margin: 6px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--brand); }
-.help-group ul { list-style: none; margin: 0 0 8px; padding: 0; }
-.help-group li { margin: 0 0 5px; line-height: 1.4; }
-.help-group a { color: var(--text); text-decoration: none; }
-.help-group a:hover { color: var(--brand); text-decoration: underline; }
-.help-gh { margin: 22px 0 10px; font-size: 20px; }
-.help-topic { padding: 0; margin-bottom: 10px; scroll-margin-top: 150px; }
-.help-topic > summary { cursor: pointer; list-style: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 2px; }
-.help-topic > summary::-webkit-details-marker { display: none; }
-.help-t { font-weight: 700; font-size: 16px; }
-.help-t::before { content: '▸ '; color: var(--brand); }
-.help-topic[open] .help-t::before { content: '▾ '; }
-.help-sum { font-size: 14px; color: var(--muted); padding-left: 18px; }
-.help-topic > .how, .help-topic > .note, .help-topic > p { margin-left: 18px; margin-right: 18px; }
-.help-topic > :last-child { margin-bottom: 18px; }
-.help-topic .note { margin-top: 8px; margin-bottom: 8px; }
 
 /* ---------- Help guide: side panel on the right (a sheet at the bottom on phones) ---------- */
 body.admin { --guide-w: clamp(320px, 28vw, 440px); --guide-h: 44vh; }
@@ -954,12 +936,16 @@ body.has-guide .nav-arrow.next { right: calc(var(--guide-w) + 12px); }
 #guide .g-head button:hover { background: rgba(255, 255, 255, .24); }
 #guide .g-body { padding: 16px 18px 20px; overflow: auto; flex: 1; }
 #guide .g-intro { color: var(--muted); margin: 0 0 12px; line-height: 1.45; }
-#guide .g-search { width: 100%; margin-bottom: 6px; }
+#guide .g-search { width: 100%; margin-bottom: 10px; }
 #guide .g-gh { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
 #guide .g-topics { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 #guide .g-topics button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 10px;
   padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
 #guide .g-topics button:hover { border-color: var(--brand); }
+#guide .g-topics button > span { display: flex; flex-direction: column; gap: 2px; }
+#guide .g-topics small { color: var(--muted); font-size: 13px; }
+#guide .g-all { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+#guide .g-all > summary { cursor: pointer; font-weight: 700; color: var(--brand); }
 #guide .g-topics em { font-style: normal; font-size: 12px; font-weight: 700; color: #13204a; background: #f2b705; padding: 3px 8px; border-radius: 999px; flex: none; }
 #guide .g-topics em.read { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 #guide h2 { font-size: 20px; margin: 0 0 12px; }

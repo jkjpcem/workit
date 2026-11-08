@@ -117,7 +117,7 @@
   function show(name) {
     $$('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
     document.dispatchEvent(new CustomEvent('wish:screen', { detail: name }));
-    $('#admin-controls').hidden = name === 'login' || name === 'setup' || (name === 'help' && !data);
+    $('#admin-controls').hidden = name === 'login' || name === 'setup';
     const role = creds && creds.role;
     $('#open-accounts').hidden = role !== 'super';
     $('#open-setup').hidden = role !== 'es';
@@ -2435,12 +2435,11 @@
 
   // ---------- Help (js/help.js) ----------
 
-  // Help in the top bar opens the guide side panel (js/guide.js): pick a topic and it opens the
-  // page and rings what to click. Setup opens the whole Help page instead, since guides leave setup.
-  const Help = AdminHelp({ $, esc, show, canGuide: (id) => Guide.has(id), guide: (id) => Guide.start(id) });
-  const Guide = AdminGuide({ $, $$, esc, help: Help });
+  // Help opens the side panel (js/guide.js): it starts with help for the page you're on, can
+  // search every topic, and opens the page and rings what to click.
+  const Guide = AdminGuide({ $, $$, esc, help: AdminHelp() });
   $('#open-help').addEventListener('click', () => Guide.toggle());
-  $('#setup-open-help').addEventListener('click', () => Help.openPage());
+  $('#setup-open-help').addEventListener('click', () => Guide.toggle());
 
   // ---------- LP meetings (js/meetings.js) ----------
 

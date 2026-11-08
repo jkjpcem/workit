@@ -1,9 +1,7 @@
-// ES dashboard: the Help topics. The Help button opens them in the guide side panel
-// (js/guide.js); this file also draws the whole Help page, with every topic, a list of all
-// topics at the top, a search box, and "Show me" or "Take me there" buttons. admin.js wires it in.
+// ES dashboard: the Help topics and their written steps. All Help shows in the side panel
+// (js/guide.js), which also holds the guided, click-by-click steps.
 
-function AdminHelp(ctx) {
-  const { $, esc, show } = ctx;
+function AdminHelp() {
 
   // Each topic: id, title, a one-line summary, numbered steps, optional notes, and the
   // dashboard button that opens the page it's about (go).
@@ -288,58 +286,5 @@ function AdminHelp(ctx) {
   const matches = (t, q) => !q || q.split(/\s+/).every(w => words(t).includes(w));
   const words = (t) => plain([t.title, t.sum, ...t.steps, ...(t.notes || [])].join(' ')).toLowerCase();
 
-  function topicHtml(t) {
-    return `<details class="card help-topic" id="help-${t.id}" data-id="${t.id}">
-      <summary><span class="help-t">${esc(t.title)}</span><span class="help-sum">${esc(t.sum)}</span></summary>
-      <ol class="how">${t.steps.map(s => `<li>${s}</li>`).join('')}</ol>
-      ${(t.notes || []).map(n => `<p class="note">${n}</p>`).join('')}
-      ${ctx.canGuide(t.id) ? `<p><button class="btn primary" type="button" data-guide="${t.id}">Show me where to click →</button></p>`
-        : t.go ? `<p><button class="btn" type="button" data-go="${t.go}">Take me there →</button></p>` : ''}
-    </details>`;
-  }
-
-  function render(query) {
-    const q = String(query || '').trim().toLowerCase();
-    const groups = GROUPS.map(g => ({ ...g, topics: g.topics.filter(t => matches(t, q)) })).filter(g => g.topics.length);
-    $('#help-index').innerHTML = groups.length ? groups.map(g => `<div class="help-group">
-        <h3>${esc(g.title)}</h3>
-        <ul>${g.topics.map(t => `<li><a href="#help-${t.id}" data-open="${t.id}">${esc(t.title)}</a></li>`).join('')}</ul>
-      </div>`).join('') : '<p class="hint">No topics match. Try another word, or clear the search.</p>';
-    $('#help-topics').innerHTML = groups.map(g => `<h2 class="help-gh">${esc(g.title)}</h2>${g.topics.map(topicHtml).join('')}`).join('');
-    if (q && groups.length === 1 && groups[0].topics.length === 1) $(`#help-${groups[0].topics[0].id}`).open = true;
-  }
-
-  function open(id) {
-    const el = $(`#help-${id}`);
-    if (!el) return;
-    el.open = true;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  $('#help-index').addEventListener('click', (e) => {
-    const a = e.target.closest('[data-open]');
-    if (!a) return;
-    e.preventDefault();
-    open(a.dataset.open);
-  });
-  $('#help-topics').addEventListener('click', (e) => {
-    const g = e.target.closest('[data-guide]');
-    if (g) { show(from); ctx.guide(g.dataset.guide); return; }
-    const b = e.target.closest('[data-go]');
-    if (b) $(`#${b.dataset.go}`).click();
-  });
-  $('#help-search').addEventListener('input', (e) => render(e.target.value));
-  // The whole Help page, with every topic. Its back button returns to the page it opened from.
-  let from = 'dash';
-  function openPage() {
-    const on = [...document.querySelectorAll('.screen')].find(sc => !sc.hidden);
-    from = on && on.id !== 'screen-help' ? on.id.replace('screen-', '') : 'dash';
-    $('#help-search').value = '';
-    render('');
-    show('help');
-    window.scrollTo(0, 0);
-  }
-  $('#help-back').addEventListener('click', () => show(from));
-
-  return { GROUPS, all, matches, open, openPage, count: all.length };
+  return { GROUPS, all, matches, count: all.length };
 }

@@ -51,7 +51,7 @@ function AdminGuide(ctx) {
       { at: '#open-link', do: 'Then send your student link with <b>Share link &amp; QR</b>.', why: 'It’s the one link your students and families use, with a QR code and a flyer you can print.', tag: 'Then this' },
       { at: '#open-reminders', do: 'Choose your reminder emails on <b>Reminders</b>.', why: 'WiSH can email families about missing work and send you a daily or weekly report.', tag: 'Then this' },
       { at: '#student-grid', do: 'As work comes in, check this dashboard each day. Click a sample to review it.', why: 'Every student has a card here, sorted so the students who still owe work are on top.', tag: 'Your dashboard' },
-      { at: '#open-help', do: 'That’s it. Come back to <b>Help</b> any time for step-by-step guides.', why: 'Each guide opens the right page and rings what to click next.', tag: 'Help' },
+      { at: '#open-help', do: 'That’s it. Click <b>Help</b> on any page for help with that page.', why: 'Each guide opens the right page and rings what to click next. You can also search for any topic.', tag: 'Help' },
     ],
     share: [
       { at: '.link-input', do: 'This is your student link. It’s only yours.', why: 'Students open it on their phone or computer and sign in. A link from another ES sends them to that ES’s WiSH instead.', tag: 'Your link' },
@@ -223,24 +223,65 @@ function AdminGuide(ctx) {
     <span><button type="button" class="g-min" data-g="min" aria-label="Make smaller">–</button>
     <button type="button" class="g-x" data-g="close" aria-label="Close help">✕</button></span></header>`;
 
+  // The page the ES is on, and the Help topics about it. The panel opens on these.
+  const PAGES = {
+    viewer: ['A sample', ['review', 'redo', 'annotate', 'export', 'change-class', 'set-aside', 'undo-export', 'delete']],
+    dash: ['The dashboard', ['dashboard', 'review', 'tracker', 'first-week']],
+    student: ['A student’s page', ['upload-for', 'tracker', 'pe', 'review']],
+    roster: ['Student Roster', ['roster', 'classes', 'start-leave']],
+    link: ['Share link & QR', ['share']],
+    reminders: ['Reminders', ['reminders', 'wording', 'pause', 'my-emails']],
+    meetings: ['LP meetings', ['meetings']],
+    settings: ['Settings', ['current-lp', 'holidays', 'password']],
+    trash: ['Trash', ['delete']],
+    setup: ['Setup', ['first-week', 'roster', 'reminders', 'share', 'student-signin']],
+  };
+  function here() {
+    if (inViewer()) return ['viewer', ...PAGES.viewer];
+    const on = $$('.screen').find(sc => !sc.hidden);
+    const key = on ? on.id.replace('screen-', '') : 'dash';
+    return [key, ...(PAGES[key] || ['WiSH', ['first-week', 'dashboard']])];
+  }
+  const inSetup = () => !$('#screen-setup').hidden;
+  let view = 'list';
+  let listedFor = '';
+
+  const topicBtn = (t) => `<li><button type="button" data-topic="${t.id}">
+    <span><b>${esc(t.title)}</b><small>${esc(t.sum)}</small></span>${GUIDES[t.id] && !inSetup() ? '<em>Show me</em>' : '<em class="read">Read</em>'}</button></li>`;
+
   function renderList() {
     topic = null;
+    view = 'list';
+    const [key, name, ids] = here();
+    listedFor = key;
     const q = query.trim().toLowerCase();
-    const groups = help.GROUPS.map(g => ({ ...g, topics: g.topics.filter(t => help.matches(t, q)) })).filter(g => g.topics.length);
+    const byId = (id) => help.all.find(t => t.id === id);
+    let body;
+    if (q) {
+      // Topics whose title matches come first.
+      const inTitle = (t) => q.split(/\s+/).every(w => t.title.toLowerCase().includes(w)) ? 0 : 1;
+      const found = help.all.filter(t => help.matches(t, q)).sort((a, b) => inTitle(a) - inTitle(b));
+      body = found.length ? `<h3 class="g-gh">${found.length} topic${found.length > 1 ? 's' : ''} found</h3>
+        <ul class="g-topics">${found.map(topicBtn).join('')}</ul>`
+        : '<p class="g-intro">No topics match. Try another word, like “redo”, “email” or “class”.</p>';
+    } else {
+      body = `<h3 class="g-gh">Help for this page: ${esc(name)}</h3>
+        <ul class="g-topics">${ids.map(byId).filter(Boolean).map(topicBtn).join('')}</ul>
+        <details class="g-all"><summary>See all topics</summary>
+          ${help.GROUPS.map(g => `<h3 class="g-gh">${esc(g.title)}</h3><ul class="g-topics">${g.topics.map(topicBtn).join('')}</ul>`).join('')}
+        </details>`;
+    }
     panel.innerHTML = `${head('Help')}
       <div class="g-body">
-        <p class="g-intro">Pick what you want to do. I’ll open the page and show you where to click.</p>
-        <input type="search" class="g-search" placeholder="Search, for example: redo, reminders" aria-label="Search help" value="${esc(query)}">
-        ${groups.length ? groups.map(g => `<h3 class="g-gh">${esc(g.title)}</h3>
-          <ul class="g-topics">${g.topics.map(t => `<li><button type="button" data-topic="${t.id}">
-            <span>${esc(t.title)}</span>${GUIDES[t.id] ? '<em>Show me</em>' : '<em class="read">Read</em>'}</button></li>`).join('')}</ul>`).join('')
-        : '<p class="g-intro">No topics match. Try another word.</p>'}
-      </div>
-      <footer class="g-foot"><button type="button" class="btn small ghost" data-g="page">Open all topics on one page</button></footer>`;
+        <input type="search" class="g-search" placeholder="What do you want to do? For example: redo" aria-label="Search help" value="${esc(query)}">
+        <p class="g-intro">${inSetup() ? 'Pick a topic to read how it works.' : 'Pick a topic. I’ll open the page and show you where to click.'}</p>
+        ${body}
+      </div>`;
     clearRing();
   }
 
   function renderTopic() {
+    view = 'topic';
     const t = topic;
     const s = steps[at];
     const last = at === steps.length - 1;
@@ -257,7 +298,7 @@ function AdminGuide(ctx) {
         ${doneAll && t.notes && t.notes.length ? t.notes.map(n => `<p class="g-note">${n}</p>`).join('') : ''}
       </div>
       <footer class="g-foot">
-        <button type="button" class="btn small" data-g="back">← ${at === 0 || doneAll ? 'All topics' : 'Back'}</button>
+        <button type="button" class="btn small" data-g="back">← ${at === 0 || doneAll ? 'Topics' : 'Back'}</button>
         ${doneAll ? '<button type="button" class="btn small primary" data-g="list">Pick another topic</button>'
         : `<button type="button" class="btn small primary" data-g="next">${last ? 'Finish ✓' : 'I did it →'}</button>`}
       </footer>`;
@@ -273,6 +314,7 @@ function AdminGuide(ctx) {
   // Reading topics (nothing to click): the written steps, and Take me there when there is a page.
   function renderRead(t) {
     topic = null;
+    view = 'read';
     panel.innerHTML = `${head('Help · ' + t.title)}
       <div class="g-body">
         <h2>${esc(t.title)}</h2>
@@ -280,8 +322,8 @@ function AdminGuide(ctx) {
         ${(t.notes || []).map(n => `<p class="g-note">${n}</p>`).join('')}
       </div>
       <footer class="g-foot">
-        <button type="button" class="btn small" data-g="list">← All topics</button>
-        ${t.go ? `<button type="button" class="btn small primary" data-go="${t.go}">Take me there →</button>` : ''}
+        <button type="button" class="btn small" data-g="list">← Topics</button>
+        ${t.go && !inSetup() ? `<button type="button" class="btn small primary" data-go="${t.go}">Take me there →</button>` : ''}
       </footer>`;
     clearRing();
   }
@@ -304,7 +346,8 @@ function AdminGuide(ctx) {
     const t = help.all.find(x => x.id === id);
     if (!t) return;
     open();
-    if (!GUIDES[id]) { renderRead(t); return; }
+    // During setup, guides would leave setup, so every topic is read-only there.
+    if (!GUIDES[id] || inSetup()) { renderRead(t); return; }
     topic = t;
     steps = GUIDES[id];
     at = 0;
@@ -366,6 +409,7 @@ function AdminGuide(ctx) {
   // Runs a few times a second while a guide is open: the page can change under it (a sample
   // opens, a list redraws, the page scrolls), so the ring follows its target.
   function tick() {
+    if (!panel.hidden && view === 'list' && !query && here()[0] !== listedFor && !panel.contains(document.activeElement)) renderList();
     if (panel.hidden || !topic || at >= steps.length) { clearRing(); return; }
     const s = steps[at];
     // Some steps move on as soon as the page changes, e.g. once any sample is open.
@@ -449,7 +493,6 @@ function AdminGuide(ctx) {
     else if (g === 'next') next();
     else if (g === 'back') back();
     else if (g === 'list') { query = ''; renderList(); }
-    else if (g === 'page') { close(); help.openPage(); }
   });
   panel.addEventListener('input', (e) => {
     if (!e.target.classList.contains('g-search')) return;
@@ -462,8 +505,8 @@ function AdminGuide(ctx) {
   });
   addEventListener('resize', () => { scrolledTo = target; tick(); });
   addEventListener('scroll', () => { if (topic) tick(); }, true);
-  // Signing out or going into setup closes the guide.
-  document.addEventListener('wish:screen', (e) => { if (e.detail === 'login' || e.detail === 'setup') close(); });
+  // Signing out closes the guide.
+  document.addEventListener('wish:screen', (e) => { if (e.detail === 'login') close(); });
 
   return { start, toggle, close, has: (id) => !!GUIDES[id] };
 }
