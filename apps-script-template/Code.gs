@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 49;
+const WORKIT_VERSION = 50;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -230,7 +230,7 @@ function doPost(e) {
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
       adminUnfile: adminUnfile_, adminFolders: adminFolders_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
-      esStatus: esStatus_,
+      esStatus: esStatus_, esStats: esStats_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
     };
     const es = {
@@ -238,7 +238,7 @@ function doPost(e) {
     };
     const superAdmin = {
       superEsList: superEsList_, superEsAdd: superEsAdd_, superEsReset: superEsReset_, superEsSetActive: superEsSetActive_, superChangePassword: adminChangePassword_,
-      superEsConnect: superEsConnect_, superSetMaster: superSetMaster_,
+      superEsConnect: superEsConnect_, superSetMaster: superSetMaster_, superEsStats: superEsStats_,
     };
     // Requests that only read use the remembered copy of the sheet; anything else reads the
     // sheet itself and makes the next request read it fresh too.
@@ -1299,6 +1299,69 @@ function superSetMaster_(body) {
 
 function superEsList_() {
   return { ok: true, latestVersion: WORKIT_VERSION, accounts: readEs_().list.map(esPublic_) };
+}
+
+// ---------- Usage numbers for the ES accounts page ----------
+// The master asks each ES's own copy for counts only (no names, no files) each time you open
+// the page. Nothing is saved on the master.
+
+const ES_STAT_FIELDS = ['lp', 'rp', 'students', 'turnedIn', 'allIn', 'toReview', 'approved', 'coresDone', 'coresNeeded', 'lastUpload'];
+
+/** In an ES's copy: this LP's numbers, as counts only. */
+function esStats_() {
+  if (isMain_()) return { ok: false, error: 'Unknown request.' };
+  const st = emailState_();
+  const lp = st.lp;
+  const live = st.subs.items.filter(i => !i.trashedAt && !i.replacedBy && !i.setAsideAt);
+  const now = live.filter(i => i.lp === lp);
+  const sorting = coreSorting_(), marks = coreMarks_();
+  // Cores this RP: K-8 count any sample, grades 9-12 count annotated samples (like the Core subjects panel).
+  let coresDone = 0;
+  st.students.forEach(x => {
+    const k8 = isK8_(x.student);
+    const mine = st.subs.items.filter(i => i.studentId === x.student.id && (k8 || (i.finalizedAt && i.filedAs === 'Annotated')));
+    coresDone += k8Plan_(x.student, mine, lp, sorting, marks).cores.filter(c => c.done).length;
+  });
+  return {
+    ok: true, lp: lp, rp: rpOfLp_(lp),
+    students: st.students.length,
+    turnedIn: now.filter(i => !i.redo).length,
+    allIn: st.students.filter(x => x.allIn).length,
+    toReview: live.filter(i => !i.approved && !i.finalizedAt && !i.redo).length,
+    approved: now.filter(i => i.approved || i.finalizedAt).length,
+    coresDone: coresDone, coresNeeded: st.students.length * CORE_AREAS.length,
+    lastUpload: st.subs.items.filter(i => !i.trashedAt).reduce((m, i) => Math.max(m, i.receivedAt || 0), 0),
+  };
+}
+
+/** On the master: asks every set-up ES copy for its numbers at once. { user: numbers or { error } } */
+function superEsStats_() {
+  const list = readEs_().list.filter(e => e.active && e.scriptUrl && e.key);
+  const ask = (e) => ({
+    url: e.scriptUrl, method: 'post', contentType: 'text/plain', muteHttpExceptions: true, followRedirects: true,
+    payload: JSON.stringify({ action: 'esStats', adminKey: e.key }),
+  });
+  let replies;
+  try {
+    replies = list.length ? UrlFetchApp.fetchAll(list.map(ask)) : [];
+  } catch (err) {
+    // One copy that can't be reached stops fetchAll, so ask the copies one by one.
+    replies = list.map(e => { try { return UrlFetchApp.fetch(e.scriptUrl, ask(e)); } catch (ignored) { return null; } });
+  }
+  const stats = {};
+  list.forEach((e, n) => {
+    let out = null;
+    try { out = JSON.parse(replies[n].getContentText()); } catch (ignored) {}
+    if (out && out.ok) {
+      const nums = {};
+      ES_STAT_FIELDS.forEach(k => { nums[k] = k === 'lp' || k === 'rp' ? String(out[k] || '').slice(0, 4) : Number(out[k]) || 0; });
+      stats[e.user] = nums;
+    } else {
+      // An older copy doesn't know esStats yet; ES copies update themselves within the hour.
+      stats[e.user] = { error: out && /Unknown request/i.test(out.error || '') ? 'update' : 'noanswer' };
+    }
+  });
+  return { ok: true, stats: stats };
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -788,6 +788,7 @@ Time: ${new Date().toLocaleString()}`;
       accounts = res.accounts;
       renderAccounts();
       show('accounts');
+      loadStats();
     } catch (err) {
       toast(/Unknown request/i.test(err.message) ? 'Your WiSH script needs updating before you can add ES accounts.' : err.message);
     } finally {
@@ -822,6 +823,70 @@ Time: ${new Date().toLocaleString()}`;
         </td>
       </tr>`).join('') : '<tr><td colspan="6" class="meta empty-row">No ES accounts yet. Create the first one above.</td></tr>';
   }
+  // ----- Usage numbers: counts only, asked from each ES's copy when the page opens -----
+  let stats = null;
+  async function loadStats() {
+    stats = null;
+    renderStats();
+    try {
+      stats = (await call('superEsStats')).stats || {};
+      $('#es-stats-when').textContent = `Counts only, no student names · Updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    } catch (err) {
+      stats = { _error: /Unknown request/i.test(err.message) ? 'Your WiSH script needs updating before these numbers show.' : err.message };
+    }
+    renderStats();
+  }
+
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+  // Green 80% or more, yellow 65 to 79%, red under 65%.
+  const pill = (text, p) => `<span class="stat-pill ${p >= 80 ? 'g' : p >= 65 ? 'y' : 'r'}">${text}</span>`;
+  function uploadDay(ms) {
+    if (!ms) return '<span class="meta">None yet</span>';
+    const d = new Date(ms), today = new Date();
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  function shortDay(ymd) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
+    return m ? new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '<span class="meta">Never</span>';
+  }
+
+  function renderStats() {
+    const table = $('#es-stats');
+    const on = accounts.filter(a => a.active);
+    const first = Object.values(stats || {}).find(s => s && s.lp) || {};
+    const lp = first.lp || 'LP', rp = first.rp || 'RP';
+    $('#es-stats-title').textContent = first.lp ? `${lp} · ${rp}` : 'This LP';
+    if (!stats) $('#es-stats-when').textContent = 'Asking each ES’s WiSH…';
+    table.innerHTML = `<thead><tr><th>ES</th><th>Active<br>students</th><th>${esc(lp)} samples<br>turned in</th><th>All ${esc(lp)}<br>samples in</th>
+      <th>Waiting for<br>review</th><th>${esc(lp)} approved<br>or exported</th><th>${esc(rp)} cores<br>done</th><th>Last<br>sign-in</th><th>Last student<br>upload</th></tr></thead>`;
+    if (stats && stats._error) {
+      table.innerHTML += `<tbody><tr><td colspan="9" class="meta empty-row">${esc(stats._error)}</td></tr></tbody>`;
+      return;
+    }
+    const tot = { n: 0, students: 0, turnedIn: 0, allIn: 0, toReview: 0, approved: 0, coresDone: 0, coresNeeded: 0 };
+    const rows = on.map(a => {
+      const who = `<td class="who"><b>${esc(a.name)}</b><small>${esc(a.user)}</small></td>`;
+      const ready = a.step >= STEPS.length && a.scriptUrl;
+      const s = stats && stats[a.user];
+      const note = (text) => `<tr class="quiet">${who}<td colspan="8" class="msg">${text}</td></tr>`;
+      if (!ready) return note(setupText(a));
+      if (!stats) return note('<span class="meta">Loading…</span>');
+      if (!s || s.error) return note(s && s.error === 'update' ? 'Their WiSH updates itself within the hour. Numbers show after that.' : 'Their WiSH didn’t answer. Try again later.');
+      Object.keys(tot).forEach(k => { if (k !== 'n') tot[k] += s[k] || 0; });
+      tot.n++;
+      const all = pct(s.allIn, s.students), cores = pct(s.coresDone, s.coresNeeded);
+      return `<tr>${who}<td>${s.students}</td><td>${s.turnedIn}</td><td>${s.students ? pill(`${s.allIn} / ${s.students}`, all) : '0'}</td>
+        <td>${s.toReview > 50 ? `<span class="stat-pill r">${s.toReview}</span>` : s.toReview}</td><td>${s.approved}</td>
+        <td>${s.coresNeeded ? pill(`${cores}%`, cores) : '–'}</td><td class="day">${shortDay(a.lastSignIn)}</td><td class="day">${uploadDay(s.lastUpload)}</td></tr>`;
+    });
+    table.innerHTML += `<tbody>${rows.join('') || '<tr><td colspan="9" class="meta empty-row">No ES accounts yet.</td></tr>'}</tbody>`;
+    if (tot.n > 1) {
+      table.innerHTML += `<tfoot><tr><td class="who">All ESs (${tot.n})</td><td>${tot.students}</td><td>${tot.turnedIn}</td><td>${tot.allIn} / ${tot.students}</td>
+        <td>${tot.toReview}</td><td>${tot.approved}</td><td>${tot.coresNeeded ? pct(tot.coresDone, tot.coresNeeded) + '%' : '–'}</td><td></td><td></td></tr></tfoot>`;
+    }
+  }
+
   function niceDay(ymd) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
     return m ? new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '';
