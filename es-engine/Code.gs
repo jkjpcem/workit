@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 49;
+const WORKIT_VERSION = 50;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -230,6 +230,7 @@ function doPost(e) {
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
       adminUnfile: adminUnfile_, adminFolders: adminFolders_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
+      adminSaveFeatures: adminSaveFeatures_,
       esStatus: esStatus_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
     };
@@ -325,6 +326,46 @@ function peConfirm_(body) {
   const lp = String(body.lp || '').toUpperCase();
   if (LEARNING_PERIODS.indexOf(lp) === -1) return { ok: false, error: 'Unknown Learning Period.' };
   return setPe_(student.id, lp, body.done === true, byEs_(body) ? 'ES' : 'Family');
+}
+
+// ----- Features the ES turns on or off (setup step 6 and Settings) -----
+// Family reminder emails are the Reminders page's own setting (families: off/test/on).
+// meetings: families book their LP meeting through WiSH (reads the ES's calendar).
+// peEmail: WiSH reads the ES's Gmail for PE Log form emails and marks PE done.
+// Both start on, so a copy made before these choices existed keeps working as it did.
+const FEATURE_DEFAULTS = { meetings: true, peEmail: true };
+
+function features_() {
+  let saved = {};
+  try { saved = JSON.parse(PropertiesService.getScriptProperties().getProperty('FEATURES') || '{}'); } catch (err) { saved = {}; }
+  const out = {};
+  Object.keys(FEATURE_DEFAULTS).forEach(k => { out[k] = typeof saved[k] === 'boolean' ? saved[k] : FEATURE_DEFAULTS[k]; });
+  return out;
+}
+
+/** Saves the features given (others stay as they are). Also takes families: off/test/on. */
+function adminSaveFeatures_(body) {
+  const f = features_();
+  const given = body.features || {};
+  Object.keys(FEATURE_DEFAULTS).forEach(k => { if (typeof given[k] === 'boolean') f[k] = given[k]; });
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('FEATURES', JSON.stringify(f));
+  forgetMeetings_();
+  if (['off', 'test', 'on'].indexOf(given.families) !== -1) {
+    const s = JSON.parse(props.getProperty('EMAIL_SETTINGS') || '{}');
+    if (s.families !== given.families) {
+      if ((s.families || EMAIL_DEFAULTS.families) === 'off' && given.families !== 'off') props.setProperty('EMAIL_SINCE', String(Date.now()));
+      s.families = given.families;
+      props.setProperty('EMAIL_SETTINGS', JSON.stringify(s));
+      try { if (given.families !== 'off' && !timerOn_()) setEmailTimer_(); } catch (e) { /* allowed later */ }
+    }
+  }
+  return { ok: true, features: featureState_() };
+}
+
+/** Features plus the family emails setting, for Settings. */
+function featureState_() {
+  return Object.assign({ families: emailSettings_().families }, features_());
 }
 
 /**
@@ -1418,6 +1459,7 @@ function adminOverview_(body) {
     items: readSubs_().items.filter(i => i.lp === lp && !i.trashedAt).map(adminItem_),
     pe: peForms_(),
     peUnmatched: JSON.parse(PropertiesService.getScriptProperties().getProperty('PE_MAIL_UNMATCHED') || '[]'),
+    features: featureState_(),
   };
 }
 
@@ -2874,7 +2916,7 @@ function adminEmailSettings_() {
   const noEmail = st.students.filter(x => !recipients_(Object.assign({}, s, { parents: true, students: true }), x.student).length).length;
   const sample = st.students.filter(x => x.missing.length && x.redos.length)[0] || st.students.filter(x => x.missing.length || x.redos.length)[0] || st.students[0] || null;
   return {
-    ok: true, settings: s, defaults: EMAIL_TEMPLATES, running: running, quota: MailApp.getRemainingDailyQuota(),
+    ok: true, settings: s, features: features_(), defaults: EMAIL_TEMPLATES, running: running, quota: MailApp.getRemainingDailyQuota(),
     status: {
       lp: st.lp, range: st.range, daysLeft: st.daysLeft, week: st.week, weeks: st.weeks,
       nextReminder: nextReminder_(s, st), missingFamilies: missingFamilies, noEmail: noEmail, students: st.students.length,
@@ -2932,6 +2974,12 @@ function adminSaveEmailSettings_(body) {
   };
   const props = PropertiesService.getScriptProperties();
   props.setProperty('EMAIL_SETTINGS', JSON.stringify(s));
+  if (body.features) {  // setup step 6 saves its feature answers with the reminders
+    const f = features_();
+    Object.keys(FEATURE_DEFAULTS).forEach(k => { if (typeof body.features[k] === 'boolean') f[k] = body.features[k]; });
+    props.setProperty('FEATURES', JSON.stringify(f));
+    forgetMeetings_();
+  }
   // Only things that happen from now on are emailed about, never older uploads or redos.
   if (!props.getProperty('EMAIL_SINCE') || (old.families === 'off' && s.families !== 'off')) props.setProperty('EMAIL_SINCE', String(Date.now()));
   let allowed = true;
@@ -3116,14 +3164,14 @@ function emailState_() {
 /** Every 10 minutes: whatever is due goes out. Nothing is sent twice (see the Email log tab). */
 function wishTick() {
   if (isMaster_()) return; // no students, so no reminders or PE emails
-  if (peCheckDue_()) {
+  if (features_().peEmail && peCheckDue_()) {
     try {
       checkPeEmails();
       PropertiesService.getScriptProperties().setProperty('PE_MAIL_LAST', String(Date.now()));
     } catch (err) { /* Gmail not allowed yet, or Gmail is busy: try again next time */ }
   }
   // Keeps the LP meeting bookings fresh, so sign-in never waits for the calendar.
-  if (Object.keys(meetingSettings_().links).length) { try { readBookings_(true); } catch (err) { /* not allowed yet */ } }
+  if (meetingSettings_().on && Object.keys(meetingSettings_().links).length) { try { readBookings_(true); } catch (err) { /* not allowed yet */ } }
   const s = emailSettings_();
   if (s.families === 'off' && !s.report) return;
   const lock = LockService.getScriptLock();
@@ -3355,7 +3403,8 @@ function toDoCount_(x) {
 
 /** One line of a still-missing list. The PE form line carries the form's link. */
 function missingLine_(m) {
-  if (m.pe) return '  • ' + m.name + ': please fill out the PE form here: ' + PE_FORM_URL + '\n    (WiSH checks it off for you once the form is received.)';
+  if (m.pe) return '  • ' + m.name + ': please fill out the PE form here: ' + PE_FORM_URL + '\n    ' +
+    (features_().peEmail ? '(WiSH checks it off for you once the form is received.)' : '(Then check the PE form box in WiSH.)');
   if (m.k8) return '  • ' + m.name + ' (' + m.have + ' of ' + m.need + ' turned in)';
   return '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '');
 }
@@ -3731,11 +3780,13 @@ function meetingSettings_() {
   const saved = JSON.parse(PropertiesService.getScriptProperties().getProperty('MEETINGS') || '{}');
   const s = Object.assign({}, MEETINGS_DEFAULTS, saved);
   s.links = Object.assign({}, saved.links || {});
+  s.on = features_().meetings;  // off in Settings: links are kept, but nobody sees them
   return s;
 }
 
 /** The booking link for one LP: its own, or the one for every LP (key ALL). */
 function meetingLink_(s, lp) {
+  if (s.on === false) return '';
   return s.links[lp] || s.links.ALL || '';
 }
 
@@ -3883,7 +3934,7 @@ function studentBookings_(id) {
 /** What the student app shows: the booking link for each LP, and the student's own meetings. */
 function studentMeetings_(id) {
   const s = meetingSettings_();
-  if (!Object.keys(s.links).length) return null;
+  if (!s.on || !Object.keys(s.links).length) return null;
   const links = {};
   LEARNING_PERIODS.forEach(lp => { if (meetingLink_(s, lp)) links[lp] = meetingLink_(s, lp); });
   return { links: links, booked: studentBookings_(id) };
@@ -3892,7 +3943,8 @@ function studentMeetings_(id) {
 /** The Meetings page and the dashboard: links, settings and every booking with its student. */
 function adminMeetings_(body) {
   const s = meetingSettings_();
-  const out = { ok: true, links: s.links, words: s.words, manual: meetingMatches_(), items: [], calendar: '' };
+  const out = { ok: true, links: s.links, words: s.words, manual: meetingMatches_(), items: [], calendar: '', off: !s.on };
+  if (!s.on) return out;  // turned off in Settings: the calendar isn't read
   try {
     out.items = matchBookings_(readBookings_(!!body.fresh));
     out.calendar = CalendarApp.getDefaultCalendar().getName();
