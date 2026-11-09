@@ -26,7 +26,7 @@ function AdminMeetings(ctx) {
   const forLp = (lp) => (res ? res.items : []).filter(b => b.lp === lp && active(b));
   const forStudent = (id) => (res ? res.items : []).filter(b => b.studentIds.includes(id));
   // Only shown for an LP that has a booking link or already has bookings.
-  const on = (lp) => !!res && !res.old && !res.error && (!!linkFor(lp) || forLp(lp).length > 0);
+  const on = (lp) => !!res && !res.old && !res.error && !res.off && (!!linkFor(lp) || forLp(lp).length > 0);
 
   function when(b, withDay = true) {
     const d = new Date(b.start);
@@ -54,7 +54,7 @@ function AdminMeetings(ctx) {
   /** Card on the student page: every LP with a link or a booking. */
   function studentCard(s) {
     const box = $('#student-meetings');
-    if (!res || res.old || res.error) { box.hidden = true; return; }
+    if (!res || res.old || res.error || res.off) { box.hidden = true; return; }
     const mine = forStudent(s.id);
     const lps = ctx.lps().filter(lp => linkFor(lp) || mine.some(b => b.lp === lp));
     if (!lps.length) { box.hidden = true; return; }
@@ -87,6 +87,7 @@ function AdminMeetings(ctx) {
     $('#meet-lp').innerHTML = data.lps.map(lp => `<option ${lp === pageLp ? 'selected' : ''}>${lp}</option>`).join('');
     const body = $('#meet-body');
     if (!res) { body.innerHTML = '<div class="empty">Reading your calendar…</div>'; return; }
+    if (res.off) { body.innerHTML = '<div class="empty">LP meeting booking is turned off. You can turn it on in Settings.</div>'; return; }
     fillLinks();
     $('#meet-cal').textContent = res.calendar ? `Reading the calendar “${res.calendar}”` : '';
     $('#meet-allow').hidden = !res.error;

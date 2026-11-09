@@ -178,6 +178,17 @@
         <p class="hint">Students’ uploads go to this LP unless they choose another one.</p>
         <select id="current-lp" aria-label="Current LP"></select>
       </div>
+      <div class="card stack settings-card" id="features-card" hidden>
+        <h2>Features</h2>
+        <label class="feature-row"><span><b>Email families when samples are missing</b><small>From your school email. Change the schedule and wording on the Reminders page.</small></span>
+          <select id="feat-families" aria-label="Email families">
+            <option value="off">Off</option><option value="test">On, but send them to me first</option><option value="on">On</option>
+          </select></label>
+        <label class="feature-row"><span><b>Parents book LP meetings through WiSH</b><small>Reads your Google Calendar (read only) to see who booked.</small></span>
+          <input type="checkbox" id="feat-meetings" class="switch"></label>
+        <label class="feature-row"><span><b>Keep track of PE Logs</b><small>Reads your email (read only) for PE Log form emails and marks PE done.</small></span>
+          <input type="checkbox" id="feat-pe" class="switch"></label>
+      </div>
       <div class="card stack settings-card" id="colors-card">
         <h2>Colors</h2>
         <p class="hint">Pick how your dashboard looks. This is saved on this computer or tablet only.</p>
