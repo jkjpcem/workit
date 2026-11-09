@@ -37,6 +37,13 @@ const Api = (() => {
     try { localStorage.setItem(ES_KEY, JSON.stringify(es)); } catch { /* ignore */ }
   }
 
+  // Requests that only read. A stuck one is safe to send again; saves never are.
+  // Declared before `ready` below, which calls send() right away.
+  const READS = ['login', 'list', 'file', 'checkLink', 'esLookup', 'esLogin', 'schoolDates',
+    'adminOverview', 'adminStudent', 'adminFile', 'adminRoster', 'adminCore', 'superEsList', 'ping'];
+  const READ_WAIT = 60000;   // Google sometimes takes a while to wake up; past this, try once more.
+  const SAVE_WAIT = 180000;  // uploads can be large, so saves get longer before giving up.
+
   // Looks the ES up each time the app opens, so a link that was turned off stops working.
   let lookupError = null;
   const ready = (async () => {
@@ -53,12 +60,6 @@ const Api = (() => {
       saveEs();
     }
   })();
-
-  // Requests that only read. A stuck one is safe to send again; saves never are.
-  const READS = ['login', 'list', 'file', 'checkLink', 'esLookup', 'esLogin', 'schoolDates',
-    'adminOverview', 'adminStudent', 'adminFile', 'adminRoster', 'adminCore', 'superEsList', 'ping'];
-  const READ_WAIT = 60000;   // Google sometimes takes a while to wake up; past this, try once more.
-  const SAVE_WAIT = 180000;  // uploads can be large, so saves get longer before giving up.
 
   async function send(target, body) {
     if (!target) throw new Error('Your ES has not finished setting up WiSH yet.');
