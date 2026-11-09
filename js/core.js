@@ -10,7 +10,7 @@ function AdminCore(ctx) {
   const RPS = { RP1: ['LP1', 'LP2', 'LP3'], RP2: ['LP4', 'LP5', 'LP6'], RP3: ['LP7', 'LP8'] };
   // Checked in this order, so "Political Science" is Social Studies, not Science.
   const KEYWORDS = [
-    ['English', /\b(english|ela|literature|lit|language arts|composition|writing)\b/i],
+    ['English', /\b(english|ela|literature|lit|language arts|composition|writing|reading)\b/i],
     ['Math', /\b(math\w*|algebra|geometry|pre-?calc\w*|calculus|statistics|stats|trigonometry|trig)\b/i],
     ['Social Studies', /\b(history|government|govt|gov|economics|econ|civics|geography|social studies|political)\b/i],
     [null, /\bcomputer science\b/i],
@@ -320,5 +320,5 @@ function AdminCore(ctx) {
     }
   }
 
-  return { panel, filed, whenReady, side, studentPage, reset: () => { core = null; failed = false; } };
+  return { panel, filed, whenReady, side, studentPage, data: () => core, reset: () => { core = null; failed = false; } };
 }

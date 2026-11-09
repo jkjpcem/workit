@@ -953,3 +953,8 @@ details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 .grp-3 .scard h3, .grp-3 .scard .counts, .grp-3 .scard .counts b:not(.anno-over), .grp-3 .scard .counts .met,
 .grp-3 .scard .subj, .grp-3 .scard .sid, .grp-3 .scard .meet { color: var(--done-ink); }
 .grp-3 .scard .thumbs img, .grp-3 .scard .thumbs .more { opacity: .45; }
+
+/* K-8: 2 samples per LP in any subjects, so a class with no sample isn't "missing" */
+.subj.k8-open { background: transparent; border: 1.5px solid var(--line); color: var(--muted); }
+.k8-line { font-size: 12px; color: var(--muted); margin: -2px 0 4px; }
+.cc-list li.k8-open { opacity: .7; }
