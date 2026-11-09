@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 47;
+const WORKIT_VERSION = 49;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -62,7 +62,7 @@ function startOwes_(started, range) {
   return true;
 }
 const LEARNING_PERIODS = ['LP1', 'LP2', 'LP3', 'LP4', 'LP5', 'LP6', 'LP7', 'LP8'];
-const GRADES = ['8', '9', '10', '11', '12'];
+const GRADES = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 const REDO_REASONS = ['Missing name', 'Missing date', 'Missing subject', 'Missing score/grade/feedback'];
 const MAX_BYTES = 30 * 1024 * 1024;
 const UPLOADS_PER_DAY = 30; // per student, so a guessed sign-in can't fill your Drive
@@ -275,7 +275,9 @@ function login_(body) {
   // The student's uploads come along, so the app doesn't have to ask a second time.
   return { ok: true, student: student, currentLp: getCurrentLp_(), lps: LEARNING_PERIODS, lpDates: getLpDates_(), holidays: allHolidays_(), alerts: alerts,
     items: mine.map(publicItem_), trash: studentTrash_(all), meetings: studentMeetings_(student.id),
-    pe: peForms_()[student.id] || {}, peFormUrl: PE_FORM_URL };
+    pe: peForms_()[student.id] || {}, peFormUrl: PE_FORM_URL,
+    // K-8 students need the 4 cores each RP, so the app needs the ES's class sorting and done marks.
+    core: isK8_(student) ? { sorting: coreSorting_(), marks: coreMarks_().filter(m => m.studentId === student.id) } : null };
 }
 
 // ----- PE form: the family says they filled it out (one row per student per LP) -----
@@ -1709,7 +1711,7 @@ function adminSaveRoster_(body) {
     const id = makeId_(row.first, row.grade, row.city);
     const badEmail = [row.email].concat(row.family.split(/[,;\s]+/)).filter(e => e && !EMAIL_RE.test(e))[0];
     if (badEmail) problems.push('Row ' + (i + 1) + ': “' + badEmail + '” doesn’t look like an email address.');
-    if (!id) problems.push('Row ' + (i + 1) + ' needs a first name, a grade from 8 to 12 and a city.');
+    if (!id) problems.push('Row ' + (i + 1) + ' needs a first name, a grade from K to 12 and a city.');
     else if (seen[id]) problems.push('Rows ' + seen[id] + ' and ' + (i + 1) + ' would both sign in as ' + id + '.');
     else seen[id] = i + 1;
     rows.push(row);
@@ -1844,7 +1846,7 @@ function publicItem_(i) {
     score: i.score, minutes: i.minutes, source: i.source, feedback: i.feedback, comments: i.comments, pageCount: i.pageCount, favorite: i.favorite,
     thumb: i.thumb, approved: i.approved, finalized: !!i.finalizedAt, redo: i.redo, reasons: i.reasons, redoNote: i.redoNote,
     resubmitted: !!i.replacedBy, resubmitOf: i.resubmitOf, familyNotes: i.familyNotes || [],
-    byEs: /added by ES/.test(String(i.pageCheck || '')),
+    byEs: /added by ES/.test(String(i.pageCheck || '')), setAside: !!i.setAsideAt,
   };
 }
 
@@ -1906,14 +1908,8 @@ function sheetRows_(sheet, width) {
 
 /** Students, annotated samples, the ES's "done" marks and class sorting, for the Core subjects page. */
 function adminCore_() {
-  const marks = sheetRows_(namedSheet_(CORE_SHEET, CORE_HEADERS), 5)
-    .filter(r => r[0])
-    .map(r => ({ studentId: String(r[0]).toUpperCase(), rp: String(r[2]), area: String(r[3]), note: text_(r[4]) }));
-  const sorting = {};
-  sheetRows_(namedSheet_(SORT_SHEET, SORT_HEADERS), 2).forEach(r => {
-    const name = String(r[0]).trim(), area = String(r[1]).trim();
-    if (name && (CORE_AREAS.indexOf(area) !== -1 || area === 'None')) sorting[name.toLowerCase()] = area;
-  });
+  const marks = coreMarks_();
+  const sorting = coreSorting_();
   const items = readSubs_().items
     .filter(i => i.finalizedAt && i.filedAs === 'Annotated' && !i.redo && !i.trashedAt)
     .map(i => ({ id: i.id, studentId: i.studentId, lp: i.lp, subject: i.subject, finalUrl: i.finalUrl, finalizedAt: i.finalizedAt }));
@@ -1921,6 +1917,117 @@ function adminCore_() {
     ok: true, students: getStudents_(), items: items, marks: marks, sorting: sorting,
     currentLp: getCurrentLp_(), lpDates: getLpDates_(),
   };
+}
+
+/** The ES's "done" marks: [{ studentId, rp, area, note }] */
+function coreMarks_() {
+  return sheetRows_(namedSheet_(CORE_SHEET, CORE_HEADERS), 5)
+    .filter(r => r[0])
+    .map(r => ({ studentId: String(r[0]).toUpperCase(), rp: String(r[2]), area: String(r[3]), note: text_(r[4]) }));
+}
+
+/** Classes the ES put in a core area by hand: { 'class name in lower case': 'Math' or 'None' } */
+function coreSorting_() {
+  const sorting = {};
+  sheetRows_(namedSheet_(SORT_SHEET, SORT_HEADERS), 2).forEach(r => {
+    const name = String(r[0]).trim(), area = String(r[1]).trim();
+    if (name && (CORE_AREAS.indexOf(area) !== -1 || area === 'None')) sorting[name.toLowerCase()] = area;
+  });
+  return sorting;
+}
+
+// ----- K-8: 2 samples per LP, all 4 cores each RP (matches js/k8.js) -----
+// K-8 students turn in 2 samples per LP in any subjects. Each RP they still need English, Math,
+// Social Studies and Science, so reminders recommend the cores still missing, and in the last LP
+// of an RP (LP3, LP6, LP8) the missing cores are required.
+
+const K8_GRADES = ['K', '1', '2', '3', '4', '5', '6', '7', '8'];
+const K8_PER_LP = 2;
+const CORE_RP_LPS = { RP1: ['LP1', 'LP2', 'LP3'], RP2: ['LP4', 'LP5', 'LP6'], RP3: ['LP7', 'LP8'] };
+const CORE_KEYWORDS = [
+  ['English', /\b(english|ela|literature|lit|language arts|composition|writing|reading)\b/i],
+  ['Math', /\b(math\w*|algebra|geometry|pre-?calc\w*|calculus|statistics|stats|trigonometry|trig)\b/i],
+  ['Social Studies', /\b(history|government|govt|gov|economics|econ|civics|geography|social studies|political)\b/i],
+  [null, /\bcomputer science\b/i],
+  ['Science', /\b(science|biology|bio|chemistry|chem|physics|anatomy|physiology|environmental|astronomy|geology|zoology|botany|marine)\b/i],
+];
+
+function isK8_(student) {
+  return !!student && K8_GRADES.indexOf(String(student.grade || '').trim().toUpperCase()) !== -1;
+}
+
+function rpOfLp_(lp) {
+  return Object.keys(CORE_RP_LPS).filter(rp => CORE_RP_LPS[rp].indexOf(lp) !== -1)[0] || 'RP1';
+}
+
+function coreAreaOf_(name, sorting) {
+  const set = sorting && sorting[String(name || '').trim().toLowerCase()];
+  if (set) return set === 'None' ? null : set;
+  for (let k = 0; k < CORE_KEYWORDS.length; k++) if (CORE_KEYWORDS[k][1].test(name)) return CORE_KEYWORDS[k][0];
+  return null;
+}
+
+/**
+ * What a K-8 student has and still needs for one LP. items: their uploads in any LP.
+ * { rp, last, have, left, history: [{ lp, subjects }], cores, missing, recommend, required, toDo, done }
+ */
+function k8Plan_(student, items, lp, sorting, marks) {
+  const rp = rpOfLp_(lp), lps = CORE_RP_LPS[rp], last = lps[lps.length - 1] === lp;
+  const inRp = items.filter(i => lps.indexOf(i.lp) !== -1 && !i.trashedAt && !i.redo && !i.setAsideAt && !isPe_(i.subject));
+  const have = inRp.filter(i => i.lp === lp).length;
+  const left = Math.max(0, K8_PER_LP - have);
+  const seen = {}, classes = [];
+  lps.forEach(l => (Number(l.replace(/\D/g, '')) >= 5 ? student.sem2 : student.sem1).forEach(c => {
+    const k = c.name.toLowerCase();
+    if (!seen[k] && !isPe_(c.name)) { seen[k] = true; classes.push(c.name); }
+  }));
+  const area = (n) => coreAreaOf_(n, sorting);
+  const electives = classes.filter(c => !area(c));
+  const myMarks = (marks || []).filter(m => m.studentId === student.id && m.rp === rp);
+  const cores = CORE_AREAS.map(a => {
+    const mine = classes.filter(c => area(c) === a);
+    const got = mine.length ? inRp.filter(i => area(i.subject) === a)[0] : null;
+    const mark = myMarks.some(m => m.area === a);
+    return { area: a, elective: !mine.length, hint: mine.length ? mine : electives,
+      done: mark || !!got, by: got ? got.lp : mark ? 'ES' : '' };
+  });
+  // A core with no class this RP is filled by an elective sample, a different one for each.
+  const used = {};
+  cores.filter(c => c.elective && !c.done).forEach(c => {
+    const pick = inRp.filter(i => !area(i.subject) && !used[i.id])[0];
+    if (pick) { used[pick.id] = true; c.done = true; c.by = pick.lp; }
+  });
+  const missing = cores.filter(c => !c.done);
+  const toDo = last ? Math.max(left, missing.length) : left;
+  const history = lps.slice(0, lps.indexOf(lp) + 1).map(l => ({
+    lp: l, subjects: inRp.filter(i => i.lp === l).map(i => i.subject).filter((s, n, a) => a.indexOf(s) === n),
+  }));
+  return {
+    lp: lp, rp: rp, last: last, have: have, left: left, history: history, cores: cores, missing: missing,
+    recommend: last ? [] : missing, required: last ? missing : [], toDo: toDo, done: toDo === 0,
+  };
+}
+
+function k8CoreName_(c) {
+  return c.elective ? 'an elective (in place of ' + c.area + ')' : c.area;
+}
+
+/** The K-8 part of the "still to do" email: this RP so far, the cores, and what to turn in this LP. */
+function k8ToDo_(k, lp) {
+  const out = ['Turned in so far in ' + k.rp + ':'];
+  k.history.forEach(h => out.push('  • ' + h.lp + ': ' + (h.subjects.length ? h.subjects.join(', ') : 'nothing yet')));
+  out.push('', 'Core subjects for ' + k.rp + ' (English, Math, Social Studies and Science):');
+  k.cores.forEach(c => out.push('  ' + (c.done ? '✓ ' : '✗ ') + c.area + (c.done ? (c.by === 'ES' ? ' (marked done by your ES)' : c.by ? ' (turned in ' + c.by + ')' : '') : ', still needed')));
+  out.push('');
+  if (k.required.length) {
+    out.push(lp + ' is the last LP of ' + k.rp + ', so these must be turned in for ' + lp + ':');
+    k.required.forEach(c => out.push('  • ' + k8CoreName_(c) + (c.hint.length ? ' (' + c.hint.join(' or ') + ')' : '')));
+    if (k.left > k.required.length) out.push('  • and ' + (k.left - k.required.length) + ' more in any subject');
+  } else if (k.left) {
+    out.push(lp + ' needs ' + k.left + (k.have ? ' more' : '') + ' sample' + (k.left === 1 ? '' : 's') + ', in any subject' + (k.left === 1 ? '' : 's') + '.');
+    if (k.recommend.length) out.push('We recommend ' + k.recommend.map(k8CoreName_).join(k.recommend.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1') + ', since ' + k.rp + ' still needs ' + (k.recommend.length === 1 ? 'it' : 'them') + '.');
+  }
+  return out.join('\n');
 }
 
 /** Marks one student's core area done for a reporting period (done: false takes the mark away). */
@@ -1963,7 +2070,7 @@ function adminCoreSort_(body) {
 function makeId_(first, grade, city) {
   const a = letters_(first).slice(0, 2);
   const c = letters_(city).slice(0, 2);
-  const g = String(grade).trim();
+  const g = String(grade).trim().toUpperCase();
   if (a.length < 2 || c.length < 2 || GRADES.indexOf(g) === -1) return '';
   return a + g + c;
 }
@@ -2047,7 +2154,7 @@ function studentHeaders_() {
 
 function findStudent_(id) {
   id = String(id || '').toUpperCase();
-  if (!/^[A-Z]{2}(8|9|10|11|12)[A-Z]{2}$/.test(id)) return null;
+  if (!/^[A-Z]{2}(K|[1-9]|1[0-2])[A-Z]{2}$/.test(id)) return null;
   const all = getStudents_();
   for (let i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
   // Not in the remembered list: they may have just been added to the sheet by hand.
@@ -2968,34 +3075,39 @@ function emailState_() {
   const subs = readSubs_();
   const items = subs.items.filter(i => !i.trashedAt && i.lp === lp);
   const pe = peForms_();
+  const k8 = students.some(isK8_) ? { sorting: coreSorting_(), marks: coreMarks_() } : null;
   const rows = students.map(student => {
     const mine = items.filter(i => i.studentId === student.id);
     const classes = Number(lp.replace(/\D/g, '')) >= 5 ? student.sem2 : student.sem1;
     const missing = [];
+    // K-8: 2 samples in any subjects, plus the cores still missing in the last LP of an RP.
+    const plan = isK8_(student) ? k8Plan_(student, subs.items.filter(i => i.studentId === student.id), lp, k8.sorting, k8.marks) : null;
     classes.forEach(c => {
       if (isPe_(c.name)) {
         if (!(pe[student.id] && pe[student.id][lp])) missing.push({ name: c.name + ' form', need: 1, have: 0, pe: true });
         return;
       }
+      if (plan) return;
       const have = mine.filter(i => i.subject === c.name && !(i.redo && !i.replacedBy)).length;
       if (have < c.need) missing.push({ name: c.name, need: c.need, have: have });
     });
+    if (plan && plan.toDo) missing.push({ name: plan.toDo + ' more sample' + (plan.toDo === 1 ? '' : 's'), need: K8_PER_LP, have: plan.have, k8: true, count: plan.toDo });
     const live = mine.filter(i => !(i.redo && i.replacedBy)); // a redo that was resubmitted is replaced
     const redos = live.filter(i => i.redo);
     const allApproved = classes.length > 0 && !missing.length && live.length > 0 && !redos.length &&
       live.every(i => i.approved || i.finalizedAt);
     return {
-      student: student, uploads: mine.length, missing: missing, redos: redos, allApproved: allApproved,
+      student: student, uploads: mine.length, missing: missing, redos: redos, allApproved: allApproved, k8: plan,
       allIn: classes.length > 0 && !missing.length && !redos.length,
       toReview: live.filter(i => !i.approved && !i.finalizedAt && !i.redo).length,
-      needed: classes.reduce((n, c) => n + (isPe_(c.name) ? 0 : c.need), 0),
+      needed: plan ? K8_PER_LP : classes.reduce((n, c) => n + (isPe_(c.name) ? 0 : c.need), 0),
     };
   });
   return {
     lp: lp, range: range, today: today, daysLeft: daysLeft, tz: tz,
     week: range ? lpWeek_(range, today) : null,
     weeks: range ? Math.ceil((daysBetween_(range.start, range.end) + 1) / 7) : null,
-    students: rows, byId: byId, items: items, subs: subs,
+    students: rows, byId: byId, items: items, subs: subs, pe: pe,
   };
 }
 
@@ -3235,7 +3347,7 @@ function toDoMissing_(x) {
 
 function toDoCount_(x) {
   const missing = toDoMissing_(x);
-  const n = missing.length + x.redos.length;
+  const n = missing.reduce((t, m) => t + (m.count || 1), 0) + x.redos.length;
   // The PE form isn't a work sample, so a list that has it counts "items".
   const word = missing.some(m => m.pe) ? ' item' : ' sample';
   return n + word + (n === 1 ? '' : 's');
@@ -3244,14 +3356,18 @@ function toDoCount_(x) {
 /** One line of a still-missing list. The PE form line carries the form's link. */
 function missingLine_(m) {
   if (m.pe) return '  • ' + m.name + ': please fill out the PE form here: ' + PE_FORM_URL + '\n    (WiSH checks it off for you once the form is received.)';
+  if (m.k8) return '  • ' + m.name + ' (' + m.have + ' of ' + m.need + ' turned in)';
   return '  • ' + m.name + (m.need > 1 ? ' (' + m.have + ' of ' + m.need + ' turned in)' : '');
 }
 
 /** What's missing and what needs a redo, as one list for the "still to do" email. */
 function toDo_(x) {
   const out = [];
-  const missing = toDoMissing_(x);
+  // K-8: what's in so far this RP, the cores, and what to turn in this LP (recommended or required).
+  if (x.k8 && (x.k8.toDo || x.k8.missing.length)) out.push(k8ToDo_(x.k8, x.k8.lp));
+  const missing = toDoMissing_(x).filter(m => !(x.k8 && m.k8));
   if (missing.length) {
+    if (out.length) out.push('');
     out.push('Still missing:');
     missing.forEach(m => out.push(missingLine_(m)));
   }
@@ -3385,10 +3501,18 @@ function reportGrid_(st) {
     return {
       x: x,
       cells: classes.map(c => {
+        // PE has no sample: its chip shows whether the PE form is done (PE forms tab), like the dashboard.
+        if (isPe_(c.name)) {
+          const done = !!((st.pe || {})[x.student.id] || {})[st.lp];
+          return { name: c.name, short: shortClass_(c.name), status: done ? 'fil' : 'miss', have: done ? 1 : 0, need: 1, pe: true };
+        }
         const mine = live.filter(i => i.subject === c.name);
         const status = mine.length ? worst.filter(k => mine.some(i => itemStatus_(i) === k))[0] : 'miss';
-        return { name: c.name, short: shortClass_(c.name), status: status, have: mine.length, need: c.need };
-      }),
+        return { name: c.name, short: shortClass_(c.name), status: status, have: mine.length, need: x.k8 ? mine.length : c.need };
+      }).filter(c => !x.k8 || c.pe || c.have)
+        // K-8: only the classes with samples, and one chip for what's still to turn in.
+        .concat(x.k8 && x.k8.toDo ? [{ name: x.k8.toDo + ' more sample' + (x.k8.toDo === 1 ? '' : 's') + ' (2 per LP' + (x.k8.required.length ? ', must include ' + x.k8.required.map(k8CoreName_).join(', ') : '') + ')',
+          short: 'K-8: ' + x.k8.have + '/' + K8_PER_LP, status: 'miss', have: 0, need: x.k8.toDo, k8: true }] : []),
     };
   }).sort((a, b) => (a.x.student.lastName || a.x.student.name).localeCompare(b.x.student.lastName || b.x.student.name));
 }
@@ -3398,6 +3522,7 @@ function reportHtml_(s, st, days, fresh, on) {
   const grid = reportGrid_(st);
   const tot = { fil: 0, app: 0, res: 0, rev: 0, redo: 0, miss: 0 };
   grid.forEach(g => g.cells.forEach(c => {
+    if (c.pe) return; // the PE form isn't a sample, so it stays out of the sample counts
     const mine = st.items.filter(i => i.studentId === g.x.student.id && i.subject === c.name && !(i.redo && i.replacedBy));
     mine.forEach(i => { tot[itemStatus_(i)]++; });
     tot.miss += Math.max(0, c.need - mine.length);
@@ -3455,7 +3580,7 @@ function reportHtml_(s, st, days, fresh, on) {
 
   // Quick read: a few plain sentences worked out from the numbers
   const read = [];
-  const nothing = grid.filter(g => g.cells.length && g.cells.every(c => c.status === 'miss')).map(g => esc_(g.x.student.name));
+  const nothing = grid.filter(g => g.cells.some(c => !c.pe) && g.cells.every(c => c.status === 'miss')).map(g => esc_(g.x.student.name));
   if (nothing.length) read.push('<b>' + names(nothing, 4) + '</b> ' + (nothing.length === 1 ? 'has' : 'have') + ' nothing in yet' + (st.daysLeft > 0 ? ' with ' + plural(st.daysLeft, 'day') + ' left' : '') + '.');
   const oldRedos = st.items.filter(i => i.redo && !i.replacedBy && i.redoMarkedAt && Date.now() - i.redoMarkedAt > 3 * 864e5)
     .sort((a, b) => a.redoMarkedAt - b.redoMarkedAt);
@@ -3491,7 +3616,7 @@ function reportHtml_(s, st, days, fresh, on) {
     const chip = (c) => {
       const k = REPORT_COLORS[c.status];
       const part = c.need > 1 && c.have > 0 && c.have < c.need ? ' (' + c.have + '/' + c.need + ')' : '';
-      return '<span title="' + esc_(c.name + ': ' + k.name) + '" style="display:inline-block;margin:2px 4px 2px 0;padding:0 7px;height:22px;line-height:22px;border-radius:5px;' + F + 'font-size:11px;font-weight:bold;white-space:nowrap;background:' + k.bg + ';color:' + k.fg + ';border:1.5px ' + (c.status === 'miss' ? 'dashed #b9c1da' : 'solid ' + k.bg) + '">' + esc_(c.short) + part + '</span>';
+      return '<span title="' + esc_(c.name + ': ' + (c.pe ? (c.have ? 'PE form done' : 'PE form not done yet') : k.name)) + '" style="display:inline-block;margin:2px 4px 2px 0;padding:0 7px;height:22px;line-height:22px;border-radius:5px;' + F + 'font-size:11px;font-weight:bold;white-space:nowrap;background:' + k.bg + ';color:' + k.fg + ';border:1.5px ' + (c.status === 'miss' ? 'dashed #b9c1da' : 'solid ' + k.bg) + '">' + esc_(c.short) + part + '</span>';
     };
     const tz = st.tz;
     const lines = grid.map(g => {
