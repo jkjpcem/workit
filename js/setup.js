@@ -858,13 +858,13 @@ Time: ${new Date().toLocaleString()}`;
     const lp = first.lp || 'LP', rp = first.rp || 'RP';
     $('#es-stats-title').textContent = first.lp ? `${lp} · ${rp}` : 'This LP';
     if (!stats) $('#es-stats-when').textContent = 'Asking each ES’s WiSH…';
-    table.innerHTML = `<thead><tr><th>ES</th><th>Active<br>students</th><th>${esc(lp)} samples<br>turned in</th><th>All ${esc(lp)}<br>samples in</th>
+    table.innerHTML = `<thead><tr><th>ES</th><th>Active<br>students</th><th class="key-col">${esc(lp)} samples<br>collected / needed</th><th>Students with<br>all ${esc(lp)} in</th>
       <th>Waiting for<br>review</th><th>${esc(lp)} approved<br>or exported</th><th>${esc(rp)} cores<br>done</th><th>Last<br>sign-in</th><th>Last student<br>upload</th></tr></thead>`;
     if (stats && stats._error) {
       table.innerHTML += `<tbody><tr><td colspan="9" class="meta empty-row">${esc(stats._error)}</td></tr></tbody>`;
       return;
     }
-    const tot = { n: 0, students: 0, turnedIn: 0, allIn: 0, toReview: 0, approved: 0, coresDone: 0, coresNeeded: 0 };
+    const tot = { n: 0, students: 0, collected: 0, needed: 0, allIn: 0, toReview: 0, approved: 0, coresDone: 0, coresNeeded: 0 };
     const rows = on.map(a => {
       const who = `<td class="who"><b>${esc(a.name)}</b><small>${esc(a.user)}</small></td>`;
       const ready = a.step >= STEPS.length && a.scriptUrl;
@@ -875,14 +875,14 @@ Time: ${new Date().toLocaleString()}`;
       if (!s || s.error) return note(s && s.error === 'update' ? 'Their WiSH updates itself within the hour. Numbers show after that.' : 'Their WiSH didn’t answer. Try again later.');
       Object.keys(tot).forEach(k => { if (k !== 'n') tot[k] += s[k] || 0; });
       tot.n++;
-      const all = pct(s.allIn, s.students), cores = pct(s.coresDone, s.coresNeeded);
-      return `<tr>${who}<td>${s.students}</td><td>${s.turnedIn}</td><td>${s.students ? pill(`${s.allIn} / ${s.students}`, all) : '0'}</td>
+      const all = pct(s.allIn, s.students), cores = pct(s.coresDone, s.coresNeeded), got = pct(s.collected, s.needed);
+      return `<tr>${who}<td>${s.students}</td><td class="key-col">${s.needed ? `${pill(`${s.collected} / ${s.needed}`, got)}<small>${got}%</small>` : '0'}</td><td>${s.students ? pill(`${s.allIn} / ${s.students}`, all) : '0'}</td>
         <td>${s.toReview > 50 ? `<span class="stat-pill r">${s.toReview}</span>` : s.toReview}</td><td>${s.approved}</td>
         <td>${s.coresNeeded ? pill(`${cores}%`, cores) : '–'}</td><td class="day">${shortDay(a.lastSignIn)}</td><td class="day">${uploadDay(s.lastUpload)}</td></tr>`;
     });
     table.innerHTML += `<tbody>${rows.join('') || '<tr><td colspan="9" class="meta empty-row">No ES accounts yet.</td></tr>'}</tbody>`;
     if (tot.n > 1) {
-      table.innerHTML += `<tfoot><tr><td class="who">All ESs (${tot.n})</td><td>${tot.students}</td><td>${tot.turnedIn}</td><td>${tot.allIn} / ${tot.students}</td>
+      table.innerHTML += `<tfoot><tr><td class="who">All ESs (${tot.n})</td><td>${tot.students}</td><td class="key-col">${tot.collected} / ${tot.needed}<small>${pct(tot.collected, tot.needed)}%</small></td><td>${tot.allIn} / ${tot.students}</td>
         <td>${tot.toReview}</td><td>${tot.approved}</td><td>${tot.coresNeeded ? pct(tot.coresDone, tot.coresNeeded) + '%' : '–'}</td><td></td><td></td></tr></tfoot>`;
     }
   }

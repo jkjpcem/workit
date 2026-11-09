@@ -1305,7 +1305,7 @@ function superEsList_() {
 // The master asks each ES's own copy for counts only (no names, no files) each time you open
 // the page. Nothing is saved on the master.
 
-const ES_STAT_FIELDS = ['lp', 'rp', 'students', 'turnedIn', 'allIn', 'toReview', 'approved', 'coresDone', 'coresNeeded', 'lastUpload'];
+const ES_STAT_FIELDS = ['lp', 'rp', 'students', 'collected', 'needed', 'allIn', 'toReview', 'approved', 'coresDone', 'coresNeeded', 'lastUpload'];
 
 /** In an ES's copy: this LP's numbers, as counts only. */
 function esStats_() {
@@ -1316,6 +1316,23 @@ function esStats_() {
   const now = live.filter(i => i.lp === lp);
   const sorting = coreSorting_(), marks = coreMarks_();
   // Cores this RP: K-8 count any sample, grades 9-12 count annotated samples (like the Core subjects panel).
+  // Collected vs needed this LP: K-8 need 2 in any subjects, 9-12 need 1 per class (2 for Accel).
+  // Extra samples don't count past what's needed, and PE (a form, not a sample) is left out.
+  let collected = 0, needed = 0;
+  st.students.forEach(x => {
+    const mine = now.filter(i => i.studentId === x.student.id && !i.redo && !isPe_(i.subject));
+    if (x.k8) {
+      needed += K8_PER_LP;
+      collected += Math.min(K8_PER_LP, mine.length);
+      return;
+    }
+    const classes = Number(lp.replace(/\D/g, '')) >= 5 ? x.student.sem2 : x.student.sem1;
+    classes.forEach(c => {
+      if (isPe_(c.name)) return;
+      needed += c.need;
+      collected += Math.min(c.need, mine.filter(i => i.subject === c.name).length);
+    });
+  });
   let coresDone = 0;
   st.students.forEach(x => {
     const k8 = isK8_(x.student);
@@ -1325,7 +1342,7 @@ function esStats_() {
   return {
     ok: true, lp: lp, rp: rpOfLp_(lp),
     students: st.students.length,
-    turnedIn: now.filter(i => !i.redo).length,
+    collected: collected, needed: needed,
     allIn: st.students.filter(x => x.allIn).length,
     toReview: live.filter(i => !i.approved && !i.finalizedAt && !i.redo).length,
     approved: now.filter(i => i.approved || i.finalizedAt).length,
