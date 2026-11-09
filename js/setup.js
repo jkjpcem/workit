@@ -9,7 +9,7 @@ function AdminSetup(ctx) {
     { title: 'Set up your copy' },
     { title: 'Turn it on for students' },
     { title: 'Add your students' },
-    { title: 'Choose your reminders' },
+    { title: 'Choose your features' },
     { title: 'Share with students' },
   ];
   const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec$/;
@@ -148,8 +148,8 @@ function AdminSetup(ctx) {
     ['Google Drive', 'to save your students’ work samples in your WiSH Homework folder'],
     ['Google Sheets', 'to keep your student list and the list of samples in your WiSH Admin sheet'],
     ['Send email as you', 'for reminders to families and your own summary emails'],
-    ['Read your email (read only)', 'only to find PE log emails from Jotform, so WiSH can mark PE done'],
-    ['See your calendar (read only)', 'only to see which families booked their LP meeting'],
+    ['Read your email (read only)', 'only to find PE Log emails from Jotform, so WiSH can mark PE done. WiSH only looks if you turn this on in the next steps'],
+    ['See your calendar (read only)', 'only to see which families booked their LP meeting. WiSH only looks if you turn this on in the next steps'],
     ['Run when you’re not there', 'so reminders go out on schedule'],
     ['Show boxes in your sheet, connect to outside services, see your email address', 'for the WiSH menu, the website, and knowing which account is yours'],
   ];
@@ -356,8 +356,9 @@ function AdminSetup(ctx) {
     7: (panel) => { bindNext(panel); bindLinkBox(panel); },
   };
 
-  // ---------- Step 6: reminders, one question at a time ----------
-  // Every answer fills a setting on the Reminders page, so the ES can change it there later.
+  // ---------- Step 6: features and reminders, one question at a time ----------
+  // Every answer fills a setting the ES can change later: the features in Settings, the
+  // reminder details on the Reminders page.
 
   const WEEKS = {  // weeks 1–2, 3, 4, 5+ of an LP
     light: ['none', 'none', 'once', 'every5'],
@@ -390,6 +391,8 @@ function AdminSetup(ctx) {
       often: Object.keys(WEEKS).find(k => WEEKS[k].join() === (s.weeks || []).join()) || 'normal',
       onceDay: s.onceDay, famHour: s.famHour, skipDays: s.noWeekends !== false && s.noHolidays !== false,
       book: s.book || s.meet ? 'yes' : 'no',
+      meetings: !feat() || feat().meetings ? 'yes' : 'no',
+      peEmail: !feat() || feat().peEmail ? 'yes' : 'no',
       report: !s.report ? 'none' : s.daily ? 'daily' : s.weekly ? 'weekly' : 'none',
       reportHour: s.reportHour, weeklyDay: s.weeklyDay,
       events: { upload: false, resubmit: false, lpEnd: false, ...(s.esEvents || {}) },
@@ -397,9 +400,11 @@ function AdminSetup(ctx) {
   }
 
   const famOff = () => ans.families === 'off';
+  // Engines before v50 don't have the meetings and PE email switches, so those questions wait.
+  const feat = () => rem && rem.features;
   const QS = [
-    { key: 'families', ask: 'Should WiSH email families when work samples are still missing?',
-      hint: 'They come from your own school email, so families see your name. Only families who still have something to do get one.',
+    { key: 'families', ask: 'Should WiSH email families from your email when they are missing samples?',
+      hint: 'They come from your own school email, so families see your name. Only families who still have something to do get one. You can change this later in Settings.',
       choices: [['test', 'Yes, but send them to me first', 'You get each email instead of the family, so you can see what they look like. Switch to families any time on the Reminders page.'],
         ['on', 'Yes, email families', ''],
         ['off', 'Not now', 'You can turn them on later on the Reminders page.']] },
@@ -415,9 +420,15 @@ function AdminSetup(ctx) {
         <label class="inline-field">Time <select data-a="famHour">${options(5, 19, ans.famHour, hourName)}</select></label>
       </div>
       <label class="chk"><input type="checkbox" data-a="skipDays" ${ans.skipDays ? 'checked' : ''}> <span>Don’t send on weekends or school holidays</span></label>` },
-    { key: 'book', skip: () => famOff() || !rem.defaults.book || !ctx.bookingLink(), ask: 'Remind families to book their LP meeting?',
+    { key: 'meetings', skip: () => !feat(), ask: 'Should parents be able to book their LP meetings through WiSH?',
+      hint: 'WiSH shows families your Google Calendar booking page and sees who booked (read only). You can change this later in Settings.',
+      choices: [['yes', 'Yes', 'Add your booking page link on the Meetings page after setup.'], ['no', 'Not now', '']] },
+    { key: 'book', skip: () => famOff() || !rem.defaults.book || ans.meetings === 'no' || (!feat() && !ctx.bookingLink()), ask: 'Remind families to book their LP meeting?',
       hint: 'Families who haven’t booked get your booking link, and everyone gets a reminder before their meeting.',
       choices: [['yes', 'Yes', ''], ['no', 'No', '']] },
+    { key: 'peEmail', skip: () => !feat(), ask: 'Should WiSH keep track of which families turned in their PE Logs?',
+      hint: 'For students with PE in their ISA. The school’s PE Log form emails you a copy, and WiSH reads those emails (read only) and marks PE done. You can change this later in Settings.',
+      choices: [['yes', 'Yes, check my email for PE Logs', ''], ['no', 'Not now', 'Families can still check the PE box in WiSH, and you can mark it done yourself.']] },
     { key: 'report', ask: 'Do you want an email for yourself about how the LP is going?',
       hint: 'A short summary: who turned in work, who still owes samples, and what is waiting for your review.',
       choices: [['daily', 'Yes, every morning', ''], ['weekly', 'Yes, once a week', ''], ['none', 'No thanks', '']] },
@@ -436,7 +447,7 @@ function AdminSetup(ctx) {
   const shown = () => QS.filter(q => !q.skip || !q.skip());
 
   function remScreen() {
-    if (!rem && !remErr) return '<p class="connect-state waiting">Loading your reminder choices…</p>';
+    if (!rem && !remErr) return '<p class="connect-state waiting">Loading your choices…</p>';
     if (remErr === 'later') {
       return `<p>Reminder emails start working after the next WiSH update. You can choose them later on the <b>Reminders</b> page.</p>${nextBtn()}`;
     }
@@ -469,6 +480,10 @@ function AdminSetup(ctx) {
       out.push(`How often: <b>${often}</b>, on <b>${DAYS[ans.onceDay]}</b> at <b>${hourName(ans.famHour)}</b>${ans.skipDays ? ', never on weekends or school holidays' : ''}.`);
       if (!QS.find(q => q.key === 'book').skip()) out.push(ans.book === 'yes' ? 'Families are reminded to book their LP meeting.' : 'No meeting reminders.');
     }
+    if (feat()) {
+      out.push(ans.meetings === 'yes' ? 'Parents can <b>book their LP meetings</b> through WiSH. Add your booking page link on the Meetings page.' : 'No LP meeting booking for now.');
+      out.push(ans.peEmail === 'yes' ? 'WiSH <b>checks your email for PE Logs</b> and marks PE done.' : 'WiSH doesn’t check your email for PE Logs.');
+    }
     out.push(ans.report === 'none' ? 'No summary email for you.'
       : ans.report === 'daily' ? `Your summary arrives <b>every morning at ${hourName(ans.reportHour)}</b>.`
         : `Your summary arrives <b>every ${DAYS[ans.weeklyDay]} at ${hourName(ans.reportHour)}</b>.`);
@@ -482,7 +497,7 @@ function AdminSetup(ctx) {
     return `
       <p class="ask-q">Here’s what you chose</p>
       <ul class="summary-list">${summary().map(s => `<li>${s}</li>`).join('')}</ul>
-      <p class="hint">You can change any of this, and the wording of each email, on the <b>Reminders</b> page.</p>
+      <p class="hint">You can turn features on or off in <b>Settings</b>, and change the reminders and the wording of each email on the <b>Reminders</b> page.</p>
       ${lps.length ? `<label class="inline-field">Uploads go to
         <select id="setup-lp">${lps.map(lp => `<option ${lp === d.currentLp ? 'selected' : ''}>${esc(lp)}</option>`).join('')}</select>
         <span class="hint">WiSH set this to the current LP for you.</span></label>` : ''}
@@ -546,9 +561,10 @@ function AdminSetup(ctx) {
   }
 
   async function saveRem() {
-    busy('Saving your reminders…');
+    busy('Saving your choices…');
     try {
-      rem = await call('adminSaveEmailSettings', { settings: remSettings() });
+      const features = feat() ? { meetings: ans.meetings === 'yes', peEmail: ans.peEmail === 'yes' } : undefined;
+      rem = await call('adminSaveEmailSettings', { settings: remSettings(), features });
       ans = answersFrom(rem.settings);
       busy(false);
       if (rem.needsAllow) toast('Saved. Google still needs to allow WiSH to email on a schedule: click Stuck? Get help.');

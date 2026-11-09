@@ -140,6 +140,7 @@
     $('#open-setup').hidden = role !== 'es';
     const master = isMaster();
     ['#open-roster', '#open-link', '#open-reminders', '#open-meetings', '#open-trash', '#accounts-back'].forEach(id => { $(id).hidden = master; });
+    if (data && data.features && !data.features.meetings) $('#open-meetings').hidden = true;  // turned off in Settings
     $('#user-name').textContent = role === 'es' ? (creds.name || creds.user || 'ES') : 'Admin';
     closeUserMenu();
     window.scrollTo(0, 0);
@@ -1861,6 +1862,40 @@
     renderColors();
   });
 
+  // ---------- Features (Settings) ----------
+  // The same three choices as setup step 6: family emails, LP meeting booking, PE Log tracking.
+  // Copies older than v50 don't send data.features, so the card stays hidden for them.
+  function renderFeatures() {
+    const f = data && data.features;
+    $('#features-card').hidden = !f || isMaster();
+    if (!f) return;
+    $('#feat-families').value = f.families;
+    $('#feat-meetings').checked = f.meetings;
+    $('#feat-pe').checked = f.peEmail;
+  }
+  async function saveFeature(change, done) {
+    busy('Saving…');
+    try {
+      const res = await call('adminSaveFeatures', { features: change });
+      data.features = res.features;
+      Meetings.reset();
+      Meetings.load().catch(() => {});
+      toast(done);
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      busy(false);
+      renderFeatures();
+      show('settings');  // shows or hides the Meetings button
+    }
+  }
+  $('#feat-families').addEventListener('change', (e) => saveFeature({ families: e.target.value },
+    { off: 'Families won’t get reminder emails.', test: 'Family reminders now come to you first.', on: 'Families now get reminder emails.' }[e.target.value]));
+  $('#feat-meetings').addEventListener('change', (e) => saveFeature({ meetings: e.target.checked },
+    e.target.checked ? 'Parents can book LP meetings. Add your booking page link on the Meetings page.' : 'LP meeting booking is off.'));
+  $('#feat-pe').addEventListener('change', (e) => saveFeature({ peEmail: e.target.checked },
+    e.target.checked ? 'WiSH now checks your email for PE Logs.' : 'WiSH stopped checking your email for PE Logs.'));
+
   // ---------- LP dates ----------
 
   // Settings page: the current LP and the LP dates.
@@ -1879,6 +1914,7 @@
       <input type="date" data-lp="${esc(lp)}" data-end="1" value="${esc((d[lp] || {}).end || '')}" aria-label="${esc(lp)} end date" ${off}>`).join('');
     renderHolidays(data.holidays || [], shared);
     renderColors();
+    renderFeatures();
     $('#dates-shared').hidden = !shared;
     $('#dates-save').hidden = shared;
     currentStudent = null;

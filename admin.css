@@ -958,3 +958,18 @@ details.why ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 .subj.k8-open { background: transparent; border: 1.5px solid var(--line); color: var(--muted); }
 .k8-line { font-size: 12px; color: var(--muted); margin: -2px 0 4px; }
 .cc-list li.k8-open { opacity: .7; }
+
+/* Settings > Features: one row per feature, the switch on the right. */
+label.feature-row { flex-direction: row; display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line); font-weight: 400; }
+#features-card h2 + .feature-row { border-top: 0; }
+.feature-row > span { flex: 1; text-align: left; }
+.feature-row b { display: block; font-size: 15px; font-weight: 600; }
+.feature-row small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.feature-row select { width: auto; max-width: 46%; flex: none; }
+.feature-row input.switch { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 26px; padding: 0; margin: 0;
+  border-radius: 13px; border: 0; background: var(--line); position: relative; cursor: pointer; transition: background .15s; }
+.feature-row input.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .15s; }
+.feature-row input.switch:checked { background: var(--brand); }
+.feature-row input.switch:checked::after { transform: translateX(20px); }
+.feature-row input.switch:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
