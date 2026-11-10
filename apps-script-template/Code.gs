@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 50;
+const WORKIT_VERSION = 51;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -230,6 +230,7 @@ function doPost(e) {
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
       adminUnfile: adminUnfile_, adminFolders: adminFolders_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
+      adminCompose: adminCompose_, adminComposeSave: adminComposeSave_, adminComposeSend: adminComposeSend_,
       adminSaveFeatures: adminSaveFeatures_,
       esStatus: esStatus_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
@@ -2570,7 +2571,7 @@ const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
 const READ_ONLY_ACTIONS = ['login', 'esStatus', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList', 'adminFolders',
-  'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
+  'adminRoster', 'adminCore', 'adminEmailSettings', 'adminCompose', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 
 // Each request keeps the generation it started with. A slow read that finishes after a change
@@ -3002,6 +3003,96 @@ function turnOnEmails() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('EMAIL_SINCE')) props.setProperty('EMAIL_SINCE', String(Date.now()));
   return 'WiSH reminders are on. Change them in the dashboard: Reminders.';
+}
+
+// ---------- Emails you write: one email, personalized for each family ----------
+//
+// The Emails page in the dashboard. You write one email with fill-ins, WiSH fills them in for each
+// family, you look over (and can change) each one, then put them in your Gmail Drafts or send them.
+// Emails only go to the addresses on a student's roster row, never to any other address.
+
+const COMPOSE_MAX = 20;          // emails per request; the page sends bigger batches in parts
+const COMPOSE_STORE = 'COMPOSE_DRAFT';
+
+/** Everything the Emails page needs: each active student's fill-ins and email addresses. */
+function adminCompose_() {
+  const s = emailSettings_();
+  const st = emailState_();
+  const students = st.students.map(x => {
+    const v = studentVars_(s, st, x);
+    const p = x.student;
+    return {
+      id: p.id, first: p.firstName || p.name, last: p.lastName || '', grade: p.grade || '',
+      parents: p.familyEmails || [], email: p.email || '',
+      owes: x.missing.length + x.redos.length > 0,
+      vars: {
+        student_first_name: v.student_first_name, student_last_name: p.lastName || '',
+        student_name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.name, grade: p.grade || '',
+        lp: v.lp, count: x.missing.length + x.redos.length ? v.count : 'no samples', 'to do': v['to do'] || 'Nothing! Every sample is in.',
+        'days left': v['days left'], 'end date': v['end date'], link: v.link, 'booking link': v['booking link'],
+      },
+    };
+  });
+  students.sort((a, b) => (a.last + ' ' + a.first).localeCompare(b.last + ' ' + b.first));
+  return {
+    ok: true, lp: st.lp, me: s.me, students: students, quota: MailApp.getRemainingDailyQuota(),
+    saved: JSON.parse(PropertiesService.getScriptProperties().getProperty(COMPOSE_STORE) || 'null'),
+    recent: recentEmails_(40).filter(e => e.kind === 'your email' || e.kind === 'draft').slice(0, 8),
+  };
+}
+
+/** Keeps the email being written, so it's there next time (on any computer). */
+function adminComposeSave_(body) {
+  const d = body.draft || {};
+  const keep = {
+    subject: clean_(d.subject, 200), body: String(d.body || '').replace(/\r/g, '').slice(0, 10000),
+    parents: d.parents !== false, students: d.students === true, at: Date.now(),
+  };
+  PropertiesService.getScriptProperties().setProperty(COMPOSE_STORE, JSON.stringify(keep));
+  return { ok: true };
+}
+
+/**
+ * mode 'draft' puts each email in your Gmail Drafts, 'send' sends it, 'test' sends the first one
+ * to you only. emails: [{ id, subject, body }], already filled in (and maybe changed) on the page.
+ */
+function adminComposeSend_(body) {
+  const mode = ['draft', 'send', 'test'].indexOf(body.mode) !== -1 ? body.mode : '';
+  if (!mode) return { ok: false, error: 'Pick Drafts or Send.' };
+  const list = Array.isArray(body.emails) ? body.emails.slice(0, mode === 'test' ? 1 : COMPOSE_MAX) : [];
+  if (!list.length) return { ok: false, error: 'There are no emails to send.' };
+  const who = { parents: body.parents !== false, students: body.students === true };
+  if (!who.parents && !who.students) return { ok: false, error: 'Pick parents, students or both.' };
+  const me = Session.getEffectiveUser().getEmail();
+  const byId = {};
+  getStudents_().forEach(p => { byId[p.id] = p; });
+  const results = [];
+  list.forEach(e => {
+    const p = byId[String(e.id || '')];
+    const subject = clean_(e.subject, 200) || '(no subject)';
+    const text = String(e.body || '').replace(/\r/g, '').slice(0, 10000);
+    if (!p) return results.push({ id: e.id, ok: false, error: 'That student isn’t on your roster anymore.' });
+    const to = mode === 'test' ? [me] : recipients_(who, p);
+    if (!to.length) return results.push({ id: e.id, ok: false, error: 'No ' + (who.parents && who.students ? 'parent or student' : who.parents ? 'parent' : 'student') + ' email on the roster.' });
+    try {
+      if (mode === 'draft') {
+        GmailApp.createDraft(to.join(','), subject, text);
+      } else {
+        if (MailApp.getRemainingDailyQuota() < to.length) throw new Error('Google’s daily email limit is used up. Try again tomorrow, or put the rest in Drafts.');
+        MailApp.sendEmail({ to: to.join(','), subject: (mode === 'test' ? '[Test] ' : '') + subject, body: text });
+      }
+      if (mode !== 'test') logEmail_(to.join(', '), p, mode === 'draft' ? 'draft' : 'your email', subject, '');
+      results.push({ id: e.id, ok: true, to: to });
+    } catch (err) {
+      const m = String(err.message || err);
+      results.push({
+        id: e.id, ok: false,
+        error: mode === 'draft' && /permission|authoriz|scope/i.test(m)
+          ? 'WiSH needs one more Google permission to make drafts. Ask Claude to “update WiSH”, then click Allow.' : m,
+      });
+    }
+  });
+  return { ok: true, results: results, quota: MailApp.getRemainingDailyQuota() };
 }
 
 // ----- Days -----

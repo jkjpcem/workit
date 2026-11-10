@@ -982,3 +982,51 @@ label.feature-row { flex-direction: row; display: flex; gap: 14px; align-items: 
 .feature-row input.switch:checked { background: var(--brand); }
 .feature-row input.switch:checked::after { transform: translateX(20px); }
 .feature-row input.switch:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Emails: write one email, personalize it for each family (js/admin.js) */
+.rem-preview .pv-body { white-space: pre-wrap; line-height: 1.45; }
+.em-to { gap: 6px 16px; }
+.em-quick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.em-quick input[type="search"] { flex: 1 1 160px; max-width: 240px; padding: 7px 12px; font-size: 14px; }
+.em-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; max-height: 360px; overflow-y: auto; padding: 2px; }
+.rem .em-row { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; min-width: 0; }
+.rem .em-row:has(input:checked) { border-color: var(--brand); background: var(--field); }
+.rem .em-row.off { opacity: .6; cursor: default; }
+.em-row .nm { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.em-row .gr { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.em-row .tag { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.em-row .tag.owes { background: #fff4d6; color: #6b4a00; }
+.em-row .tag.done { background: var(--good-soft); color: var(--good); }
+.em-row .tag.none { background: var(--field); color: var(--muted); }
+.em-recent { display: flex; flex-direction: column; }
+.em-recent div { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.em-recent div:first-child { border-top: 0; }
+.em-recent .k { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #e4ebff; color: var(--brand); }
+.em-recent .t { color: var(--muted); white-space: nowrap; }
+.em-recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.em-check-head { align-items: flex-end; }
+.em-check-head .hint { margin: 4px 0 0; }
+.em-all { display: flex; flex-wrap: wrap; gap: 8px; }
+.em-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 14px; align-items: start; }
+.em-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); min-width: 0; }
+.em-card.done { box-shadow: none; }
+.em-card.done input, .em-card.done textarea { opacity: .75; }
+.em-card.out { opacity: .55; box-shadow: none; border-style: dashed; }
+.em-card-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.em-card-head .to { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; flex: 1 1 160px; }
+.em-card .em-c-subject { font-weight: 650; }
+.em-card textarea { width: 100%; box-sizing: border-box; }
+.em-card-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.em-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; margin-left: auto; }
+.em-pill.sent { background: var(--good-soft); color: var(--good); }
+.em-pill.draft { background: #e4ebff; color: var(--brand); }
+.em-pill.out { background: var(--field); color: var(--muted); }
+.em-err { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fde8e8; color: #9b1c1c; font-size: 13px; font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .em-recent .k, :root:not([data-theme="light"]) .em-pill.draft { background: #222b4a; color: #b9c7f5; }
+  :root:not([data-theme="light"]) .em-row .tag.owes { background: #3a2f12; color: #ffd98a; }
+  :root:not([data-theme="light"]) .em-err { background: #3d1a1a; color: #ffb4b4; }
+}
+:root[data-theme="dark"] .em-recent .k, :root[data-theme="dark"] .em-pill.draft { background: #222b4a; color: #b9c7f5; }
+:root[data-theme="dark"] .em-row .tag.owes { background: #3a2f12; color: #ffd98a; }
+:root[data-theme="dark"] .em-err { background: #3d1a1a; color: #ffb4b4; }
