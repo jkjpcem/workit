@@ -139,7 +139,7 @@
     $('#open-accounts').hidden = role !== 'super';
     $('#open-setup').hidden = role !== 'es';
     const master = isMaster();
-    ['#open-roster', '#open-link', '#open-reminders', '#open-meetings', '#open-trash', '#accounts-back'].forEach(id => { $(id).hidden = master; });
+    ['#open-roster', '#open-link', '#open-reminders', '#open-emails', '#open-meetings', '#open-trash', '#accounts-back'].forEach(id => { $(id).hidden = master; });
     if (data && data.features && !data.features.meetings) $('#open-meetings').hidden = true;  // turned off in Settings
     $('#user-name').textContent = role === 'es' ? (creds.name || creds.user || 'ES') : 'Admin';
     closeUserMenu();
@@ -2245,6 +2245,297 @@
     renderDash();
     show('dash');
   });
+
+  // ---------- Emails: write one email, personalize it for each family, then Drafts or Send ----------
+
+  const EM_FILLS = ['student_first_name', 'student_last_name', 'student_name', 'local_id', 'grade', 'lp', 'end date', 'days left', 'link', 'booking link'];
+  const EM_KEY = () => `wish_compose_${(creds && creds.user) || 'main'}`;
+  let em = null;            // last adminCompose answer
+  let emPicked = new Set(); // student ids
+  let emShow = null;        // student shown in the preview
+  let emField = null;       // where Insert puts a fill-in
+  let emCards = [];         // step 2: { id, subject, body, state: '' | 'sent' | 'draft' | 'out', error }
+  let emDone = {};          // id -> 'sent' | 'draft', until the email is changed (so nothing goes out twice)
+  const emError = (err) => /unknown request/i.test(err.message) ? 'Emails start working after the next WiSH update.' : err.message;
+  const emFill = (t, vars) => String(t).replace(/\{([a-z_ ]+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+  const emWho = () => ({ parents: $('#em-parents').checked, students: $('#em-students').checked });
+  const emTo = (x, who = emWho()) => [].concat(who.parents ? x.parents : [], who.students && x.email ? [x.email] : []);
+  const emById = (id) => em.students.find(x => x.id === id);
+
+  function emSaveLocal() {
+    try { localStorage.setItem(EM_KEY(), JSON.stringify({ subject: $('#em-subject').value, body: $('#em-body').value, perFamily: $('#em-per-family').checked, ...emWho() })); } catch (e) { /* private window */ }
+  }
+  function emLoadLocal() {
+    try { return JSON.parse(localStorage.getItem(EM_KEY()) || 'null'); } catch (e) { return null; }
+  }
+
+  async function openEmails() {
+    if (!data) return;
+    busy('Loading families…');
+    try {
+      em = await call('adminCompose');
+    } catch (err) {
+      busy(false);
+      return toast(emError(err));
+    }
+    busy(false);
+    const local = emLoadLocal(), saved = em.saved;
+    const d = local || saved || {
+      subject: '{student_first_name}: a note from your ES',
+      body: `Hi {student_first_name} and family,\n\n\n\nThank you,\n${creds.role === 'es' && creds.name ? creds.name : 'Your ES'}`,
+      parents: true, students: false,
+    };
+    $('#em-subject').value = d.subject || '';
+    $('#em-body').value = d.body || '';
+    $('#em-parents').checked = d.parents !== false;
+    $('#em-students').checked = d.students === true;
+    $(d.perFamily ? '#em-per-family' : '#em-per-student').checked = true;
+    $('#em-find').value = '';
+    $('#em-insert').innerHTML = '<span>Insert:</span>' + EM_FILLS.map(k => `<button type="button" data-fill="${esc(k)}">{${esc(k)}}</button>`).join('');
+    emPicked = new Set(em.students.filter(x => emTo(x).length).map(x => x.id));
+    emShow = null;
+    emCards = [];
+    emDone = {};
+    emList();
+    emRecent();
+    currentStudent = null;
+    show('emails');
+  }
+
+  function emList() {
+    const who = emWho();
+    const find = $('#em-find').value.trim().toLowerCase();
+    const none = 'No email';
+    $('#em-list').innerHTML = em.students.length ? em.students.map(x => {
+      const to = emTo(x, who);
+      const hide = find && !`${x.first} ${x.last}`.toLowerCase().includes(find);
+      return `<label class="em-row${to.length ? '' : ' off'}"${hide ? ' hidden' : ''} data-id="${esc(x.id)}">
+        <input type="checkbox" ${emPicked.has(x.id) && to.length ? 'checked' : ''} ${to.length ? '' : 'disabled'}>
+        <span class="nm">${esc(x.first)} ${esc(x.last)}</span>
+        ${to.length ? '' : `<span class="tag none">${none}</span>`}</label>`;
+    }).join('') : '<p class="hint">No active students yet. Add them in the Student Roster.</p>';
+    emCount();
+  }
+  function emReady() {
+    return em.students.filter(x => emPicked.has(x.id) && emTo(x).length);
+  }
+  function emCount() {
+    const n = emReady().length;
+    $('#em-count').textContent = `${n} of ${em.students.length} student${em.students.length === 1 ? '' : 's'} checked`;
+    const m = emGroups(emReady()).length;
+    $('#em-go').textContent = m ? `Preview ${m} email${m === 1 ? '' : 's'} →` : 'Preview emails →';
+    $('#em-go').disabled = !n;
+    emPreview();
+  }
+  function emPreview() {
+    const ready = emReady();
+    const x = (emShow && emById(emShow)) || ready[0] || em.students[0];
+    if (!x) {
+      $('#em-pv-to').textContent = '';
+      $('#em-pv-subject').textContent = $('#em-subject').value;
+      $('#em-pv-body').textContent = $('#em-body').value;
+      return;
+    }
+    const g = (emPicked.has(x.id) && emGroups(ready).find(gr => gr.includes(x))) || [x];
+    const to = [...new Set(g.flatMap(y => emTo(y)))];
+    const v = emVars(g);
+    $('#em-pv-who').textContent = `How it looks for ${emAnd(g.map(y => `${y.first} ${y.last}`))}`;
+    $('#em-pv-to').textContent = `To: ${to.length ? to.join(', ') : '(no email address)'}`;
+    $('#em-pv-subject').textContent = emFill($('#em-subject').value, v);
+    $('#em-pv-body').textContent = emFill($('#em-body').value, v);
+  }
+  function emRecent() {
+    const names = { 'your email': 'Sent', draft: 'Draft' };
+    $('#em-recent').innerHTML = em.recent && em.recent.length ? em.recent.map(e => `<div><span class="k">${esc(names[e.kind] || e.kind)}</span>
+      <span title="${esc(e.subject)}">${esc(e.student || e.subject)}</span><span class="t">${esc(when(e.at))}</span></div>`).join('')
+      : '<p class="hint">Nothing sent from here yet.</p>';
+  }
+
+  $('#em-list').addEventListener('change', (e) => {
+    const row = e.target.closest('.em-row');
+    if (!row) return;
+    if (e.target.checked) emPicked.add(row.dataset.id); else emPicked.delete(row.dataset.id);
+    emShow = row.dataset.id;
+    emCount();
+  });
+  $('#em-list').addEventListener('mouseover', (e) => {
+    const row = e.target.closest('.em-row:not(.off)');
+    if (row && row.dataset.id !== emShow) { emShow = row.dataset.id; emPreview(); }
+  });
+  $$('[data-pick]').forEach(b => b.addEventListener('click', () => {
+    const p = b.dataset.pick;
+    emPicked = new Set(p === 'none' ? [] : em.students.map(x => x.id));
+    emList();
+  }));
+  $('#em-find').addEventListener('input', emList);
+  ['#em-parents', '#em-students', '#em-per-student', '#em-per-family'].forEach(sel => $(sel).addEventListener('change', () => {
+    emDone = {};
+    emSaveLocal();
+    emList();
+  }));
+  ['#em-subject', '#em-body'].forEach(sel => {
+    $(sel).addEventListener('input', () => {
+      emDone = {};
+      emSaveLocal();
+      emPreview();
+    });
+    $(sel).addEventListener('focus', () => { emField = $(sel); });
+  });
+  $('#em-insert').addEventListener('mousedown', (e) => { if (e.target.closest('[data-fill]')) e.preventDefault(); }); // keep the cursor
+  $('#em-insert').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fill]');
+    if (!b) return;
+    const el = emField || $('#em-body');
+    const text = `{${b.dataset.fill}}`;
+    const at = el.selectionStart ?? el.value.length;
+    el.value = el.value.slice(0, at) + text + el.value.slice(el.selectionEnd ?? at);
+    el.focus();
+    el.selectionStart = el.selectionEnd = at + text.length;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // "One per family": brothers and sisters who share a parent email get one email together.
+  function emGroups(ready) {
+    if (!$('#em-per-family').checked) return ready.map(x => [x]);
+    const groups = [];
+    const byEmail = {};
+    ready.forEach(x => {
+      const keys = x.parents.map(e => e.toLowerCase());
+      const hit = [...new Set(keys.map(k => byEmail[k]).filter(Boolean))];
+      let g = hit[0] || [];
+      if (!hit.length) groups.push(g);
+      hit.slice(1).forEach(o => { g.push(...o); groups.splice(groups.indexOf(o), 1); });
+      g.push(x);
+      g.forEach(y => y.parents.forEach(e => { byEmail[e.toLowerCase()] = g; }));
+    });
+    return groups;
+  }
+  const emAnd = (list) => list.length < 2 ? (list[0] || '') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+  // One student's fill-ins, or a family's: "Maya and Leo", "0012345 (Maya) and 0012399 (Leo)".
+  function emVars(group) {
+    if (group.length === 1) return group[0].vars;
+    const v = { ...group[0].vars };
+    ['student_first_name', 'student_last_name', 'student_name', 'grade'].forEach(k => {
+      v[k] = emAnd([...new Set(group.map(x => x.vars[k]).filter(Boolean))]);
+    });
+    v.local_id = emAnd(group.filter(x => x.vars.local_id).map(x => `${x.vars.local_id} (${x.vars.student_first_name})`));
+    return v;
+  }
+  const emKey = (group) => group.map(x => x.id).sort().join('+');
+
+  // Step 2: one card per email.
+  $('#em-go').addEventListener('click', () => {
+    const subject = $('#em-subject').value, body = $('#em-body').value;
+    if (!subject.trim() || !body.trim()) return toast('Write a subject and a message first.');
+    const ready = emReady();
+    if (!ready.length) return toast('Pick at least one family with an email address.');
+    emSaveLocal();
+    call('adminComposeSave', { draft: { subject, body, ...emWho() } }).catch(() => {}); // kept for next time, on any computer
+    emCards = emGroups(ready).map(g => {
+      const v = emVars(g);
+      return { ids: g.map(x => x.id), key: emKey(g), subject: emFill(subject, v), body: emFill(body, v), state: emDone[emKey(g)] || '', error: '' };
+    });
+    emRender();
+    show('emails-check');
+  });
+
+  function emRender() {
+    const who = emWho();
+    const emText = $('#em-subject').value + $('#em-body').value;
+    $('#emc-cards').innerHTML = emCards.map((c, n) => {
+      const kids = c.ids.map(emById);
+      const to = [...new Set(kids.flatMap(x => emTo(x, who)))];
+      const noId = kids.filter(x => !x.vars.local_id);
+      const done = c.state === 'sent' || c.state === 'draft';
+      const pill = c.state === 'sent' ? '<span class="em-pill sent">Sent ✓</span>' : c.state === 'draft' ? '<span class="em-pill draft">In Drafts ✓</span>'
+        : c.state === 'out' ? '<span class="em-pill out">Left out</span>' : '';
+      const left = (c.body.match(/\{[a-z_ ]+\}/g) || []).concat(c.subject.match(/\{[a-z_ ]+\}/g) || []);
+      return `<article class="em-card${done ? ' done' : ''}${c.state === 'out' ? ' out' : ''}" data-n="${n}">
+        <div class="em-card-head"><b>${esc(emAnd(kids.map(x => `${x.first} ${x.last}`)))}</b><span class="to">To: ${esc(to.join(', '))}</span>${pill}</div>
+        ${c.error ? `<p class="em-err">${esc(c.error)}</p>` : ''}
+        ${noId.length && /\{local_id\}/.test(emText) ? `<p class="em-err">No Local ID on the roster for ${esc(emAnd(noId.map(x => x.first)))}. Add it in the Student Roster, or type it here.</p>` : ''}
+        ${left.length ? `<p class="em-err">Check ${esc([...new Set(left)].join(', '))}: WiSH doesn’t know that fill-in.</p>` : ''}
+        <input class="em-c-subject" value="${esc(c.subject)}" maxlength="200" aria-label="Subject" ${done || c.state === 'out' ? 'disabled' : ''}>
+        <textarea class="em-c-body" rows="${Math.min(22, c.body.split('\n').length + 4)}" maxlength="10000" aria-label="Message" ${done || c.state === 'out' ? 'disabled' : ''}>${esc(c.body)}</textarea>
+        ${done ? '' : `<div class="em-card-foot">
+          <button type="button" class="btn small ghost" data-act="out">${c.state === 'out' ? 'Put back' : 'Leave out'}</button>
+          ${c.state === 'out' ? '' : '<button type="button" class="btn small" data-act="draft">Put in Drafts</button><button type="button" class="btn small primary" data-act="send">Send</button>'}
+        </div>`}
+      </article>`;
+    }).join('');
+    const count = (s) => emCards.filter(c => c.state === s).length;
+    const waiting = emCards.filter(c => !c.state).length;
+    const sent = count('sent'), drafts = count('draft');
+    $('#emc-title').textContent = waiting ? `${waiting} email${waiting === 1 ? '' : 's'} ready` : 'All done';
+    $('#emc-sub').textContent = [sent && `${sent} sent`, drafts && `${drafts} in your Gmail Drafts`, count('out') && `${count('out')} left out`].filter(Boolean).join(' · ') ||
+      'Change any email below before it goes out. Nothing is sent until you click Send.';
+    $('#emc-drafts').disabled = $('#emc-send').disabled = $('#emc-test').disabled = !waiting;
+  }
+
+  $('#emc-cards').addEventListener('input', (e) => {
+    const card = e.target.closest('.em-card');
+    if (!card) return;
+    const c = emCards[Number(card.dataset.n)];
+    if (e.target.classList.contains('em-c-subject')) c.subject = e.target.value;
+    if (e.target.classList.contains('em-c-body')) c.body = e.target.value;
+  });
+  $('#emc-cards').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const c = emCards[Number(b.closest('.em-card').dataset.n)];
+    if (b.dataset.act === 'out') { c.state = c.state === 'out' ? '' : 'out'; c.error = ''; return emRender(); }
+    emRun(b.dataset.act, [c]);
+  });
+  $('#emc-test').addEventListener('click', () => {
+    const c = emCards.find(x => !x.state);
+    if (c) emRun('test', [c]);
+  });
+  $('#emc-drafts').addEventListener('click', () => emRun('draft', emCards.filter(c => !c.state)));
+  $('#emc-send').addEventListener('click', () => {
+    const list = emCards.filter(c => !c.state);
+    if (!list.length) return;
+    if (!confirm(`Send ${list.length} email${list.length === 1 ? '' : 's'} now from your school email? Sent emails can’t be taken back.`)) return;
+    emRun('send', list);
+  });
+
+  async function emRun(mode, list) {
+    const who = emWho();
+    const verb = mode === 'draft' ? 'Putting in Drafts' : mode === 'test' ? 'Sending you a test' : 'Sending';
+    let failed = 0;
+    try {
+      for (let i = 0; i < list.length; i += 20) {
+        const part = list.slice(i, i + 20);
+        busy(list.length > 1 ? `${verb}… ${i + part.length} of ${list.length}` : `${verb}…`);
+        const res = await call('adminComposeSend', { mode, ...who, emails: part.map(c => ({ ids: c.ids, subject: c.subject, body: c.body })) });
+        res.results.forEach((r, n) => {
+          const c = part[n];
+          if (mode === 'test') {
+            if (r.ok) toast(`Test sent to ${r.to.join(', ')}. Check your inbox.`); else failed++;
+            c.error = r.ok ? '' : r.error;
+            return;
+          }
+          c.state = r.ok ? (mode === 'draft' ? 'draft' : 'sent') : '';
+          c.error = r.ok ? '' : r.error;
+          if (r.ok) emDone[c.key] = c.state; else failed++;
+        });
+        if (res.results.some(r => !r.ok && /permission|limit/i.test(r.error))) break; // the rest would fail the same way
+      }
+    } catch (err) {
+      toast(emError(err));
+    } finally {
+      busy(false);
+    }
+    emRender();
+    if (mode !== 'test') {
+      const ok = list.filter(c => c.state === 'sent' || c.state === 'draft').length;
+      if (ok) toast(mode === 'draft' ? `${ok} email${ok === 1 ? ' is' : 's are'} in your Gmail Drafts.` : `${ok} email${ok === 1 ? '' : 's'} sent.`);
+      else if (failed) toast('Nothing went out. See the red note on the email.');
+    }
+  }
+
+  $('#open-emails').addEventListener('click', openEmails);
+  $('#em-back').addEventListener('click', () => { renderDash(); show('dash'); });
+  $('#emc-back').addEventListener('click', () => show('emails'));
 
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 

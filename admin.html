@@ -25,6 +25,7 @@
       <button class="btn small" id="open-roster">Student Roster</button>
       <button class="btn small" id="open-link">Share link &amp; QR</button>
       <button class="btn small" id="open-reminders">Reminders</button>
+      <button class="btn small" id="open-emails">Emails</button>
       <button class="btn small" id="open-meetings">Meetings</button>
       <button class="btn small" id="open-setup" hidden>Setup steps</button>
       <button class="btn small" id="open-accounts" hidden>ES accounts</button>
@@ -370,6 +371,81 @@
         </div>
         <div class="rem-save"><span class="meta" id="rem-state"></span><button class="btn primary" type="submit">Save reminders</button></div>
       </form>
+    </section>
+
+    <!-- Emails: write one email, personalize it for each family, then Drafts or Send -->
+    <section id="screen-emails" class="screen" hidden>
+      <button class="btn ghost back-link" id="em-back">← Dashboard</button>
+      <div class="rem">
+        <div class="rem-intro">
+          <h1>Emails</h1>
+          <p>Write one email. WiSH fills in the words in {curly brackets} for each student or family, then you look over each one before it goes out. Emails come from your school account.</p>
+        </div>
+        <section class="rem-card em-who">
+          <div class="rem-head plain">
+            <div><h2>Who gets it</h2><span id="em-count">–</span></div>
+            <fieldset class="em-to"><label class="inline"><input type="checkbox" id="em-parents" checked> Parents</label>
+              <label class="inline"><input type="checkbox" id="em-students"> Students</label></fieldset>
+          </div>
+          <div class="rem-body">
+            <div class="em-quick" role="group" aria-label="Pick students">
+              <button type="button" class="btn small" data-pick="all">Check all</button>
+              <button type="button" class="btn small ghost" data-pick="none">Check none</button>
+              <input type="search" id="em-find" placeholder="Find a student" aria-label="Find a student">
+            </div>
+            <div class="em-list" id="em-list"></div>
+            <p class="hint">Inactive students aren’t listed. “One per family” (below) sends brothers and sisters who share a parent email one email together.</p>
+          </div>
+        </section>
+        <div class="rem-cols">
+          <div class="rem-main">
+            <section class="rem-card">
+              <div class="rem-head plain"><div><h2>Your email</h2><span>Words in {curly brackets} change for each email.</span></div>
+                <div class="seg" role="radiogroup" aria-label="How many emails">
+                  <label><input type="radio" name="em-per" id="em-per-student" value="student" checked> One per student</label>
+                  <label><input type="radio" name="em-per" id="em-per-family" value="family"> One per family</label>
+                </div></div>
+              <div class="rem-body">
+                <label class="field">Subject <input id="em-subject" maxlength="200" spellcheck="true"></label>
+                <label class="field">Message <textarea id="em-body" rows="12" maxlength="10000" spellcheck="true"></textarea></label>
+                <div class="rem-insert" id="em-insert"><span>Insert:</span></div>
+              </div>
+            </section>
+          </div>
+          <aside class="rem-side">
+            <section class="rem-card side">
+              <h2>Preview</h2>
+              <span class="sub" id="em-pv-who">How it looks for one family</span>
+              <div class="rem-preview">
+                <span class="to" id="em-pv-to"></span>
+                <b id="em-pv-subject"></b>
+                <div class="pv-body" id="em-pv-body"></div>
+              </div>
+            </section>
+            <section class="rem-card side">
+              <h2>Recently sent</h2>
+              <div id="em-recent" class="em-recent"></div>
+            </section>
+          </aside>
+        </div>
+        <div class="rem-save"><span class="meta" id="em-state"></span><button class="btn primary" type="button" id="em-go">Preview emails →</button></div>
+      </div>
+    </section>
+
+    <!-- Emails, step 2: one card per family, ready for Drafts or Send -->
+    <section id="screen-emails-check" class="screen" hidden>
+      <button class="btn ghost back-link" id="emc-back">← Change the email</button>
+      <div class="rem">
+        <div class="dash-head em-check-head">
+          <div><h1 id="emc-title">Emails ready</h1><p class="hint" id="emc-sub">Change any email below before it goes out.</p></div>
+          <div class="em-all">
+            <button class="btn small ghost" type="button" id="emc-test">Send me a test</button>
+            <button class="btn small" type="button" id="emc-drafts">Put all in Drafts</button>
+            <button class="btn small primary" type="button" id="emc-send">Send all</button>
+          </div>
+        </div>
+        <div class="em-cards" id="emc-cards"></div>
+      </div>
     </section>
 
     <!-- WiSH's Trash: deleted samples, kept for 60 days -->
