@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 50;
+const WORKIT_VERSION = 51;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -49,7 +49,8 @@ const STUDENT_HEADERS = ['First name', 'Last name', 'Grade', 'City', 'Student ID
   'Sem 1 classes (comma separated; add (Accel) after an accelerated class)',
   'Sem 2 classes (leave blank to use Sem 1 with A changed to B)', 'Student email', 'Family email (more than one: separate with commas)',
   'Status (Active or Inactive)', 'Withdrew (date; owes samples for every LP that started by then)',
-  'Started (date they enrolled; LPs that ended before it need no samples)'];
+  'Started (date they enrolled; LPs that ended before it need no samples)',
+  'Local ID (school student number; only the ES sees it)'];
 // A student who starts partway through an LP: 'always' = they owe that LP, 'half' = only if they start
 // in its first half, 'next' = their samples begin with the next LP.
 const START_MID_LP = 'always';
@@ -230,6 +231,7 @@ function doPost(e) {
       adminTrash: adminTrash_, adminTrashList: adminTrashList_, adminRestore: adminRestore_, adminDeleteNow: adminDeleteNow_,
       adminUnfile: adminUnfile_, adminFolders: adminFolders_, adminRestoreExport: adminRestoreExport_, adminDeleteExport: adminDeleteExport_,
       adminEmailSettings: adminEmailSettings_, adminSaveEmailSettings: adminSaveEmailSettings_,
+      adminCompose: adminCompose_, adminComposeSave: adminComposeSave_, adminComposeSend: adminComposeSend_,
       adminSaveFeatures: adminSaveFeatures_,
       esStatus: esStatus_,
       adminMeetings: adminMeetings_, adminSaveMeetings: adminSaveMeetings_, adminMeetingMatch: adminMeetingMatch_,
@@ -1727,11 +1729,12 @@ function adminRoster_() {
       status: /^\s*inactive/i.test(String(v[9] || '')) ? 'Inactive' : 'Active',
       withdrew: isYmd_(dateText_(v[10]).trim()) ? dateText_(v[10]).trim() : '',
       started: isYmd_(dateText_(v[11]).trim()) ? dateText_(v[11]).trim() : '',
+      localId: text_(v[12]).trim(),
     };
     row.lastSignIn = seen[makeId_(row.first, row.grade, row.city)] || 0;
-    if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family) rows.push(row);
+    if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family || row.localId) rows.push(row);
   }
-  return { ok: true, grades: GRADES, rows: rows };
+  return { ok: true, grades: GRADES, rows: rows, localIds: true };
 }
 
 /** Replaces the Students tab with the rows from the dashboard. Column E (Student ID) is left to its formula. */
@@ -1748,8 +1751,9 @@ function adminSaveRoster_(body) {
       email: clean_(r.email, 120), family: clean_(r.family, 300), status: r.status === 'Inactive' ? 'Inactive' : 'Active',
       withdrew: r.status === 'Inactive' && isYmd_(String(r.withdrew || '')) ? String(r.withdrew) : '',
       started: isYmd_(String(r.started || '')) ? String(r.started) : '',
+      localId: clean_(r.localId, 40),
     };
-    if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family) return;
+    if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family && !row.localId) return;
     const id = makeId_(row.first, row.grade, row.city);
     const badEmail = [row.email].concat(row.family.split(/[,;\s]+/)).filter(e => e && !EMAIL_RE.test(e))[0];
     if (badEmail) problems.push('Row ' + (i + 1) + ': “' + badEmail + '” doesn’t look like an email address.');
@@ -1767,13 +1771,14 @@ function adminSaveRoster_(body) {
     const last = sheet.getLastRow();
     if (last > 1) {
       sheet.getRange(2, 1, last - 1, 4).clearContent();
-      sheet.getRange(2, 6, last - 1, 7).clearContent();
+      sheet.getRange(2, 6, last - 1, 8).clearContent();
     }
     studentHeaders_();
     if (rows.length) {
       sheet.getRange(2, 1, rows.length, 4).setValues(rows.map(r => [cell_(r.first), cell_(r.last), r.grade, cell_(r.city)]));
-      sheet.getRange(2, 11, rows.length, 2).setNumberFormat('@');
-      sheet.getRange(2, 6, rows.length, 7).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started]));
+      // Plain text, so dates stay as typed and an ID like 00123 keeps its zeros.
+      sheet.getRange(2, 11, rows.length, 3).setNumberFormat('@');
+      sheet.getRange(2, 6, rows.length, 8).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started, cell_(r.localId)]));
     }
     return { ok: true, count: rows.length };
   } finally {
@@ -2570,7 +2575,7 @@ const MEMO_SECONDS = 300;
 const MEMO_CHUNK = 90000;      // a cache value can hold about 100 KB
 const MEMO_MAX_CHUNKS = 60;    // above ~5 MB it isn't worth it; just read the sheet
 const READ_ONLY_ACTIONS = ['login', 'esStatus', 'list', 'file', 'checkLink', 'checkPage', 'adminOverview', 'adminStudent', 'adminFile', 'adminTrashList', 'adminFolders',
-  'adminRoster', 'adminCore', 'adminEmailSettings', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
+  'adminRoster', 'adminCore', 'adminEmailSettings', 'adminCompose', 'adminMeetings', 'schoolDates', 'esLookup', 'esLogin', 'superEsList', 'ping'];
 let FRESH_ = true;  // outside web requests (the editor, menus) always read the sheet
 
 // Each request keeps the generation it started with. A slow read that finishes after a change
@@ -3002,6 +3007,109 @@ function turnOnEmails() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('EMAIL_SINCE')) props.setProperty('EMAIL_SINCE', String(Date.now()));
   return 'WiSH reminders are on. Change them in the dashboard: Reminders.';
+}
+
+// ---------- Emails you write: one email, personalized for each family ----------
+//
+// The Emails page in the dashboard. You write one email with fill-ins, WiSH fills them in for each
+// family, you look over (and can change) each one, then put them in your Gmail Drafts or send them.
+// Emails only go to the addresses on a student's roster row, never to any other address.
+
+const COMPOSE_MAX = 20;          // emails per request; the page sends bigger batches in parts
+const COMPOSE_STORE = 'COMPOSE_DRAFT';
+
+/** Everything the Emails page needs: each active student's fill-ins and email addresses. */
+function adminCompose_() {
+  const s = emailSettings_();
+  const lp = getCurrentLp_();
+  const range = getLpDates_()[lp] || null;
+  const daysLeft = range ? daysBetween_(ymd_(new Date(), tz_()), range.end) : null;
+  const booking = meetingLink_(meetingSettings_(), lp);
+  // Local ID: the school's student number, Students tab column M (only the ES sees it).
+  const localIds = {};
+  getSheet_('Students').getDataRange().getValues().slice(1).forEach(v => {
+    const id = makeId_(v[0], v[2], v[3]);
+    if (id && v.length > 12) localIds[id] = text_(v[12]).trim();
+  });
+  // Every active student (inactive ones are left out).
+  const students = getStudents_().filter(p => p.active !== false).map(p => ({
+    id: p.id, first: p.firstName || p.name, last: p.lastName || '', grade: p.grade || '',
+    parents: p.familyEmails || [], email: p.email || '',
+    vars: {
+      student_first_name: p.firstName || p.name, student_last_name: p.lastName || '',
+      student_name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.name, grade: p.grade || '',
+      local_id: localIds[p.id] || '', lp: lp,
+      'days left': daysLeft === null ? '' : String(Math.max(0, daysLeft)), 'end date': range ? niceDay_(range.end) : '',
+      link: s.link, 'booking link': booking,
+    },
+  }));
+  students.sort((a, b) => (a.last + ' ' + a.first).localeCompare(b.last + ' ' + b.first));
+  return {
+    ok: true, lp: lp, me: s.me, students: students, quota: MailApp.getRemainingDailyQuota(),
+    saved: JSON.parse(PropertiesService.getScriptProperties().getProperty(COMPOSE_STORE) || 'null'),
+    recent: recentEmails_(40).filter(e => e.kind === 'your email' || e.kind === 'draft').slice(0, 8),
+  };
+}
+
+/** Keeps the email being written, so it's there next time (on any computer). */
+function adminComposeSave_(body) {
+  const d = body.draft || {};
+  const keep = {
+    subject: clean_(d.subject, 200), body: String(d.body || '').replace(/\r/g, '').slice(0, 10000),
+    parents: d.parents !== false, students: d.students === true, at: Date.now(),
+  };
+  PropertiesService.getScriptProperties().setProperty(COMPOSE_STORE, JSON.stringify(keep));
+  return { ok: true };
+}
+
+/**
+ * mode 'draft' puts each email in your Gmail Drafts, 'send' sends it, 'test' sends the first one
+ * to you only. emails: [{ ids, subject, body }], already filled in (and maybe changed) on the page;
+ * ids holds one student, or brothers and sisters who get one email together.
+ */
+function adminComposeSend_(body) {
+  const mode = ['draft', 'send', 'test'].indexOf(body.mode) !== -1 ? body.mode : '';
+  if (!mode) return { ok: false, error: 'Pick Drafts or Send.' };
+  const list = Array.isArray(body.emails) ? body.emails.slice(0, mode === 'test' ? 1 : COMPOSE_MAX) : [];
+  if (!list.length) return { ok: false, error: 'There are no emails to send.' };
+  const who = { parents: body.parents !== false, students: body.students === true };
+  if (!who.parents && !who.students) return { ok: false, error: 'Pick parents, students or both.' };
+  const me = Session.getEffectiveUser().getEmail();
+  const byId = {};
+  getStudents_().forEach(p => { byId[p.id] = p; });
+  const results = [];
+  list.forEach(e => {
+    // One email can be for one student, or for brothers and sisters together (one per family).
+    const ids = (Array.isArray(e.ids) ? e.ids : [e.id]).map(String).slice(0, 12);
+    const kids = ids.map(id => byId[id]);
+    const id = ids.join('+');
+    const subject = clean_(e.subject, 200) || '(no subject)';
+    const text = String(e.body || '').replace(/\r/g, '').slice(0, 10000);
+    if (!ids.length || kids.some(p => !p)) return results.push({ id: id, ok: false, error: 'That student isn’t on your roster anymore.' });
+    const p = { name: kids.map(k => k.name).join(', ') };
+    const all = [];
+    kids.forEach(k => recipients_(who, k).forEach(a => { if (all.map(x => x.toLowerCase()).indexOf(a.toLowerCase()) === -1) all.push(a); }));
+    const to = mode === 'test' ? [me] : all;
+    if (!to.length) return results.push({ id: id, ok: false, error: 'No ' + (who.parents && who.students ? 'parent or student' : who.parents ? 'parent' : 'student') + ' email on the roster.' });
+    try {
+      if (mode === 'draft') {
+        GmailApp.createDraft(to.join(','), subject, text);
+      } else {
+        if (MailApp.getRemainingDailyQuota() < to.length) throw new Error('Google’s daily email limit is used up. Try again tomorrow, or put the rest in Drafts.');
+        MailApp.sendEmail({ to: to.join(','), subject: (mode === 'test' ? '[Test] ' : '') + subject, body: text });
+      }
+      if (mode !== 'test') logEmail_(to.join(', '), p, mode === 'draft' ? 'draft' : 'your email', subject, '');
+      results.push({ id: id, ok: true, to: to });
+    } catch (err) {
+      const m = String(err.message || err);
+      results.push({
+        id: id, ok: false,
+        error: mode === 'draft' && /permission|authoriz|scope/i.test(m)
+          ? 'WiSH needs one more Google permission to make drafts. Ask Claude to “update WiSH”, then click Allow.' : m,
+      });
+    }
+  });
+  return { ok: true, results: results, quota: MailApp.getRemainingDailyQuota() };
 }
 
 // ----- Days -----
