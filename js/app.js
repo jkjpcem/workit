@@ -97,6 +97,7 @@
     try {
       const found = await Api.findEs(handle);
       findSay('found', found.name || found.es);
+      Api.rememberEs(found);
       setTimeout(() => { location.href = Api.studentLink(found.es); }, 700);
     } catch (err) {
       go.classList.remove('is-busy');
@@ -110,12 +111,17 @@
     location.href = Api.studentLink('');
   });
 
-  // On an ES's own student link, say whose WiSH this is.
-  Api.ready.then(() => {
+  // On an ES's own student link, say whose WiSH this is: on sign-in (big) and next to the
+  // Welcome line after. Shows the remembered name right away, then the fresh one from Google.
+  function showEsName() {
     const name = Api.esName();
-    $('#es-name').textContent = name ? `ES: ${name}` : '';
-    $('#es-name').hidden = !name;
-  });
+    for (const el of [$('#es-name'), $('#es-name-in')]) {
+      $('.es-who', el).textContent = name;
+      el.hidden = !name || (!!esUpload && el.id === 'es-name-in');
+    }
+  }
+  showEsName();
+  Api.ready.then(showEsName);
 
   // Pick up a new current LP or class list the ES set, without blocking the app.
   async function refreshSession() {

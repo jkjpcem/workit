@@ -65,7 +65,7 @@
         <div class="hero-mark">
           <picture><source srcset="icons/logo-dark.svg" media="(prefers-color-scheme: dark)"><img src="icons/logo.svg" alt="WiSH, Work Sample Herder" width="260"></picture>
         </div>
-        <p class="es-name" id="es-name" hidden></p>
+        <p class="es-name" id="es-name" hidden><span class="es-tag">ES</span><span class="es-who"></span></p>
         <p class="not-my-es"><button type="button" class="linkish" id="not-my-es">Not your ES?</button></p>
       </div>
       <form id="login-form" class="card stack" autocomplete="off">
@@ -94,7 +94,7 @@
         <p>You’re turning in work for <strong id="es-banner-name"></strong> as their ES. It goes into their My uploads, marked “Added by your ES”, and they can’t delete it.</p>
         <button type="button" class="btn small" onclick="window.close()">Close this tab</button>
       </div>
-      <p class="greeting" id="greeting"></p>
+      <div class="greeting-row"><p class="greeting" id="greeting"></p><p class="es-name small" id="es-name-in" hidden><span class="es-tag">ES</span><span class="es-who"></span></p></div>
       <p class="paused-note" id="paused-note" hidden>Turning in work is paused on your account. You can still see your uploads. Ask your ES if this is a mistake.</p>
       <div class="meeting" id="meeting-upload" hidden></div>
       <div class="todo stack" id="todo" hidden></div>

@@ -142,6 +142,12 @@ const Api = (() => {
     }
     return { es: id, name: res.name || '' };
   }
+  // The landing page found the ES: remember their name so their sign-in page can show it
+  // right away, before Google answers again.
+  function rememberEs(found) {
+    es = { es: found.es, name: found.name || '', url: '' };
+    saveEs();
+  }
   // "Not your ES?": forget this device's ES so the landing page asks again.
   function forgetEs() {
     es = null;
@@ -152,6 +158,7 @@ const Api = (() => {
     call,
     findEs,
     forgetEs,
+    rememberEs,
     hasEs: () => !!es,
     actAsEs,
     ready,
