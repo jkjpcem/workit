@@ -379,29 +379,32 @@
       <div class="rem">
         <div class="rem-intro">
           <h1>Emails</h1>
-          <p>Write one email. WiSH fills in the words in {curly brackets} for each family, then you look over each one before it goes out. Emails come from your school account.</p>
+          <p>Write one email. WiSH fills in the words in {curly brackets} for each student or family, then you look over each one before it goes out. Emails come from your school account.</p>
         </div>
+        <section class="rem-card em-who">
+          <div class="rem-head plain">
+            <div><h2>Who gets it</h2><span id="em-count">–</span></div>
+            <fieldset class="em-to"><label class="inline"><input type="checkbox" id="em-parents" checked> Parents</label>
+              <label class="inline"><input type="checkbox" id="em-students"> Students</label></fieldset>
+          </div>
+          <div class="rem-body">
+            <div class="em-quick" role="group" aria-label="Pick students">
+              <button type="button" class="btn small" data-pick="all">Check all</button>
+              <button type="button" class="btn small ghost" data-pick="none">Check none</button>
+              <input type="search" id="em-find" placeholder="Find a student" aria-label="Find a student">
+            </div>
+            <div class="em-list" id="em-list"></div>
+            <p class="hint">Inactive students aren’t listed. “One per family” (below) sends brothers and sisters who share a parent email one email together.</p>
+          </div>
+        </section>
         <div class="rem-cols">
           <div class="rem-main">
             <section class="rem-card">
-              <div class="rem-head plain">
-                <div><h2>Who gets it</h2><span id="em-count">–</span></div>
-                <fieldset class="em-to"><label class="inline"><input type="checkbox" id="em-parents" checked> Parents</label>
-                  <label class="inline"><input type="checkbox" id="em-students"> Students</label></fieldset>
-              </div>
-              <div class="rem-body">
-                <div class="em-quick" role="group" aria-label="Pick families">
-                  <button type="button" class="btn small ghost" data-pick="all">Everyone</button>
-                  <button type="button" class="btn small ghost" data-pick="owes">Still owe work</button>
-                  <button type="button" class="btn small ghost" data-pick="none">No one</button>
-                  <input type="search" id="em-find" placeholder="Find a student" aria-label="Find a student">
-                </div>
-                <div class="em-list" id="em-list"></div>
-                <p class="hint">Inactive students aren’t listed.</p>
-              </div>
-            </section>
-            <section class="rem-card">
-              <div class="rem-head plain"><div><h2>Your email</h2><span>Words in {curly brackets} change for each family.</span></div></div>
+              <div class="rem-head plain"><div><h2>Your email</h2><span>Words in {curly brackets} change for each email.</span></div>
+                <div class="seg" role="radiogroup" aria-label="How many emails">
+                  <label><input type="radio" name="em-per" id="em-per-student" value="student" checked> One per student</label>
+                  <label><input type="radio" name="em-per" id="em-per-family" value="family"> One per family</label>
+                </div></div>
               <div class="rem-body">
                 <label class="field">Subject <input id="em-subject" maxlength="200" spellcheck="true"></label>
                 <label class="field">Message <textarea id="em-body" rows="12" maxlength="10000" spellcheck="true"></textarea></label>

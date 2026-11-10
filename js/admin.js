@@ -2248,7 +2248,7 @@
 
   // ---------- Emails: write one email, personalize it for each family, then Drafts or Send ----------
 
-  const EM_FILLS = ['student_first_name', 'student_last_name', 'student_name', 'grade', 'lp', 'to do', 'count', 'end date', 'days left', 'link', 'booking link'];
+  const EM_FILLS = ['student_first_name', 'student_last_name', 'student_name', 'local_id', 'grade', 'lp', 'end date', 'days left', 'link', 'booking link'];
   const EM_KEY = () => `wish_compose_${(creds && creds.user) || 'main'}`;
   let em = null;            // last adminCompose answer
   let emPicked = new Set(); // student ids
@@ -2263,7 +2263,7 @@
   const emById = (id) => em.students.find(x => x.id === id);
 
   function emSaveLocal() {
-    try { localStorage.setItem(EM_KEY(), JSON.stringify({ subject: $('#em-subject').value, body: $('#em-body').value, ...emWho() })); } catch (e) { /* private window */ }
+    try { localStorage.setItem(EM_KEY(), JSON.stringify({ subject: $('#em-subject').value, body: $('#em-body').value, perFamily: $('#em-per-family').checked, ...emWho() })); } catch (e) { /* private window */ }
   }
   function emLoadLocal() {
     try { return JSON.parse(localStorage.getItem(EM_KEY()) || 'null'); } catch (e) { return null; }
@@ -2289,6 +2289,7 @@
     $('#em-body').value = d.body || '';
     $('#em-parents').checked = d.parents !== false;
     $('#em-students').checked = d.students === true;
+    $(d.perFamily ? '#em-per-family' : '#em-per-student').checked = true;
     $('#em-find').value = '';
     $('#em-insert').innerHTML = '<span>Insert:</span>' + EM_FILLS.map(k => `<button type="button" data-fill="${esc(k)}">{${esc(k)}}</button>`).join('');
     emPicked = new Set(em.students.filter(x => emTo(x).length).map(x => x.id));
@@ -2304,14 +2305,14 @@
   function emList() {
     const who = emWho();
     const find = $('#em-find').value.trim().toLowerCase();
-    const none = who.parents && who.students ? 'No email' : who.parents ? 'No parent email' : who.students ? 'No student email' : 'No email';
+    const none = 'No email';
     $('#em-list').innerHTML = em.students.length ? em.students.map(x => {
       const to = emTo(x, who);
       const hide = find && !`${x.first} ${x.last}`.toLowerCase().includes(find);
       return `<label class="em-row${to.length ? '' : ' off'}"${hide ? ' hidden' : ''} data-id="${esc(x.id)}">
         <input type="checkbox" ${emPicked.has(x.id) && to.length ? 'checked' : ''} ${to.length ? '' : 'disabled'}>
-        <span class="nm">${esc(x.first)} ${esc(x.last)}</span><span class="gr">${x.grade ? `Gr ${esc(x.grade)}` : ''}</span>
-        ${to.length ? (x.owes ? '<span class="tag owes">Still owes work</span>' : '<span class="tag done">All in</span>') : `<span class="tag none">${none}</span>`}</label>`;
+        <span class="nm">${esc(x.first)} ${esc(x.last)}</span>
+        ${to.length ? '' : `<span class="tag none">${none}</span>`}</label>`;
     }).join('') : '<p class="hint">No active students yet. Add them in the Student Roster.</p>';
     emCount();
   }
@@ -2320,8 +2321,9 @@
   }
   function emCount() {
     const n = emReady().length;
-    $('#em-count').textContent = `${n} of ${em.students.length} famil${em.students.length === 1 ? 'y' : 'ies'} picked`;
-    $('#em-go').textContent = n ? `Preview ${n} email${n === 1 ? '' : 's'} →` : 'Preview emails →';
+    $('#em-count').textContent = `${n} of ${em.students.length} student${em.students.length === 1 ? '' : 's'} checked`;
+    const m = emGroups(emReady()).length;
+    $('#em-go').textContent = m ? `Preview ${m} email${m === 1 ? '' : 's'} →` : 'Preview emails →';
     $('#em-go').disabled = !n;
     emPreview();
   }
@@ -2334,11 +2336,13 @@
       $('#em-pv-body').textContent = $('#em-body').value;
       return;
     }
-    const to = emTo(x);
-    $('#em-pv-who').textContent = `How it looks for ${x.first} ${x.last}`.trim();
+    const g = (emPicked.has(x.id) && emGroups(ready).find(gr => gr.includes(x))) || [x];
+    const to = [...new Set(g.flatMap(y => emTo(y)))];
+    const v = emVars(g);
+    $('#em-pv-who').textContent = `How it looks for ${emAnd(g.map(y => `${y.first} ${y.last}`))}`;
     $('#em-pv-to').textContent = `To: ${to.length ? to.join(', ') : '(no email address)'}`;
-    $('#em-pv-subject').textContent = emFill($('#em-subject').value, x.vars);
-    $('#em-pv-body').textContent = emFill($('#em-body').value, x.vars);
+    $('#em-pv-subject').textContent = emFill($('#em-subject').value, v);
+    $('#em-pv-body').textContent = emFill($('#em-body').value, v);
   }
   function emRecent() {
     const names = { 'your email': 'Sent', draft: 'Draft' };
@@ -2360,11 +2364,11 @@
   });
   $$('[data-pick]').forEach(b => b.addEventListener('click', () => {
     const p = b.dataset.pick;
-    emPicked = new Set(p === 'none' ? [] : em.students.filter(x => p === 'all' || x.owes).map(x => x.id));
+    emPicked = new Set(p === 'none' ? [] : em.students.map(x => x.id));
     emList();
   }));
   $('#em-find').addEventListener('input', emList);
-  ['#em-parents', '#em-students'].forEach(sel => $(sel).addEventListener('change', () => {
+  ['#em-parents', '#em-students', '#em-per-student', '#em-per-family'].forEach(sel => $(sel).addEventListener('change', () => {
     emDone = {};
     emSaveLocal();
     emList();
@@ -2390,7 +2394,36 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
-  // Step 2: one card per family.
+  // "One per family": brothers and sisters who share a parent email get one email together.
+  function emGroups(ready) {
+    if (!$('#em-per-family').checked) return ready.map(x => [x]);
+    const groups = [];
+    const byEmail = {};
+    ready.forEach(x => {
+      const keys = x.parents.map(e => e.toLowerCase());
+      const hit = [...new Set(keys.map(k => byEmail[k]).filter(Boolean))];
+      let g = hit[0] || [];
+      if (!hit.length) groups.push(g);
+      hit.slice(1).forEach(o => { g.push(...o); groups.splice(groups.indexOf(o), 1); });
+      g.push(x);
+      g.forEach(y => y.parents.forEach(e => { byEmail[e.toLowerCase()] = g; }));
+    });
+    return groups;
+  }
+  const emAnd = (list) => list.length < 2 ? (list[0] || '') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+  // One student's fill-ins, or a family's: "Maya and Leo", "0012345 (Maya) and 0012399 (Leo)".
+  function emVars(group) {
+    if (group.length === 1) return group[0].vars;
+    const v = { ...group[0].vars };
+    ['student_first_name', 'student_last_name', 'student_name', 'grade'].forEach(k => {
+      v[k] = emAnd([...new Set(group.map(x => x.vars[k]).filter(Boolean))]);
+    });
+    v.local_id = emAnd(group.filter(x => x.vars.local_id).map(x => `${x.vars.local_id} (${x.vars.student_first_name})`));
+    return v;
+  }
+  const emKey = (group) => group.map(x => x.id).sort().join('+');
+
+  // Step 2: one card per email.
   $('#em-go').addEventListener('click', () => {
     const subject = $('#em-subject').value, body = $('#em-body').value;
     if (!subject.trim() || !body.trim()) return toast('Write a subject and a message first.');
@@ -2398,22 +2431,29 @@
     if (!ready.length) return toast('Pick at least one family with an email address.');
     emSaveLocal();
     call('adminComposeSave', { draft: { subject, body, ...emWho() } }).catch(() => {}); // kept for next time, on any computer
-    emCards = ready.map(x => ({ id: x.id, subject: emFill(subject, x.vars), body: emFill(body, x.vars), state: emDone[x.id] || '', error: '' }));
+    emCards = emGroups(ready).map(g => {
+      const v = emVars(g);
+      return { ids: g.map(x => x.id), key: emKey(g), subject: emFill(subject, v), body: emFill(body, v), state: emDone[emKey(g)] || '', error: '' };
+    });
     emRender();
     show('emails-check');
   });
 
   function emRender() {
     const who = emWho();
+    const emText = $('#em-subject').value + $('#em-body').value;
     $('#emc-cards').innerHTML = emCards.map((c, n) => {
-      const x = emById(c.id);
+      const kids = c.ids.map(emById);
+      const to = [...new Set(kids.flatMap(x => emTo(x, who)))];
+      const noId = kids.filter(x => !x.vars.local_id);
       const done = c.state === 'sent' || c.state === 'draft';
       const pill = c.state === 'sent' ? '<span class="em-pill sent">Sent ✓</span>' : c.state === 'draft' ? '<span class="em-pill draft">In Drafts ✓</span>'
         : c.state === 'out' ? '<span class="em-pill out">Left out</span>' : '';
       const left = (c.body.match(/\{[a-z_ ]+\}/g) || []).concat(c.subject.match(/\{[a-z_ ]+\}/g) || []);
       return `<article class="em-card${done ? ' done' : ''}${c.state === 'out' ? ' out' : ''}" data-n="${n}">
-        <div class="em-card-head"><b>${esc(x.first)} ${esc(x.last)}</b><span class="to">To: ${esc(emTo(x, who).join(', '))}</span>${pill}</div>
+        <div class="em-card-head"><b>${esc(emAnd(kids.map(x => `${x.first} ${x.last}`)))}</b><span class="to">To: ${esc(to.join(', '))}</span>${pill}</div>
         ${c.error ? `<p class="em-err">${esc(c.error)}</p>` : ''}
+        ${noId.length && /\{local_id\}/.test(emText) ? `<p class="em-err">No Local ID on the roster for ${esc(emAnd(noId.map(x => x.first)))}. Add it in the Student Roster, or type it here.</p>` : ''}
         ${left.length ? `<p class="em-err">Check ${esc([...new Set(left)].join(', '))}: WiSH doesn’t know that fill-in.</p>` : ''}
         <input class="em-c-subject" value="${esc(c.subject)}" maxlength="200" aria-label="Subject" ${done || c.state === 'out' ? 'disabled' : ''}>
         <textarea class="em-c-body" rows="${Math.min(22, c.body.split('\n').length + 4)}" maxlength="10000" aria-label="Message" ${done || c.state === 'out' ? 'disabled' : ''}>${esc(c.body)}</textarea>
@@ -2466,7 +2506,7 @@
       for (let i = 0; i < list.length; i += 20) {
         const part = list.slice(i, i + 20);
         busy(list.length > 1 ? `${verb}… ${i + part.length} of ${list.length}` : `${verb}…`);
-        const res = await call('adminComposeSend', { mode, ...who, emails: part.map(c => ({ id: c.id, subject: c.subject, body: c.body })) });
+        const res = await call('adminComposeSend', { mode, ...who, emails: part.map(c => ({ ids: c.ids, subject: c.subject, body: c.body })) });
         res.results.forEach((r, n) => {
           const c = part[n];
           if (mode === 'test') {
@@ -2476,7 +2516,7 @@
           }
           c.state = r.ok ? (mode === 'draft' ? 'draft' : 'sent') : '';
           c.error = r.ok ? '' : r.error;
-          if (r.ok) emDone[c.id] = c.state; else failed++;
+          if (r.ok) emDone[c.key] = c.state; else failed++;
         });
         if (res.results.some(r => !r.ok && /permission|limit/i.test(r.error))) break; // the rest would fail the same way
       }

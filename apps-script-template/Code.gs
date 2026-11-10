@@ -3017,25 +3017,31 @@ const COMPOSE_STORE = 'COMPOSE_DRAFT';
 /** Everything the Emails page needs: each active student's fill-ins and email addresses. */
 function adminCompose_() {
   const s = emailSettings_();
-  const st = emailState_();
-  const students = st.students.map(x => {
-    const v = studentVars_(s, st, x);
-    const p = x.student;
-    return {
-      id: p.id, first: p.firstName || p.name, last: p.lastName || '', grade: p.grade || '',
-      parents: p.familyEmails || [], email: p.email || '',
-      owes: x.missing.length + x.redos.length > 0,
-      vars: {
-        student_first_name: v.student_first_name, student_last_name: p.lastName || '',
-        student_name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.name, grade: p.grade || '',
-        lp: v.lp, count: x.missing.length + x.redos.length ? v.count : 'no samples', 'to do': v['to do'] || 'Nothing! Every sample is in.',
-        'days left': v['days left'], 'end date': v['end date'], link: v.link, 'booking link': v['booking link'],
-      },
-    };
+  const lp = getCurrentLp_();
+  const range = getLpDates_()[lp] || null;
+  const daysLeft = range ? daysBetween_(ymd_(new Date(), tz_()), range.end) : null;
+  const booking = meetingLink_(meetingSettings_(), lp);
+  // Local ID: the school's student number, Students tab column M (only the ES sees it).
+  const localIds = {};
+  getSheet_('Students').getDataRange().getValues().slice(1).forEach(v => {
+    const id = makeId_(v[0], v[2], v[3]);
+    if (id && v.length > 12) localIds[id] = text_(v[12]).trim();
   });
+  // Every active student (inactive ones are left out).
+  const students = getStudents_().filter(p => p.active !== false).map(p => ({
+    id: p.id, first: p.firstName || p.name, last: p.lastName || '', grade: p.grade || '',
+    parents: p.familyEmails || [], email: p.email || '',
+    vars: {
+      student_first_name: p.firstName || p.name, student_last_name: p.lastName || '',
+      student_name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.name, grade: p.grade || '',
+      local_id: localIds[p.id] || '', lp: lp,
+      'days left': daysLeft === null ? '' : String(Math.max(0, daysLeft)), 'end date': range ? niceDay_(range.end) : '',
+      link: s.link, 'booking link': booking,
+    },
+  }));
   students.sort((a, b) => (a.last + ' ' + a.first).localeCompare(b.last + ' ' + b.first));
   return {
-    ok: true, lp: st.lp, me: s.me, students: students, quota: MailApp.getRemainingDailyQuota(),
+    ok: true, lp: lp, me: s.me, students: students, quota: MailApp.getRemainingDailyQuota(),
     saved: JSON.parse(PropertiesService.getScriptProperties().getProperty(COMPOSE_STORE) || 'null'),
     recent: recentEmails_(40).filter(e => e.kind === 'your email' || e.kind === 'draft').slice(0, 8),
   };
@@ -3054,7 +3060,8 @@ function adminComposeSave_(body) {
 
 /**
  * mode 'draft' puts each email in your Gmail Drafts, 'send' sends it, 'test' sends the first one
- * to you only. emails: [{ id, subject, body }], already filled in (and maybe changed) on the page.
+ * to you only. emails: [{ ids, subject, body }], already filled in (and maybe changed) on the page;
+ * ids holds one student, or brothers and sisters who get one email together.
  */
 function adminComposeSend_(body) {
   const mode = ['draft', 'send', 'test'].indexOf(body.mode) !== -1 ? body.mode : '';
@@ -3068,12 +3075,18 @@ function adminComposeSend_(body) {
   getStudents_().forEach(p => { byId[p.id] = p; });
   const results = [];
   list.forEach(e => {
-    const p = byId[String(e.id || '')];
+    // One email can be for one student, or for brothers and sisters together (one per family).
+    const ids = (Array.isArray(e.ids) ? e.ids : [e.id]).map(String).slice(0, 12);
+    const kids = ids.map(id => byId[id]);
+    const id = ids.join('+');
     const subject = clean_(e.subject, 200) || '(no subject)';
     const text = String(e.body || '').replace(/\r/g, '').slice(0, 10000);
-    if (!p) return results.push({ id: e.id, ok: false, error: 'That student isn’t on your roster anymore.' });
-    const to = mode === 'test' ? [me] : recipients_(who, p);
-    if (!to.length) return results.push({ id: e.id, ok: false, error: 'No ' + (who.parents && who.students ? 'parent or student' : who.parents ? 'parent' : 'student') + ' email on the roster.' });
+    if (!ids.length || kids.some(p => !p)) return results.push({ id: id, ok: false, error: 'That student isn’t on your roster anymore.' });
+    const p = { name: kids.map(k => k.name).join(', ') };
+    const all = [];
+    kids.forEach(k => recipients_(who, k).forEach(a => { if (all.map(x => x.toLowerCase()).indexOf(a.toLowerCase()) === -1) all.push(a); }));
+    const to = mode === 'test' ? [me] : all;
+    if (!to.length) return results.push({ id: id, ok: false, error: 'No ' + (who.parents && who.students ? 'parent or student' : who.parents ? 'parent' : 'student') + ' email on the roster.' });
     try {
       if (mode === 'draft') {
         GmailApp.createDraft(to.join(','), subject, text);
@@ -3082,11 +3095,11 @@ function adminComposeSend_(body) {
         MailApp.sendEmail({ to: to.join(','), subject: (mode === 'test' ? '[Test] ' : '') + subject, body: text });
       }
       if (mode !== 'test') logEmail_(to.join(', '), p, mode === 'draft' ? 'draft' : 'your email', subject, '');
-      results.push({ id: e.id, ok: true, to: to });
+      results.push({ id: id, ok: true, to: to });
     } catch (err) {
       const m = String(err.message || err);
       results.push({
-        id: e.id, ok: false,
+        id: id, ok: false,
         error: mode === 'draft' && /permission|authoriz|scope/i.test(m)
           ? 'WiSH needs one more Google permission to make drafts. Ask Claude to “update WiSH”, then click Allow.' : m,
       });
