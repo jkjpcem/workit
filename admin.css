@@ -59,6 +59,11 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .tile.redo::before { background: var(--st-redo); }
 .tile.redo b { color: var(--st-redo); }
 .tile b small { font-size: 16px; font-weight: 700; color: var(--muted); letter-spacing: 0; }
+.tile b small.of { font-size: 15px; font-weight: 600; margin: 0 2px; vertical-align: 3px; }
+.tile.opens { cursor: pointer; }
+.tile.opens:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.tile .tile-go { font-style: normal; font-weight: 800; opacity: .55; margin-left: 2px; }
+.tile.opens:hover .tile-go { opacity: 1; color: var(--brand); }
 .tile.over { background: color-mix(in srgb, var(--st-redo) 10%, var(--card)); }
 .anno-over { color: var(--st-redo); }
 .scard .no-need { font-size: 13px; font-weight: 650; color: var(--muted); background: var(--field); border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px 12px; }

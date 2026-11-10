@@ -305,6 +305,33 @@
     return all.filter(i => i.studentId === studentId && i.lp === lp && i.finalizedAt && i.filedAs !== 'Extra').length;
   }
 
+  // "14 of 16": both numbers the same size, a smaller "of" between them.
+  const ofN = (a, b) => `${a} <small class="of">of</small> ${b}`;
+
+  // Links to an LP's Drive folders (uploads, annotated, extra), fetched once per LP.
+  // Resolves to null on a WiSH from before folder links.
+  const folderCache = {};
+  function lpFolders(lp) {
+    if (!folderCache[lp]) folderCache[lp] = call('adminFolders', { lp }).then(r => (r && r.ok ? r : null)).catch(() => { delete folderCache[lp]; return null; });
+    return folderCache[lp];
+  }
+
+  function openFolderTile(el) {
+    const kind = el.dataset.folder, lp = viewLp;
+    // Open the tab now (inside the click) so the browser doesn't block it, then point it at the folder.
+    const win = window.open('', '_blank');
+    lpFolders(lp).then(f => {
+      const url = f && f[kind];
+      if (url && win) { try { win.opener = null; } catch (e) {} win.location.href = url; }
+      else { if (win) win.close(); alert('Could not find that Google Drive folder. Try again in a moment.'); }
+    });
+  }
+  $('#tiles').addEventListener('click', e => { const t = e.target.closest('[data-folder]'); if (t) openFolderTile(t); });
+  $('#tiles').addEventListener('keydown', e => {
+    const t = e.target.closest('[data-folder]');
+    if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openFolderTile(t); }
+  });
+
   // ---------- Dashboard ----------
 
   $('#student-search').addEventListener('input', renderDash);
@@ -324,16 +351,20 @@
     const over = annotated.filter(a => a.n > ANNOTATED_NEEDED);
     const samples = annotated.reduce((t, a) => t + Math.min(a.n, ANNOTATED_NEEDED), 0);
     const extra = items.filter(i => status(i) === 'finalized' && i.filedAs === 'Extra').length;
+    // The Annotated and Extra tiles open this LP's Approved folder in Google Drive.
+    const folderTile = (kind) => `data-folder="${kind}" role="link" tabindex="0" title="Open the ${esc(viewLp)} ${kind === 'annotated' ? 'Annotated' : 'Extra'} folder in Google Drive"`;
     $('#tiles').innerHTML = [
-      ['', `${submitted} <small>of ${owing.length}</small>`, `Have uploaded to ${viewLp}`],
+      ['', ofN(submitted, owing.length), `Have uploaded to ${viewLp}`],
       ['', count('new'), 'To review'],
       ['approved', count('approved'), 'Approved, not filed yet'],
-      ['finalized', `${samples} <small>out of ${owing.length * ANNOTATED_NEEDED}</small>`, 'Annotated'],
-      ['', extra, 'Filed as Extra'],
+      ['finalized', ofN(samples, owing.length * ANNOTATED_NEEDED), 'Annotated', folderTile('annotated')],
+      ['', extra, 'Filed as Extra', folderTile('extra')],
       over.length ? ['redo over', `⚠ ${over.length}`, `More than ${ANNOTATED_NEEDED} annotated: ${over.map(a => `${a.s.name} (${a.n})`).join(', ')}`] : null,
       ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
       Meetings.tile(viewLp, data.students),
-    ].filter(Boolean).map(([cls, n, label]) => `<div class="tile ${cls}"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
+    ].filter(Boolean).map(([cls, n, label, attrs = '']) =>
+      `<div class="tile ${cls} ${attrs ? 'opens' : ''}" ${attrs}><b>${n}</b><span>${esc(label)}${attrs ? ' <i class="tile-go" aria-hidden="true">↗</i>' : ''}</span></div>`).join('');
+    lpFolders(viewLp); // fetch ahead so a click opens the folder right away
 
     const q = $('#student-search').value.trim().toLowerCase();
     const grid = $('#student-grid');
@@ -938,10 +969,7 @@
       const f = folderLinks[it.lp];
       if (f === undefined) {
         folderLinks[it.lp] = null;
-        call('adminFolders', { lp: it.lp })
-          .then(res => { folderLinks[it.lp] = res; })
-          .catch(() => { folderLinks[it.lp] = false; }) // a WiSH from before folder links
-          .then(() => { if (item() === it) renderFiles(it); });
+        lpFolders(it.lp).then(res => { folderLinks[it.lp] = res || false; if (item() === it) renderFiles(it); });
       }
       const link = (url, icon, label, cls = '') => url
         ? `<a class="drive-chip ${cls}" href="${esc(url)}" target="_blank" rel="noopener"><span aria-hidden="true">${icon}</span>${esc(label)}</a>` : '';
