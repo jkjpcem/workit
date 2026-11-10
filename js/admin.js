@@ -2540,8 +2540,11 @@
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
   // Spreadsheet order, for pasting. Classes are edited in their own table below the students.
-  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family'];
-  const MAIN_COLS = ['first', 'last', 'grade', 'city', 'email', 'family'];
+  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family', 'localId'];
+  // Local ID is the school's student number: only the ES sees it, and it plays no part in signing in.
+  // The column shows once the ES's script can save it (older scripts would drop it).
+  const ALL_MAIN_COLS = ['first', 'last', 'grade', 'city', 'localId', 'email', 'family'];
+  let MAIN_COLS = ALL_MAIN_COLS.filter(k => k !== 'localId');
   const GRADE_LIST = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
   let roster = [];
   let rosterDirty = false;
@@ -2551,7 +2554,7 @@
     const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim().toUpperCase();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
-  const blankRow = () => ({ first: '', last: '', grade: '', city: '', classes: '', classes2: '', email: '', family: '', status: 'Active' });
+  const blankRow = () => ({ first: '', last: '', grade: '', city: '', localId: '', classes: '', classes2: '', email: '', family: '', status: 'Active' });
   // A blank Sem 2 means Sem 1 with A changed to B.
   const classList = (r, k) => k === 'classes2' && !String(r.classes2 || '').trim()
     ? Classes.sem2From(Classes.parse(r.classes)) : Classes.parse(r[k]);
@@ -2573,6 +2576,8 @@
     busy('Loading students…');
     try {
       const res = await call('adminRoster');
+      MAIN_COLS = ALL_MAIN_COLS.filter(k => k !== 'localId' || res.localIds);
+      $('#roster-localid-th').hidden = !res.localIds;
       roster = activeFirst(res.rows.map(r => ({ ...blankRow(), ...r })));
       for (let i = 0; i < 5; i++) roster.push(blankRow());
       setDirty(false);
@@ -2627,7 +2632,7 @@
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade K–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}${r.status === 'Inactive' ? ' inactive' : ''}">
         <td class="num fz fz0">${i + 1}</td>
-        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k} row ${i + 1}" ${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
+        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k === 'localId' ? 'Local ID' : k} row ${i + 1}" ${k === 'localId' ? 'spellcheck="false" autocomplete="off" ' : ''}${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">

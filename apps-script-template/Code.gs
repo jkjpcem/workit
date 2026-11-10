@@ -49,7 +49,8 @@ const STUDENT_HEADERS = ['First name', 'Last name', 'Grade', 'City', 'Student ID
   'Sem 1 classes (comma separated; add (Accel) after an accelerated class)',
   'Sem 2 classes (leave blank to use Sem 1 with A changed to B)', 'Student email', 'Family email (more than one: separate with commas)',
   'Status (Active or Inactive)', 'Withdrew (date; owes samples for every LP that started by then)',
-  'Started (date they enrolled; LPs that ended before it need no samples)'];
+  'Started (date they enrolled; LPs that ended before it need no samples)',
+  'Local ID (school student number; only the ES sees it)'];
 // A student who starts partway through an LP: 'always' = they owe that LP, 'half' = only if they start
 // in its first half, 'next' = their samples begin with the next LP.
 const START_MID_LP = 'always';
@@ -1728,11 +1729,12 @@ function adminRoster_() {
       status: /^\s*inactive/i.test(String(v[9] || '')) ? 'Inactive' : 'Active',
       withdrew: isYmd_(dateText_(v[10]).trim()) ? dateText_(v[10]).trim() : '',
       started: isYmd_(dateText_(v[11]).trim()) ? dateText_(v[11]).trim() : '',
+      localId: text_(v[12]).trim(),
     };
     row.lastSignIn = seen[makeId_(row.first, row.grade, row.city)] || 0;
-    if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family) rows.push(row);
+    if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family || row.localId) rows.push(row);
   }
-  return { ok: true, grades: GRADES, rows: rows };
+  return { ok: true, grades: GRADES, rows: rows, localIds: true };
 }
 
 /** Replaces the Students tab with the rows from the dashboard. Column E (Student ID) is left to its formula. */
@@ -1749,8 +1751,9 @@ function adminSaveRoster_(body) {
       email: clean_(r.email, 120), family: clean_(r.family, 300), status: r.status === 'Inactive' ? 'Inactive' : 'Active',
       withdrew: r.status === 'Inactive' && isYmd_(String(r.withdrew || '')) ? String(r.withdrew) : '',
       started: isYmd_(String(r.started || '')) ? String(r.started) : '',
+      localId: clean_(r.localId, 40),
     };
-    if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family) return;
+    if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family && !row.localId) return;
     const id = makeId_(row.first, row.grade, row.city);
     const badEmail = [row.email].concat(row.family.split(/[,;\s]+/)).filter(e => e && !EMAIL_RE.test(e))[0];
     if (badEmail) problems.push('Row ' + (i + 1) + ': “' + badEmail + '” doesn’t look like an email address.');
@@ -1768,13 +1771,14 @@ function adminSaveRoster_(body) {
     const last = sheet.getLastRow();
     if (last > 1) {
       sheet.getRange(2, 1, last - 1, 4).clearContent();
-      sheet.getRange(2, 6, last - 1, 7).clearContent();
+      sheet.getRange(2, 6, last - 1, 8).clearContent();
     }
     studentHeaders_();
     if (rows.length) {
       sheet.getRange(2, 1, rows.length, 4).setValues(rows.map(r => [cell_(r.first), cell_(r.last), r.grade, cell_(r.city)]));
-      sheet.getRange(2, 11, rows.length, 2).setNumberFormat('@');
-      sheet.getRange(2, 6, rows.length, 7).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started]));
+      // Plain text, so dates stay as typed and an ID like 00123 keeps its zeros.
+      sheet.getRange(2, 11, rows.length, 3).setNumberFormat('@');
+      sheet.getRange(2, 6, rows.length, 8).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started, cell_(r.localId)]));
     }
     return { ok: true, count: rows.length };
   } finally {

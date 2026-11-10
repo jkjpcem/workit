@@ -349,6 +349,7 @@ svg.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: vis
 .roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
 .roster td.col-email { min-width: 210px; }
 .roster td.col-city { min-width: 120px; }
+.roster td.col-localId { min-width: 110px; }
 .roster td.col-family { min-width: 300px; }
 /* Number and name columns stay put while the rest scrolls right */
 .roster.people { min-width: 1560px; border-collapse: separate; border-spacing: 0; }
@@ -1031,3 +1032,4 @@ label.feature-row { flex-direction: row; display: flex; gap: 14px; align-items: 
 :root[data-theme="dark"] .em-recent .k, :root[data-theme="dark"] .em-pill.draft { background: #222b4a; color: #b9c7f5; }
 :root[data-theme="dark"] .em-row .tag.owes { background: #3a2f12; color: #ffd98a; }
 :root[data-theme="dark"] .em-err { background: #3d1a1a; color: #ffb4b4; }
+.roster th[hidden] { display: none; }
