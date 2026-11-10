@@ -48,7 +48,7 @@ function AdminMeetings(ctx) {
     if (!on(lp)) return null;
     const booked = new Set(forLp(lp).flatMap(b => b.studentIds));
     const n = students.filter(s => booked.has(s.id)).length;
-    return ['meet', `${n} of ${students.length}`, 'Booked an LP meeting'];
+    return ['t-info', `${n} <small class="of">of</small> ${students.length}`, 'Booked an LP meeting'];
   }
 
   /** Card on the student page: every LP with a link or a booking. */
@@ -108,7 +108,7 @@ function AdminMeetings(ctx) {
       .slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
     body.innerHTML = `
       <div class="tiles">
-        <div class="tile meet"><b>${booked.size} of ${data.students.length}</b><span>Students booked for ${esc(lp)}</span></div>
+        <div class="tile meet"><b>${booked.size} <small class="of">of</small> ${data.students.length}</b><span>Students booked for ${esc(lp)}</span></div>
         <div class="tile"><b>${notYet.length}</b><span>Not booked yet</span></div>
         <div class="tile ${unmatched.length ? 'redo' : ''}"><b>${unmatched.length}</b><span>Booked by someone not on the roster</span></div>
       </div>
