@@ -509,7 +509,15 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 .alert-item .redo-note-text { margin: 6px 0 0; font-size: 14px; white-space: pre-wrap; }
 .notes.redo-note-text { white-space: pre-wrap; }
 
-.es-name { display: inline-block; margin: 6px 0 0; padding: 4px 12px; border-radius: 99px; font-size: 14px; font-weight: 650; color: var(--brand); background: var(--brand-soft); }
+/* Whose WiSH this is: a big filled pill, "ES" then the name in its own white pill. */
+.es-name { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; margin: 4px 0 0; padding: 6px 6px 6px 18px; border-radius: 99px; background: var(--brand-2); color: #fff; box-shadow: var(--shadow-brand); }
+.es-name .es-tag { font-size: 18px; font-weight: 800; letter-spacing: .06em; }
+.es-name .es-who { min-width: 0; padding: 6px 18px; border-radius: 99px; background: #fff; color: var(--brand-2); font-size: 24px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.es-name.small { gap: 6px; margin: 0; padding: 3px 3px 3px 10px; box-shadow: none; }
+.es-name.small .es-tag { font-size: 12px; }
+.es-name.small .es-who { padding: 2px 10px; font-size: 14px; }
+.greeting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+.greeting-row .greeting { margin: 0; }
 
 /* Annotating an upload in the viewer: the same text boxes as the ES dashboard */
 .viewer-head .save-state { margin-left: auto; font-size: 13px; color: rgba(255, 255, 255, .75); white-space: nowrap; }
@@ -686,7 +694,7 @@ body:has(#screen-find:not([hidden])) .topbar { display: none; }
 @keyframes find-pop { from { opacity: 0; transform: translateY(4px); } }
 .find .teacher-link { margin-top: 28px; }
 .find .teacher-link a { color: var(--brand); }
-.not-my-es { margin: 8px 0 0; }
+.not-my-es { margin: 10px 0 0; }
 .linkish { border: 0; background: none; padding: 2px 4px; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .linkish:hover { color: var(--brand); }
 
