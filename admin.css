@@ -54,12 +54,16 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 }
 .tile::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--brand); }
 .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-.tile b { display: block; font-size: 30px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
+.tile b { display: block; font-size: 24px; line-height: 1.15; font-weight: 650; letter-spacing: -.01em; }
 .tile span { font-size: 13px; color: var(--muted); font-weight: 600; }
 .tile.redo::before { background: var(--st-redo); }
 .tile.redo b { color: var(--st-redo); }
+/* Dashboard tile edges: yellow = waiting on you, green = done, gray = just information (red = redo, above). */
+.tile.t-you::before { background: var(--tile-you, #e8c43a); }
+.tile.t-done::before { background: var(--st-approved); }
+.tile.t-info::before { background: var(--st-reference); }
 .tile b small { font-size: 16px; font-weight: 700; color: var(--muted); letter-spacing: 0; }
-.tile b small.of { font-size: 15px; font-weight: 600; margin: 0 2px; vertical-align: 3px; }
+.tile b small.of { font-size: 13px; font-weight: 600; margin: 0 2px; vertical-align: 2px; }
 .tile.opens { cursor: pointer; }
 .tile.opens:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 .tile .tile-go { font-style: normal; font-weight: 800; opacity: .55; margin-left: 2px; }

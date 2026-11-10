@@ -48,7 +48,7 @@ function AdminMeetings(ctx) {
     if (!on(lp)) return null;
     const booked = new Set(forLp(lp).flatMap(b => b.studentIds));
     const n = students.filter(s => booked.has(s.id)).length;
-    return ['meet', `${n} <small class="of">of</small> ${students.length}`, 'Booked an LP meeting'];
+    return ['t-info', `${n} <small class="of">of</small> ${students.length}`, 'Booked an LP meeting'];
   }
 
   /** Card on the student page: every LP with a link or a booking. */

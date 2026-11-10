@@ -354,11 +354,12 @@
     // The Annotated and Extra tiles open this LP's Approved folder in Google Drive.
     const folderTile = (kind) => `data-folder="${kind}" role="link" tabindex="0" title="Open the ${esc(viewLp)} ${kind === 'annotated' ? 'Annotated' : 'Extra'} folder in Google Drive"`;
     $('#tiles').innerHTML = [
-      ['', ofN(submitted, owing.length), `Have uploaded to ${viewLp}`],
-      ['', count('new'), 'To review'],
-      ['approved', count('approved'), 'Approved, not filed yet'],
-      ['finalized', ofN(samples, owing.length * ANNOTATED_NEEDED), 'Annotated', folderTile('annotated')],
-      ['', extra, 'Filed as Extra', folderTile('extra')],
+      // Left edge: yellow = waiting on you, red = waiting on the student, green = done, gray = information.
+      ['t-info', ofN(submitted, owing.length), `Have uploaded to ${viewLp}`],
+      ['t-you', count('new'), 'To review'],
+      ['t-you', count('approved'), 'Approved, not filed yet'],
+      ['t-done', ofN(samples, owing.length * ANNOTATED_NEEDED), 'Annotated', folderTile('annotated')],
+      ['t-done', extra, 'Filed as Extra', folderTile('extra')],
       over.length ? ['redo over', `⚠ ${over.length}`, `More than ${ANNOTATED_NEEDED} annotated: ${over.map(a => `${a.s.name} (${a.n})`).join(', ')}`] : null,
       ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
       Meetings.tile(viewLp, data.students),
