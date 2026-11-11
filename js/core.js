@@ -206,7 +206,9 @@ function AdminCore(ctx) {
     const forRp = rpOf(viewLp);
     const lps = RPS[forRp];
     const late = ended(forRp);
-    const rows = core.students.map(st => {
+    // Students who don't owe samples for the LP being viewed (inactive, withdrew before it, or not started yet) are left out.
+    const owes = ctx.owes || (() => true);
+    const rows = core.students.filter(st => owes(st, viewLp)).map(st => {
       const list = slots(st, forRp);
       return { st, list, missing: list.filter(x => !done(x)).length };
     }).sort((a, b) => b.missing - a.missing || a.st.lastName.localeCompare(b.st.lastName) || a.st.firstName.localeCompare(b.st.firstName));
