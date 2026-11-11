@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 52;
+const WORKIT_VERSION = 53;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -50,7 +50,8 @@ const STUDENT_HEADERS = ['First name', 'Last name', 'Grade', 'City', 'Student ID
   'Sem 2 classes (leave blank to use Sem 1 with A changed to B)', 'Student email', 'Family email (more than one: separate with commas)',
   'Status (Active or Inactive)', 'Withdrew (date; owes samples for every LP that started by then)',
   'Started (date they enrolled; LPs that ended before it need no samples)',
-  'Local ID (school student number; only the ES sees it)', 'Parent first name', 'Parent last name'];
+  'Local ID (school student number; only the ES sees it)', 'Parent first name', 'Parent last name',
+  'Reminders (On or Off; Off = no reminder emails for this student)'];
 // A student who starts partway through an LP: 'always' = they owe that LP, 'half' = only if they start
 // in its first half, 'next' = their samples begin with the next LP.
 const START_MID_LP = 'always';
@@ -1731,11 +1732,12 @@ function adminRoster_() {
       started: isYmd_(dateText_(v[11]).trim()) ? dateText_(v[11]).trim() : '',
       localId: text_(v[12]).trim(),
       parentFirst: text_(v[13]).trim(), parentLast: text_(v[14]).trim(),
+      reminders: /^\s*off/i.test(String(v[15] || '')) ? 'Off' : 'On',
     };
     row.lastSignIn = seen[makeId_(row.first, row.grade, row.city)] || 0;
     if (row.first || row.last || row.grade || row.city || row.classes || row.classes2 || row.email || row.family || row.localId || row.parentFirst || row.parentLast) rows.push(row);
   }
-  return { ok: true, grades: GRADES, rows: rows, localIds: true, parentNames: true };
+  return { ok: true, grades: GRADES, rows: rows, localIds: true, parentNames: true, reminderSwitch: true };
 }
 
 /** Replaces the Students tab with the rows from the dashboard. Column E (Student ID) is left to its formula. */
@@ -1754,6 +1756,7 @@ function adminSaveRoster_(body) {
       started: isYmd_(String(r.started || '')) ? String(r.started) : '',
       localId: clean_(r.localId, 40),
       parentFirst: clean_(r.parentFirst, 60), parentLast: clean_(r.parentLast, 60),
+      reminders: r.reminders === 'Off' ? 'Off' : 'On',
     };
     if (!row.first && !row.last && !row.grade && !row.city && !row.classes && !row.classes2 && !row.email && !row.family && !row.localId && !row.parentFirst && !row.parentLast) return;
     const id = makeId_(row.first, row.grade, row.city);
@@ -1773,14 +1776,14 @@ function adminSaveRoster_(body) {
     const last = sheet.getLastRow();
     if (last > 1) {
       sheet.getRange(2, 1, last - 1, 4).clearContent();
-      sheet.getRange(2, 6, last - 1, 10).clearContent();
+      sheet.getRange(2, 6, last - 1, 11).clearContent();
     }
     studentHeaders_();
     if (rows.length) {
       sheet.getRange(2, 1, rows.length, 4).setValues(rows.map(r => [cell_(r.first), cell_(r.last), r.grade, cell_(r.city)]));
       // Plain text, so dates stay as typed and an ID like 00123 keeps its zeros.
       sheet.getRange(2, 11, rows.length, 3).setNumberFormat('@');
-      sheet.getRange(2, 6, rows.length, 10).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started, cell_(r.localId), cell_(r.parentFirst), cell_(r.parentLast)]));
+      sheet.getRange(2, 6, rows.length, 11).setValues(rows.map(r => [cell_(r.classes), cell_(r.classes2), r.email, r.family, r.status, r.withdrew, r.started, cell_(r.localId), cell_(r.parentFirst), cell_(r.parentLast), r.reminders]));
     }
     return { ok: true, count: rows.length };
   } finally {
@@ -2159,6 +2162,8 @@ function getStudents_() {
     const started = dateText_(v[11]).trim();
     st.started = isYmd_(started) ? started : '';
     st.skipLps = st.started ? LEARNING_PERIODS.filter(l => !startOwes_(st.started, lpDates[l])) : [];
+    // Reminders switched Off on the roster: no reminder emails to this student or family.
+    st.remindersOff = /^\s*off/i.test(String(v[15] || ''));
   }
   memoPut_('students', out);
   return out;
@@ -3330,6 +3335,7 @@ function familyEmails_(s, st, sent, hourNow, since) {
 
   Object.keys(due).forEach(id => {
     const d = due[id];
+    if (d.student.remindersOff) return; // switched off on the roster
     if (!recipients_(s, d.student).length && s.families === 'on') return; // listed in your report instead
     if (d.list.length > 1) {
       const first = d.student.firstName || d.student.name;
@@ -3603,7 +3609,7 @@ function sendReport_(s, st, days, key) {
     mine.forEach(e => { kinds[e.kind] = (kinds[e.kind] || 0) + 1; });
     lines.push('Emails sent to families: ' + (mine.length ? Object.keys(kinds).map(k => kinds[k] + ' ' + k).join(', ') : 'none'), '');
   }
-  const noEmail = all.filter(x => !recipients_(s, x.student).length).map(x => x.student.name);
+  const noEmail = all.filter(x => !x.student.remindersOff && !recipients_(s, x.student).length).map(x => x.student.name);
   if (noEmail.length && s.families !== 'off') lines.push('No email on file (add one in the Student Roster): ' + noEmail.join(', '), '');
   if (s.families === 'test') lines.push('Family emails are in Test mode: they come to you instead of families.', '');
   lines.push('Open the dashboard: ' + dashLink_(s));
@@ -3799,7 +3805,7 @@ function reportHtml_(s, st, days, fresh, on) {
     recentEmails_(200).filter(e => e.at > after && e.kind !== 'report' && e.kind !== 'to you').forEach(e => { kinds[e.kind] = (kinds[e.kind] || 0) + 1; });
     notes.push('Emails sent to families: ' + (Object.keys(kinds).length ? Object.keys(kinds).map(k => kinds[k] + ' ' + esc_(k)).join(', ') : 'none') + '.');
   }
-  const noEmail = st.students.filter(x => !recipients_(s, x.student).length).map(x => esc_(x.student.name));
+  const noEmail = st.students.filter(x => !x.student.remindersOff && !recipients_(s, x.student).length).map(x => esc_(x.student.name));
   if (noEmail.length && s.families !== 'off') notes.push('No email on file (add one in the Student Roster): ' + noEmail.join(', ') + '.');
   if (notes.length) rows.push('<tr><td style="padding:14px 22px 0;' + F + 'font-size:12px;color:#4a5272;line-height:1.6">' + notes.join('<br>') + '</td></tr>');
   rows.push('<tr><td style="padding:20px 22px 18px;text-align:center"><table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto"><tr><td style="background:#2442b8;border-radius:8px;padding:12px 26px">' +

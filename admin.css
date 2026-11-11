@@ -362,6 +362,16 @@ svg.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: vis
 .roster.people th.em { color: var(--brand); background: var(--brand-soft, #e4ebff); }
 .roster .rem-cell { padding: 0 12px; font-size: 13px; white-space: nowrap; color: var(--muted); }
 .roster .rem-cell.on { color: var(--good); font-weight: 700; }
+.roster .rem-switch { display: inline-flex; flex-direction: row; align-items: center; gap: 7px; cursor: pointer; vertical-align: middle; }
+.roster .rem-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.roster .rem-switch .knob { position: relative; width: 34px; height: 20px; border-radius: 999px; background: var(--line); transition: background .15s; flex: none; }
+.roster .rem-switch .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .15s; }
+.roster .rem-switch input:checked + .knob { background: var(--good); }
+.roster .rem-switch input:checked + .knob::after { transform: translateX(14px); }
+.roster .rem-switch input:focus-visible + .knob { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent); }
+.roster .rem-switch b { font-size: 13px; }
+.roster .rem-cell:not(.on) .rem-switch b { color: var(--muted); font-weight: 600; }
+.roster .rem-cell small { display: block; margin-top: 1px; font-size: 11px; font-weight: 600; color: var(--muted); }
 .roster .more input:placeholder-shown { background: #fffbea; }
 .roster td.col-classes2 input::placeholder { color: var(--muted); opacity: .75; font-style: italic; }
 .roster .sid-cell b.ok { color: var(--st-finalized); }
