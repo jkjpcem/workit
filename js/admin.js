@@ -2648,6 +2648,11 @@
     const b = $('.fold', main);
     b.setAttribute('aria-expanded', on);
     b.title = `${on ? 'Hide' : 'Show'} emails and parent name`;
+    foldAllLabel();
+  }
+  // "Collapse all" while any student is open, "Expand all" when none are.
+  function foldAllLabel() {
+    $('#roster-fold-all').textContent = roster.some(r => !isEmpty(r) && openRows.has(r)) ? 'Collapse all' : 'Expand all';
   }
   $('#roster-body').addEventListener('click', (e) => {
     const b = e.target.closest('[data-fold]');
@@ -2655,11 +2660,10 @@
     const i = Number(b.dataset.fold);
     setOpen(i, !openRows.has(roster[i]));
   });
-  // The triangle in the header opens or closes every student.
+  // Expand all / Collapse all opens or closes every student.
   $('#roster-fold-all').addEventListener('click', () => {
     const on = !roster.some(r => !isEmpty(r) && openRows.has(r));
     roster.forEach((r, i) => { if (!isEmpty(r) || !on) setOpen(i, on); });
-    $('#roster-fold-all').setAttribute('aria-expanded', on);
   });
 
   function renderRoster() {
@@ -2686,6 +2690,7 @@
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
     renderClasses();
+    foldAllLabel();
   }
 
   // ----- Classes: one tag per class, Sem 1 and Sem 2 side by side -----

@@ -801,6 +801,8 @@ a.brand:hover { opacity: .9; }
 /* The triangle by a name opens a second line: student email, parent name, parent emails */
 .roster .fold { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); width: 22px; height: 26px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; border-radius: 6px; transition: transform .15s; }
 .roster tr.main.empty .fold { visibility: hidden; }
+.fold-all { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--brand); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+.fold-all:hover { background: var(--field); }
 .roster .fold:hover { color: var(--brand); background: var(--field); }
 .roster .fold[aria-expanded="true"] { transform: translateY(-50%) rotate(90deg); color: var(--brand); }
 .roster.people th.fz0 { position: sticky; }
