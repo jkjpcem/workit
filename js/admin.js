@@ -2563,7 +2563,7 @@
     const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim().toUpperCase();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
-  const blankRow = () => ({ first: '', last: '', grade: '', city: '', localId: '', classes: '', classes2: '', email: '', family: '', parentFirst: '', parentLast: '', status: 'Active' });
+  const blankRow = () => ({ first: '', last: '', grade: '', city: '', localId: '', classes: '', classes2: '', email: '', family: '', parentFirst: '', parentLast: '', status: 'Active', reminders: 'On' });
   // A blank Sem 2 means Sem 1 with A changed to B.
   const classList = (r, k) => k === 'classes2' && !String(r.classes2 || '').trim()
     ? Classes.sem2From(Classes.parse(r.classes)) : Classes.parse(r[k]);
@@ -2574,9 +2574,17 @@
     : r.lastSignIn ? esc(new Date(r.lastSignIn).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))
     : '<span class="never">Never</span>';
   // Whether reminders can reach this family.
-  const remCell = (r) => isEmpty(r) ? '<td class="rem-cell"></td>'
-    : r.status === 'Inactive' ? '<td class="rem-cell">Off (inactive)</td>'
-    : String(r.email || '').trim() || String(r.family || '').trim() ? '<td class="rem-cell on">● On</td>' : '<td class="rem-cell">No email yet</td>';
+  // With a script that can save it, an On/Off switch for each active student.
+  let remSwitch = false;
+  const hasEmail = (r) => !!(String(r.email || '').trim() || String(r.family || '').trim());
+  const remCell = (r) => {
+    if (isEmpty(r)) return '<td class="rem-cell"></td>';
+    if (r.status === 'Inactive') return '<td class="rem-cell">Off (inactive)</td>';
+    if (!remSwitch) return hasEmail(r) ? '<td class="rem-cell on">● On</td>' : '<td class="rem-cell">No email yet</td>';
+    const on = r.reminders !== 'Off';
+    return `<td class="rem-cell${on ? ' on' : ''}"><label class="rem-switch" title="${on ? 'Reminder emails go to this student and family. Click to turn them off.' : 'No reminder emails for this student. Click to turn them on.'}">
+      <input type="checkbox" data-rem ${on ? 'checked' : ''} aria-label="Reminders for ${esc(r.first)}"><span class="knob"></span><b>${on ? 'On' : 'Off'}</b></label>${on && !hasEmail(r) ? '<small>No email yet</small>' : ''}</td>`;
+  };
 
   // The setup steps open the Students page too, and come back to it.
   let rosterBack = 'dash';
@@ -2589,6 +2597,7 @@
       $('#roster-localid-th').hidden = !res.localIds;
       $('table.roster.people').classList.toggle('has-localid', !!res.localIds);
       MORE_COLS = ALL_MORE_COLS.filter(c => !/^parent/.test(c.k) || res.parentNames);
+      remSwitch = !!res.reminderSwitch;
       roster = activeFirst(res.rows.map(r => ({ ...blankRow(), ...r })));
       for (let i = 0; i < 5; i++) roster.push(blankRow());
       setDirty(false);
@@ -2859,6 +2868,15 @@
   });
 
   // Status: an inactive student can still sign in, but can't turn in work and gets no reminders.
+  // Reminders On/Off: saved with the other changes when you click Save students.
+  $('#roster-body').addEventListener('change', (e) => {
+    const box = e.target.closest('input[data-rem]');
+    if (!box) return;
+    const tr = box.closest('tr');
+    roster[Number(tr.dataset.r)].reminders = box.checked ? 'On' : 'Off';
+    $('.rem-cell', tr).outerHTML = remCell(roster[Number(tr.dataset.r)]);
+    setDirty(true);
+  });
   $('#roster-body').addEventListener('change', (e) => {
     const sel = e.target.closest('select[data-k="status"]');
     if (!sel) return;
