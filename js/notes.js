@@ -8,13 +8,17 @@ const Notes = (() => {
     hand: '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive',
     mono: '"Courier New", Courier, monospace',
   };
-  const COLORS = ['#d0342c', '#1f5bd8', '#18864b', '#7b3fc4', '#e07a00', '#111111'];
+  const COLORS = ['#d0342c', '#1f5bd8', '#18864b', '#7b3fc4', '#e07a00', '#111111', '#ffffff'];
+  // Box backgrounds: none (see-through), white, light highlighter tints, then solid black.
+  const FILLS = ['', '#ffffff', '#fff176', '#cfe3ff', '#c8f0d4', '#ffd3d3', '#ffe0b2', '#111111'];
+  const fillSwatches = () => FILLS.map(c =>
+    `<button type="button" class="swatch fill${c ? '' : ' none'}" role="radio" aria-checked="false" aria-label="${c ? 'Fill ' + c : 'No fill'}" title="${c ? 'Background color' : 'No background'}" data-fill="${c}"${c ? ` style="background:${c}"` : ''}></button>`).join('');
   const PAGE_PT = 612; // text sizes are points on a letter-width page
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
-  const style = { font: 'sans', size: 18, bold: true, color: COLORS[0] };
+  const style = { font: 'sans', size: 18, bold: true, color: COLORS[0], bg: '' };
   const PEN_PT = 3;
   let pagesEl = null, bar = null, notes = [], editing = false, selected = -1, onChange = null, pen = false;
   let hist = { stack: [], last: '[]', t: 0, sel: -2 }; // Undo
@@ -30,14 +34,17 @@ const Notes = (() => {
         <option value="hand">Comic</option><option value="mono">Courier</option>
       </select>
       <select data-n="size" aria-label="Text size">${[10, 12, 14, 18, 24, 32, 48].map(n => `<option>${n}</option>`).join('')}</select>
-      <span class="swatches" role="radiogroup" aria-label="Color">${COLORS.map(c =>
-        `<button type="button" class="swatch" role="radio" aria-checked="false" aria-label="${c}" data-color="${c}" style="background:${c}"></button>`).join('')}</span>
+      <span class="swatch-group"><span class="swatch-label">Text</span>
+      <span class="swatches" role="radiogroup" aria-label="Text color">${COLORS.map(c =>
+        `<button type="button" class="swatch" role="radio" aria-checked="false" aria-label="${c}" data-color="${c}" style="background:${c}"></button>`).join('')}</span></span>
+      <span class="swatch-group"><span class="swatch-label">Fill</span>
+      <span class="swatches fills" role="radiogroup" aria-label="Background color">${fillSwatches()}</span></span>
       <button type="button" class="btn small n-bold" data-n="bold" aria-pressed="false" title="Bold"><b>B</b></button>
       <button type="button" class="btn small" data-n="delete" title="Delete" aria-label="Delete">🗑</button>`;
     el.addEventListener('mousedown', (e) => { if (e.target.tagName !== 'SELECT') e.preventDefault(); });
     el.addEventListener('click', (e) => {
       const sw = e.target.closest('.swatch');
-      if (sw) return setStyle({ color: sw.dataset.color });
+      if (sw) return setStyle(sw.classList.contains('fill') ? { bg: sw.dataset.fill } : { color: sw.dataset.color });
       const b = e.target.closest('[data-n]');
       if (!b) return;
       if (b.dataset.n === 'add') { setPen(false); addInView(); }
@@ -221,6 +228,7 @@ const Notes = (() => {
       fontSize: `calc(${a.size} * 100cqw / ${PAGE_PT})`,
       fontWeight: a.bold ? '700' : '400',
       color: a.color,
+      background: a.bg || '',
       transform: a.rot ? `rotate(${a.rot}deg)` : '',
     });
   }
@@ -245,7 +253,8 @@ const Notes = (() => {
     $('[data-n=font]', bar).value = s.font;
     $('[data-n=size]', bar).value = String(s.size);
     $('[data-n=bold]', bar).setAttribute('aria-pressed', String(!!s.bold));
-    $$('.swatch', bar).forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
+    $$('.swatch:not(.fill)', bar).forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
+    $$('.swatch.fill', bar).forEach(b => b.setAttribute('aria-checked', String(b.dataset.fill === (s.bg || ''))));
     $('[data-n=delete]', bar).disabled = !notes[selected];
     $('[data-n=pen]', bar).setAttribute('aria-pressed', String(pen));
     $('[data-n=undo]', bar).disabled = !hist.stack.length;
