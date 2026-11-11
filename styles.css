@@ -532,6 +532,9 @@ dialog.viewer::backdrop { background: rgba(10, 16, 36, .88); }
 .notes-bar .swatches { display: flex; gap: 6px; }
 .notes-bar .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
 .notes-bar .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text); }
+.notes-bar .swatch-group { display: inline-flex; align-items: center; gap: 6px; }
+.notes-bar .swatch-label { font-size: 12px; font-weight: 650; color: var(--muted); margin-right: -2px; }
+.notes-bar .swatch.none { background: linear-gradient(135deg, transparent 45%, #d0342c 45%, #d0342c 55%, transparent 55%), #fff; }
 .notes-bar .n-bold[aria-pressed="true"], .notes-bar .n-pen[aria-pressed="true"] { background: var(--text); color: var(--card); }
 .notes-hint { margin: 0 16px 8px; color: rgba(255, 255, 255, .8); font-size: 13px; }
 .npage { position: relative; width: 100%; container-type: inline-size; }

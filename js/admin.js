@@ -745,7 +745,11 @@
     hand: '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive',
     mono: '"Courier New", Courier, monospace',
   };
-  const COLORS = ['#d0342c', '#1f5bd8', '#18864b', '#7b3fc4', '#e07a00', '#111111'];
+  const COLORS = ['#d0342c', '#1f5bd8', '#18864b', '#7b3fc4', '#e07a00', '#111111', '#ffffff'];
+  // Box backgrounds: none (see-through), white, light highlighter tints, then solid black.
+  const FILLS = ['', '#ffffff', '#fff176', '#cfe3ff', '#c8f0d4', '#ffd3d3', '#ffe0b2', '#111111'];
+  const fillSwatches = () => FILLS.map(c =>
+    `<button type="button" class="swatch fill${c ? '' : ' none'}" role="radio" aria-checked="false" aria-label="${c ? 'Fill ' + c : 'No fill'}" title="${c ? 'Background color' : 'No background'}" data-fill="${c}"${c ? ` style="background:${c}"` : ''}></button>`).join('');
   const PAGE_PT = 612; // text sizes are points on a letter-width page
 
   const Viewer = (() => {
@@ -755,7 +759,7 @@
     let reviewTimer = null, annoTimer = null;
     let annotating = false;
     let selected = -1;               // index into item.annotations
-    let style = { font: 'sans', size: 14, color: COLORS[0], bold: false }; // for new boxes
+    let style = { font: 'sans', size: 14, color: COLORS[0], bg: '', bold: false }; // for new boxes
     let pen = false;                 // ✏️ Pen: drag on a page to write by hand
     const PEN_PT = 2.5;
     let hist = { id: null, stack: [], last: '', t: 0, sel: -2 }; // Undo, per upload
@@ -1182,6 +1186,7 @@
 
     $('#a-colors').innerHTML = COLORS.map(c =>
       `<button class="swatch" role="radio" aria-checked="false" aria-label="${c}" data-color="${c}" style="background:${c}"></button>`).join('');
+    $('#a-fills').innerHTML = fillSwatches();
 
     // The family's own text boxes and pen marks join the ES's list (marked family) so the ES
     // can change them too; they're saved back to the family's column.
@@ -1275,6 +1280,7 @@
         fontSize: `calc(${a.size} * 100cqw / ${PAGE_PT})`,
         fontWeight: a.bold ? '700' : '400',
         color: a.color,
+        background: a.bg || '',
         transform: a.rot ? `rotate(${a.rot}deg)` : '',
       });
     }
@@ -1299,6 +1305,7 @@
       $('#a-size').value = String(s.size);
       $('#a-bold').setAttribute('aria-pressed', String(!!s.bold));
       $$('#a-colors .swatch').forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === s.color)));
+      $$('#a-fills .swatch').forEach(b => b.setAttribute('aria-checked', String(b.dataset.fill === (s.bg || ''))));
       $('#a-delete').disabled = !a;
       $('#a-delete').title = Ink.is(a) ? 'Delete this pen mark' : 'Delete this text box';
       $('#a-pen').setAttribute('aria-pressed', String(pen));
@@ -1363,6 +1370,10 @@
     $('#a-colors').addEventListener('click', (e) => {
       const b = e.target.closest('.swatch');
       if (b) setStyle({ color: b.dataset.color });
+    });
+    $('#a-fills').addEventListener('click', (e) => {
+      const b = e.target.closest('.swatch');
+      if (b) setStyle({ bg: b.dataset.fill });
     });
     $('#a-delete').addEventListener('click', () => removeSelected());
     function removeSelected() {
@@ -1655,18 +1666,23 @@
         const px = a.size * W / PAGE_PT;
         const padX = 0.3 * px, padY = 0.15 * px, lineH = 1.25 * px;
         ctx.font = `${a.bold ? '700' : '400'} ${px}px ${FONTS[a.font] || FONTS.sans}`;
-        ctx.fillStyle = a.color;
         ctx.textBaseline = 'top';
         const maxW = Math.max(px, a.w * W - 2 * padX);
         const lines = wrap(ctx, a.text, maxW);
+        const boxH = lines.length * lineH + 2 * padY;
         ctx.save();
         if (a.rot) {
           // Turn around the box's center, as on screen.
-          const bx = a.x * W + a.w * W / 2, by = a.y * H + (lines.length * lineH + 2 * padY) / 2;
+          const bx = a.x * W + a.w * W / 2, by = a.y * H + boxH / 2;
           ctx.translate(bx, by);
           ctx.rotate(a.rot * Math.PI / 180);
           ctx.translate(-bx, -by);
         }
+        if (a.bg) {
+          ctx.fillStyle = a.bg;
+          ctx.fillRect(a.x * W, a.y * H, a.w * W, boxH);
+        }
+        ctx.fillStyle = a.color;
         let y = a.y * H + padY + (lineH - px) / 2;
         for (const line of lines) {
           ctx.fillText(line, a.x * W + padX, y);

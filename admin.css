@@ -254,6 +254,9 @@ label.inline select { width: auto; padding: 6px 10px; font-weight: 700; color: v
 .swatches { display: flex; gap: 6px; }
 .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; transition: transform .15s var(--ease); }
 .swatch:hover { transform: scale(1.12); }
+.swatch-group { display: inline-flex; align-items: center; gap: 6px; }
+.swatch-label { font-size: 12px; font-weight: 650; color: var(--muted); margin-right: -2px; }
+.swatch.none { background: linear-gradient(135deg, transparent 45%, #d0342c 45%, #d0342c 55%, transparent 55%), #fff; }
 .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text); }
 .anno-hint { max-width: 860px; margin: 0 auto 10px; }
 @media (max-width: 700px) { .anno-bar { top: -12px; margin-top: -12px; } }
