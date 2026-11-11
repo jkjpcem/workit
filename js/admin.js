@@ -3027,6 +3027,7 @@
     $, esc, toast, busy, show, call,
     openStudent: (id) => openStudent(id, viewLp).catch(err => toast(err.message)),
     redraw: () => renderDash(),
+    owes: (s, lp) => owes(s, lp),
   });
 
   // Another tab (the one "Finish in WiSH" opened) connected the copy: move on here too.
