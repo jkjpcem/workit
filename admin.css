@@ -349,7 +349,7 @@ svg.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: vis
 .roster td.col-classes, .roster td.col-classes2 { min-width: 220px; }
 .roster td.col-email { min-width: 210px; }
 .roster td.col-city { min-width: 120px; }
-.roster td.col-localId { min-width: 110px; }
+.roster td.col-localId input { width: 100%; font-variant-numeric: tabular-nums; }
 .roster td.col-family { min-width: 300px; }
 /* Number and name columns stay put while the rest scrolls right */
 .roster.people { min-width: 1560px; border-collapse: separate; border-spacing: 0; }
@@ -790,13 +790,16 @@ a.brand:hover { opacity: .9; }
 .roster.people th:nth-child(3) { width: 130px; }
 .roster.people th:nth-child(4) { width: 66px; }
 .roster.people th:nth-child(5) { width: 110px; }
-.roster.people th:nth-child(6) { width: 230px; }
-.roster.people th:nth-child(7) { width: 270px; }
-.roster.people th:nth-child(8) { width: 110px; }
-.roster.people th:nth-child(9) { width: 150px; }
-.roster.people th:nth-child(10) { width: 120px; }
-.roster.people th:nth-child(11) { width: 150px; }
-.roster.people th:nth-child(12) { width: 150px; }
+/* After City, sized by name: the Local ID column only shows once the script can save it */
+.roster.people th.w-email { width: 230px; }
+.roster.people th.w-family { width: 270px; }
+.roster.people th.w-rem { width: 110px; }
+.roster.people th.w-sid { width: 150px; }
+.roster.people th.w-status { width: 120px; }
+.roster.people th.w-started { width: 150px; }
+.roster.people th.w-withdrew { width: 150px; }
+.roster.people th.w-localid { width: 76px; }
+.roster.people.has-localid { width: 1726px; min-width: 1726px; }
 .roster.people td { min-width: 0 !important; width: auto; }
 .roster.people .fz1, .roster.people .fz2 { min-width: 0; }
 .roster.people .sid-cell { width: auto; overflow: hidden; text-overflow: ellipsis; }

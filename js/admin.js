@@ -2578,6 +2578,7 @@
       const res = await call('adminRoster');
       MAIN_COLS = ALL_MAIN_COLS.filter(k => k !== 'localId' || res.localIds);
       $('#roster-localid-th').hidden = !res.localIds;
+      $('table.roster.people').classList.toggle('has-localid', !!res.localIds);
       roster = activeFirst(res.rows.map(r => ({ ...blankRow(), ...r })));
       for (let i = 0; i < 5; i++) roster.push(blankRow());
       setDirty(false);
@@ -2632,7 +2633,7 @@
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade K–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
       return `<tr data-r="${i}" class="${problem ? 'bad' : ''}${r.status === 'Inactive' ? ' inactive' : ''}">
         <td class="num fz fz0">${i + 1}</td>
-        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k === 'localId' ? 'Local ID' : k} row ${i + 1}" ${k === 'localId' ? 'spellcheck="false" autocomplete="off" ' : ''}${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
+        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k === 'localId' ? 'Local ID' : k} row ${i + 1}" ${k === 'localId' ? 'size="5" inputmode="numeric" spellcheck="false" autocomplete="off" ' : ''}${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
