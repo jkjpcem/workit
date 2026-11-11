@@ -277,7 +277,7 @@ const Notes = (() => {
 
   function addBox(page, x, y) {
     // A box left empty goes away when the next one is added.
-    notes = notes.filter(a => Ink.is(a) || String(a.text || '').trim());
+    notes = notes.filter(a => Ink.is(a) || a.bg || String(a.text || '').trim());
     notes.push({ page, x: clamp(x, 0, 0.6), y: clamp(y, 0, 0.95), w: 0.4, text: '', ...style });
     selected = notes.length - 1;
     render();
@@ -346,7 +346,7 @@ const Notes = (() => {
   function changed() {
     remember();
     syncBar();
-    if (onChange) onChange(notes.filter(a => Ink.is(a) || String(a.text || '').trim()));
+    if (onChange) onChange(notes.filter(a => Ink.is(a) || a.bg || String(a.text || '').trim()));
   }
 
   return { mount, setEditing, isEditing: () => editing, setGestures: (h) => { hooks = h; } };
