@@ -2540,11 +2540,20 @@
   // ---------- Students (bulk add and edit, like a spreadsheet) ----------
 
   // Spreadsheet order, for pasting. Classes are edited in their own table below the students.
-  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family', 'localId'];
+  const COLS = ['first', 'last', 'grade', 'city', 'classes', 'classes2', 'email', 'family', 'localId', 'parentFirst', 'parentLast'];
   // Local ID is the school's student number: only the ES sees it, and it plays no part in signing in.
-  // The column shows once the ES's script can save it (older scripts would drop it).
-  const ALL_MAIN_COLS = ['first', 'last', 'grade', 'city', 'localId', 'email', 'family'];
+  // New fields show once the ES's script can save them (older scripts would drop them).
+  const ALL_MAIN_COLS = ['first', 'last', 'grade', 'city', 'localId'];
   let MAIN_COLS = ALL_MAIN_COLS.filter(k => k !== 'localId');
+  // The triangle by a name opens a second line with the emails and the parent's name.
+  const ALL_MORE_COLS = [
+    { k: 'email', label: 'Student email', email: true, hint: 'Add student email' },
+    { k: 'parentFirst', label: 'Parent first name' },
+    { k: 'parentLast', label: 'Parent last name' },
+    { k: 'family', label: 'Parent emails', email: true, multi: true, hint: 'parent@…, another@…' },
+  ];
+  let MORE_COLS = ALL_MORE_COLS.filter(c => !/^parent/.test(c.k));
+  const openRows = new WeakSet();
   const GRADE_LIST = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
   let roster = [];
   let rosterDirty = false;
@@ -2554,7 +2563,7 @@
     const a = onlyLetters(r.first).slice(0, 2), c = onlyLetters(r.city).slice(0, 2), g = String(r.grade || '').trim().toUpperCase();
     return a.length === 2 && c.length === 2 && GRADE_LIST.includes(g) ? a + g + c : '';
   }
-  const blankRow = () => ({ first: '', last: '', grade: '', city: '', localId: '', classes: '', classes2: '', email: '', family: '', status: 'Active' });
+  const blankRow = () => ({ first: '', last: '', grade: '', city: '', localId: '', classes: '', classes2: '', email: '', family: '', parentFirst: '', parentLast: '', status: 'Active' });
   // A blank Sem 2 means Sem 1 with A changed to B.
   const classList = (r, k) => k === 'classes2' && !String(r.classes2 || '').trim()
     ? Classes.sem2From(Classes.parse(r.classes)) : Classes.parse(r[k]);
@@ -2578,6 +2587,8 @@
       const res = await call('adminRoster');
       MAIN_COLS = ALL_MAIN_COLS.filter(k => k !== 'localId' || res.localIds);
       $('#roster-localid-th').hidden = !res.localIds;
+      $('table.roster.people').classList.toggle('has-localid', !!res.localIds);
+      MORE_COLS = ALL_MORE_COLS.filter(c => !/^parent/.test(c.k) || res.parentNames);
       roster = activeFirst(res.rows.map(r => ({ ...blankRow(), ...r })));
       for (let i = 0; i < 5; i++) roster.push(blankRow());
       setDirty(false);
@@ -2623,6 +2634,34 @@
       title="The day they enrolled. LPs that ended before it need no samples. Leave blank for students here from the start.">`;
   }
 
+  // Opens or closes a student's second line (emails and parent name).
+  function foldBtn(r, i) {
+    const open = openRows.has(r);
+    return `<button type="button" class="fold" data-fold="${i}" aria-expanded="${open}" title="${open ? 'Hide' : 'Show'} emails and parent name">▸</button>`;
+  }
+  function setOpen(i, on) {
+    const r = roster[i];
+    if (on) openRows.add(r); else openRows.delete(r);
+    const main = $(`#roster-body tr.main[data-r="${i}"]`), more = $(`#roster-body tr.detail[data-r="${i}"]`);
+    main.classList.toggle('open', on);
+    more.hidden = !on;
+    const b = $('.fold', main);
+    b.setAttribute('aria-expanded', on);
+    b.title = `${on ? 'Hide' : 'Show'} emails and parent name`;
+  }
+  $('#roster-body').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fold]');
+    if (!b) return;
+    const i = Number(b.dataset.fold);
+    setOpen(i, !openRows.has(roster[i]));
+  });
+  // The triangle in the header opens or closes every student.
+  $('#roster-fold-all').addEventListener('click', () => {
+    const on = !roster.some(r => !isEmpty(r) && openRows.has(r));
+    roster.forEach((r, i) => { if (!isEmpty(r) || !on) setOpen(i, on); });
+    $('#roster-fold-all').setAttribute('aria-expanded', on);
+  });
+
   function renderRoster() {
     const counts = {};
     roster.forEach(r => { const id = rosterId(r); if (id) counts[id] = (counts[id] || 0) + 1; });
@@ -2630,16 +2669,20 @@
     $('#roster-body').innerHTML = roster.map((r, i) => {
       const id = rosterId(r);
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade K–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
-      return `<tr data-r="${i}" class="${problem ? 'bad' : ''}${r.status === 'Inactive' ? ' inactive' : ''}">
+      const open = openRows.has(r);
+      return `<tr data-r="${i}" class="main${open ? ' open' : ''}${isEmpty(r) ? ' empty' : ''}${problem ? ' bad' : ''}${r.status === 'Inactive' ? ' inactive' : ''}">
         <td class="num fz fz0">${i + 1}</td>
-        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}"><input data-k="${k}" value="${esc(r[k])}" aria-label="${k === 'localId' ? 'Local ID' : k} row ${i + 1}" ${k === 'localId' ? 'spellcheck="false" autocomplete="off" ' : ''}${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}${k === 'email' || k === 'family' ? ' type="email" inputmode="email" spellcheck="false"' : ''}${k === 'family' ? ' multiple' : ''}${k === 'email' && !isEmpty(r) ? ' placeholder="Add student email"' : ''}${k === 'family' && !isEmpty(r) ? ' placeholder="parent@…, another@…"' : ''}></td>`).join('')}
+        ${MAIN_COLS.map(k => `<td class="col-${k}${k === 'first' ? ' fz fz1' : k === 'last' ? ' fz fz2' : ''}">${k === 'first' ? foldBtn(r, i) : ''}<input data-k="${k}" value="${esc(r[k])}" aria-label="${k === 'localId' ? 'Local ID' : k} row ${i + 1}" ${k === 'localId' ? 'size="5" inputmode="numeric" spellcheck="false" autocomplete="off" ' : ''}${k === 'grade' ? 'inputmode="numeric" list="grade-list"' : ''}></td>`).join('')}
         ${remCell(r)}
         <td class="sid-cell" title="${esc(problem)}">${sidCell(r, problem)}</td>
         <td class="status-cell">${isEmpty(r) ? '' : `<select data-k="status" class="${r.status === 'Inactive' ? 'off' : 'on'}" aria-label="Status row ${i + 1}" title="Inactive: can sign in, but can’t turn in work and gets no reminders">
           <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
         <td class="started-cell">${startedBox(r, i)}</td>
         <td class="withdrew-cell">${withdrewBox(r, i)}</td>
-      </tr>`;
+      </tr>
+      <tr data-r="${i}" class="detail${r.status === 'Inactive' ? ' inactive' : ''}"${open ? '' : ' hidden'}><td colspan="${MAIN_COLS.length + 6}"><div class="more">
+        ${MORE_COLS.map(c => `<label class="more-${c.k}"><span>${c.label}</span><input data-k="${c.k}" value="${esc(r[c.k])}" aria-label="${c.label} row ${i + 1}"${c.email ? ' type="email" inputmode="email" spellcheck="false"' : ''}${c.multi ? ' multiple' : ''}${c.hint && !isEmpty(r) ? ` placeholder="${c.hint}"` : ''}></label>`).join('')}
+      </div></td></tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';
     pinNames();
     renderClasses();
@@ -2748,9 +2791,11 @@
     if (inp.dataset.k === 'withdrew') inp.classList.toggle('nudge', !inp.value);
     setDirty(true);
     if (wasEmpty !== isEmpty(roster[i])) {  // the Status box appears or goes with the row's content
-      $('.status-cell', inp.closest('tr')).innerHTML = isEmpty(roster[i]) ? ''
+      const main = $(`#roster-body tr.main[data-r="${i}"]`);
+      main.classList.toggle('empty', isEmpty(roster[i]));
+      $('.status-cell', main).innerHTML = isEmpty(roster[i]) ? ''
         : '<select data-k="status" class="on" aria-label="Status"><option selected>Active</option><option>Inactive</option></select>';
-      $('.started-cell', inp.closest('tr')).innerHTML = startedBox(roster[i], i);
+      $('.started-cell', main).innerHTML = startedBox(roster[i], i);
     }
     refreshIds();
     if (inp.dataset.k === 'first' || inp.dataset.k === 'last' || isEmpty(roster[i]) !== !$(`#classes-body tr[data-r="${i}"]`)) renderClasses();
@@ -2758,7 +2803,7 @@
   function refreshIds() {
     const counts = {};
     roster.forEach(r => { const id = rosterId(r); if (id) counts[id] = (counts[id] || 0) + 1; });
-    $$('#roster-body tr').forEach(tr => {
+    $$('#roster-body tr.main').forEach(tr => {
       const r = roster[Number(tr.dataset.r)];
       const id = rosterId(r);
       const problem = isEmpty(r) ? '' : !id ? 'Needs first name, grade K–12 and city' : counts[id] > 1 ? 'Signs in the same way as another row (same first 2 letters, grade and city)' : '';
@@ -2799,7 +2844,10 @@
     const inp = e.target.closest('input[data-k]');
     if (!inp || !['Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
     e.preventDefault();
-    const i = Number(inp.closest('tr').dataset.r) + (e.key === 'ArrowUp' ? -1 : 1);
+    let i = Number(inp.closest('tr').dataset.r);
+    const step = e.key === 'ArrowUp' ? -1 : 1;
+    // On a second line, skip students whose second line is closed.
+    do i += step; while (inp.closest('tr.detail') && i >= 0 && i < roster.length && !openRows.has(roster[i]));
     if (i >= roster.length) { roster.push(blankRow()); renderRoster(); }
     const next = $(`#roster-body tr[data-r="${i}"] input[data-k="${inp.dataset.k}"]`);
     if (next) next.focus();
