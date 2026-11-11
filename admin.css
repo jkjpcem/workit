@@ -795,9 +795,9 @@ a.brand:hover { opacity: .9; }
 .roster.people th.w-sid { width: 150px; }
 .roster.people th.w-status { width: 120px; }
 .roster.people th.w-started { width: 150px; }
-.roster.people th.w-withdrew { width: 150px; }
-.roster.people th.w-localid { width: 76px; }
-.roster.people.has-localid { min-width: 1226px; }
+.roster.people th.w-withdrew { width: auto; } /* takes any spare room, so the other columns keep their size */
+.roster.people th.w-localid { width: 64px; }
+.roster.people.has-localid { min-width: 1214px; }
 /* The triangle by a name opens a second line: student email, parent name, parent emails */
 .roster .fold { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); width: 22px; height: 26px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; border-radius: 6px; transition: transform .15s; }
 .roster tr.main.empty .fold { visibility: hidden; }
