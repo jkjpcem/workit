@@ -2692,9 +2692,8 @@
           <option ${r.status !== 'Inactive' ? 'selected' : ''}>Active</option><option ${r.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select>`}</td>
         <td class="started-cell">${startedBox(r, i)}</td>
         <td class="withdrew-cell">${withdrewBox(r, i)}</td>
-        <td class="fill"></td>
       </tr>
-      <tr data-r="${i}" class="detail${r.status === 'Inactive' ? ' inactive' : ''}"${open ? '' : ' hidden'}><td colspan="${MAIN_COLS.length + 7}"><div class="more">
+      <tr data-r="${i}" class="detail${r.status === 'Inactive' ? ' inactive' : ''}"${open ? '' : ' hidden'}><td colspan="${MAIN_COLS.length + 6}"><div class="more">
         ${MORE_COLS.map(c => `<label class="more-${c.k}"><span>${c.label}</span><input data-k="${c.k}" value="${esc(r[c.k])}" aria-label="${c.label} row ${i + 1}"${c.email ? ' type="email" inputmode="email" spellcheck="false"' : ''}${c.multi ? ' multiple' : ''}${c.hint && !isEmpty(r) ? ` placeholder="${c.hint}"` : ''}></label>`).join('')}
       </div></td></tr>`;
     }).join('') + '<datalist id="grade-list">' + GRADE_LIST.map(g => `<option value="${g}">`).join('') + '</datalist>';

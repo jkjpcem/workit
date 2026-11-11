@@ -806,10 +806,11 @@ a.brand:hover { opacity: .9; }
 .roster.people th.w-status { width: 120px; }
 .roster.people th.w-started { width: 150px; }
 .roster.people th.w-withdrew { width: 150px; }
-.roster.people th.w-fill { width: auto; } /* an empty last column takes any spare room, so the others keep their size */
-.roster.people td.fill { border-right: 0; }
-.roster.people th.w-localid { width: 64px; }
-.roster.people.has-localid { min-width: 1214px; }
+.roster.people th.w-localid { width: 92px; }
+/* Spare width on big screens is shared out across every column */
+.roster.people th.w-grade, .roster.people td.col-grade, .roster.people td.col-grade input { text-align: center; }
+.roster.people td.col-localId input { padding-left: 12px; padding-right: 12px; }
+.roster.people.has-localid { min-width: 1242px; }
 /* The triangle by a name opens a second line: student email, parent name, parent emails */
 .roster .fold { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); width: 22px; height: 26px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; border-radius: 6px; transition: transform .15s; }
 .roster tr.main.empty .fold { visibility: hidden; }
