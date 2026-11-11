@@ -1392,7 +1392,7 @@
       // A box left empty goes away when the next one is added.
       const list = item().annotations;
       for (let i = list.length - 1; i >= 0; i--) {
-        if (!Ink.is(list[i]) && !list[i].header && !String(list[i].text || '').trim()) list.splice(i, 1);
+        if (!Ink.is(list[i]) && !list[i].header && !list[i].bg && !String(list[i].text || '').trim()) list.splice(i, 1);
       }
       const a = { page, x: clamp(x, 0, 0.9), y: clamp(y, 0, 0.95), w: 0.4, text: '', ...style };
       list.push(a);
@@ -1522,7 +1522,7 @@
         toast(`Couldn’t save annotations: ${err.message}`);
       }
     }
-    const cleanAnnotations = (it) => it.annotations.filter(a => Ink.is(a) || String(a.text || '').trim());
+    const cleanAnnotations = (it) => it.annotations.filter(a => Ink.is(a) || a.bg || String(a.text || '').trim());
 
     // ----- Finalize: bake the text boxes into the pages and save the PDF -----
 
@@ -1662,7 +1662,8 @@
       ctx.drawImage(img, 0, 0);
       for (const a of annotations) {
         if (Ink.is(a)) { Ink.paint(ctx, a, W, H); continue; }
-        if (!String(a.text || '').trim()) continue;
+        // A box with a fill stays even with no words: it covers (whites out) part of the page.
+        if (!a.bg && !String(a.text || '').trim()) continue;
         const px = a.size * W / PAGE_PT;
         const padX = 0.3 * px, padY = 0.15 * px, lineH = 1.25 * px;
         ctx.font = `${a.bold ? '700' : '400'} ${px}px ${FONTS[a.font] || FONTS.sans}`;
