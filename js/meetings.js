@@ -100,7 +100,9 @@ function AdminMeetings(ctx) {
     const matched = all.filter(b => b.studentIds.length);
     const unmatched = all.filter(b => !b.studentIds.length && !b.ignored);
     const booked = new Set(matched.flatMap(b => b.studentIds));
-    const notYet = data.students.filter(s => !booked.has(s.id) && s.active !== false)
+    // Only students who owe samples this LP count (not inactive, withdrawn before it, or not started yet).
+    const owing = data.students.filter(s => (ctx.owes ? ctx.owes(s, lp) : s.active !== false));
+    const notYet = owing.filter(s => !booked.has(s.id))
       .sort((a, b) => (a.lastName || a.name).localeCompare(b.lastName || b.name));
     const link = linkFor(lp);
     const whoText = (b) => b.who.map(w => esc(w.name || w.email) + (w.name ? ` <span class="meta">${esc(w.email)}</span>` : '')).join(', ');
@@ -108,7 +110,7 @@ function AdminMeetings(ctx) {
       .slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
     body.innerHTML = `
       <div class="tiles">
-        <div class="tile meet"><b>${booked.size} <small class="of">of</small> ${data.students.length}</b><span>Students booked for ${esc(lp)}</span></div>
+        <div class="tile meet"><b>${owing.filter(s => booked.has(s.id)).length} <small class="of">of</small> ${owing.length}</b><span>Students booked for ${esc(lp)}</span></div>
         <div class="tile"><b>${notYet.length}</b><span>Not booked yet</span></div>
         <div class="tile ${unmatched.length ? 'redo' : ''}"><b>${unmatched.length}</b><span>Booked by someone not on the roster</span></div>
       </div>

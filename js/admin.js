@@ -362,7 +362,7 @@
       ['t-done', extra, 'Filed as Extra', folderTile('extra')],
       over.length ? ['redo over', `⚠ ${over.length}`, `More than ${ANNOTATED_NEEDED} annotated: ${over.map(a => `${a.s.name} (${a.n})`).join(', ')}`] : null,
       ['redo', items.filter(waitingRedo).length, 'Waiting on redo'],
-      Meetings.tile(viewLp, data.students),
+      Meetings.tile(viewLp, data.students.filter(s => owes(s, viewLp))),
     ].filter(Boolean).map(([cls, n, label, attrs = '']) =>
       `<div class="tile ${cls} ${attrs ? 'opens' : ''}" ${attrs}><b>${n}</b><span>${esc(label)}${attrs ? ' <i class="tile-go" aria-hidden="true">↗</i>' : ''}</span></div>`).join('');
     lpFolders(viewLp); // fetch ahead so a click opens the folder right away
@@ -423,7 +423,7 @@
           : `<div class="counts no-classes">No classes yet. Add them in the Student Roster so ${esc(viewLp)} counts them.</div>`)
         : `<div class="no-need">No work samples needed for ${esc(viewLp)}${startSkips(s, viewLp) ? `: they started ${esc(niceDate(s.started))}` : s.withdrew ? ': they withdrew before it started' : ': inactive'}.</div>`}</div>
         ${subjects && (owes(s, viewLp) || mine.length) ? `<div class="subjects" style="--rows:${Math.ceil(classes.length / 2)}">${subjects}</div>` : ''}
-        <div class="card-foot">${Meetings.cardLine(s.id, viewLp)}</div>`;
+        <div class="card-foot">${owes(s, viewLp) ? Meetings.cardLine(s.id, viewLp) : ''}</div>`;
       card.addEventListener('click', (e) => {
         const img = e.target.closest('img[data-id]');
         if (img) {
@@ -3004,6 +3004,7 @@
     lps: () => data.lps,
     openStudent: (id) => openStudent(id, viewLp).catch(err => toast(err.message)),
     redraw: () => redrawMeetings(),
+    owes: (s, lp) => owes(s, lp),
   });
   function redrawMeetings() {
     if (!data) return;
