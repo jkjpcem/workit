@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 53;
+const WORKIT_VERSION = 55;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -2563,13 +2563,27 @@ function googleFilePdf_(info) {
   throw new Error('That file is too big for Google to turn into a PDF, or Google is busy. Download it as a PDF and use Choose a file instead.');
 }
 
+// The current LP follows today's date and the LP dates: the LP today falls in; between LPs (a
+// break), the one that ended last, so late work still lands there; before LP1, LP1. Only when
+// the LP dates are blank does the Current LP picked by hand (Settings B1) count.
 function getCurrentLp_() {
+  const byDate = lpForToday_(getLpDates_());
+  if (byDate) return byDate;
   const remembered = FRESH_ ? null : memoGet_('currentLp');
   if (remembered) return remembered;
   const lp = String(getSheet_('Settings').getRange(1, 2).getValue()).trim().toUpperCase();
   const out = LEARNING_PERIODS.indexOf(lp) !== -1 ? lp : LEARNING_PERIODS[0];
   memoPut_('currentLp', out);
   return out;
+}
+
+function lpForToday_(dates, today) {
+  today = today || ymd_(new Date());
+  const have = LEARNING_PERIODS.filter(lp => dates && dates[lp]);
+  if (!have.length) return '';
+  let out = '';
+  have.forEach(lp => { if (dates[lp].start <= today) out = lp; });
+  return out || have[0];
 }
 
 // ---------- Short-term memory ----------
@@ -2644,10 +2658,13 @@ function getRootFolder_() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('ROOT_FOLDER_ID');
   if (id) {
-    try {
-      const f = DriveApp.getFolderById(id);
-      if (!f.isTrashed()) return f;
-    } catch (ignored) {}
+    // Same as the sheet: a hiccup must not start a new empty WiSH Homework folder.
+    let f = null, lastErr = null;
+    for (let i = 0; i < 3 && !f; i++) {
+      try { f = DriveApp.getFolderById(id); } catch (err) { lastErr = err; Utilities.sleep(1500); }
+    }
+    if (!f) throw new Error('WiSH could not open its WiSH Homework folder just now. Please try again in a minute. (' + (lastErr && lastErr.message) + ')');
+    if (!f.isTrashed()) return f;
   }
   // Your copy reuses a folder by name; an ES's copy always starts its own, so trying it in an
   // account that already has WiSH can't mix with that account's real folder.
@@ -2690,11 +2707,16 @@ function getAdmin_() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('ADMIN_SHEET_ID');
   if (id) {
-    try {
-      adminCache_ = SpreadsheetApp.openById(id);
-      useWishNames_(props, adminCache_);
-      return adminCache_;
-    } catch (ignored) {}
+    // Once WiSH has its sheet, never start a new one: a Google hiccup opening it used to make a
+    // brand-new empty WiSH Admin sheet and switch to it, so the roster and samples looked gone.
+    let ss = null, lastErr = null;
+    for (let i = 0; i < 3 && !ss; i++) {
+      try { ss = SpreadsheetApp.openById(id); } catch (err) { lastErr = err; Utilities.sleep(1500); }
+    }
+    if (!ss) throw new Error('WiSH could not open its WiSH Admin sheet just now. Please try again in a minute. (' + (lastErr && lastErr.message) + ')');
+    adminCache_ = ss;
+    useWishNames_(props, adminCache_);
+    return adminCache_;
   }
   // In an ES's own copy, the sheet the script came with becomes their WiSH Admin sheet.
   const bound = boundSheet_();

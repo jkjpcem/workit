@@ -236,6 +236,12 @@
     const opts = (sel) => data.lps.map(lp => `<option ${lp === sel ? 'selected' : ''}>${lp}</option>`).join('');
     $('#view-lp').innerHTML = opts(viewLp);
     $('#current-lp').innerHTML = opts(data.currentLp);
+    // With LP dates, the script picks the current LP from today's date, so there's nothing to set.
+    const auto = Object.keys(data.lpDates || {}).length > 0;
+    $('#current-lp').disabled = auto;
+    $('#current-lp-hint').textContent = auto
+      ? 'Set automatically from today’s date and the LP dates. Students’ uploads go to this LP unless they choose another one.'
+      : 'Students’ uploads go to this LP unless they choose another one.';
   }
   $('#view-lp').addEventListener('change', (e) => loadOverview(e.target.value).catch(err => toast(err.message)));
   $('#current-lp').addEventListener('change', async (e) => {
