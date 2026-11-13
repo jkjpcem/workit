@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 54;
+const WORKIT_VERSION = 55;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -2563,13 +2563,27 @@ function googleFilePdf_(info) {
   throw new Error('That file is too big for Google to turn into a PDF, or Google is busy. Download it as a PDF and use Choose a file instead.');
 }
 
+// The current LP follows today's date and the LP dates: the LP today falls in; between LPs (a
+// break), the one that ended last, so late work still lands there; before LP1, LP1. Only when
+// the LP dates are blank does the Current LP picked by hand (Settings B1) count.
 function getCurrentLp_() {
+  const byDate = lpForToday_(getLpDates_());
+  if (byDate) return byDate;
   const remembered = FRESH_ ? null : memoGet_('currentLp');
   if (remembered) return remembered;
   const lp = String(getSheet_('Settings').getRange(1, 2).getValue()).trim().toUpperCase();
   const out = LEARNING_PERIODS.indexOf(lp) !== -1 ? lp : LEARNING_PERIODS[0];
   memoPut_('currentLp', out);
   return out;
+}
+
+function lpForToday_(dates, today) {
+  today = today || ymd_(new Date());
+  const have = LEARNING_PERIODS.filter(lp => dates && dates[lp]);
+  if (!have.length) return '';
+  let out = '';
+  have.forEach(lp => { if (dates[lp].start <= today) out = lp; });
+  return out || have[0];
 }
 
 // ---------- Short-term memory ----------
