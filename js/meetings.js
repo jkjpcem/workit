@@ -8,21 +8,17 @@ function AdminMeetings(ctx) {
   let res = null;       // last adminMeetings answer
   let loading = null;
   let pageLp = null;
-  const opens = {};     // LP -> open times read from its booking page ([{ start, end }] or null)
-  const keepOpen = (r) => { if (r && r.openLp) opens[r.openLp] = r.open; return r; };
 
   function load(force) {
     if (force || (!res && !loading)) {
-      const body = pageLp ? { lp: pageLp } : {};
-      if (force) body.fresh = true;
-      loading = call('adminMeetings', body)
-        .then(r => { res = keepOpen(r); return r; })
+      loading = call('adminMeetings', force ? { fresh: true } : {})
+        .then(r => { res = r; return r; })
         .catch(err => { if (/unknown request/i.test(err.message)) res = { old: true, links: {}, items: [] }; throw err; })
         .finally(() => { loading = null; });
     }
     return loading || Promise.resolve(res);
   }
-  function reset() { res = null; Object.keys(opens).forEach(k => delete opens[k]); $('#meet-form').dataset.filled = ''; }
+  function reset() { res = null; $('#meet-form').dataset.filled = ''; }
 
   const active = (b) => !b.ignored;
   // An LP's own booking link, or the one for every LP.
@@ -93,7 +89,6 @@ function AdminMeetings(ctx) {
     if (!res) { body.innerHTML = '<div class="empty">Reading your calendar…</div>'; return; }
     if (res.off) { body.innerHTML = '<div class="empty">LP meeting booking is turned off. You can turn it on in Settings.</div>'; return; }
     fillLinks();
-    if (!(pageLp in opens) && res && !res.error) loadOpen(pageLp);
     $('#meet-cal').textContent = res.calendar ? `Reading the calendar “${res.calendar}”` : '';
     $('#meet-allow').hidden = !res.error;
     $('#meet-allow').textContent = res.error === 'allow'
@@ -117,7 +112,6 @@ function AdminMeetings(ctx) {
       <div class="tiles">
         <div class="tile meet"><b>${owing.filter(s => booked.has(s.id)).length} <small class="of">of</small> ${owing.length}</b><span>Students booked for ${esc(lp)}</span></div>
         <div class="tile"><b>${notYet.length}</b><span>Not booked yet</span></div>
-        ${Array.isArray(opens[lp]) ? `<div class="tile"><b>${opens[lp].length}</b><span>Open times left</span></div>` : ''}
         <div class="tile ${unmatched.length ? 'redo' : ''}"><b>${unmatched.length}</b><span>Booked by someone not on the roster</span></div>
       </div>
       ${link ? '' : `<p class="note">${esc(lp)} has no booking link yet. Paste it under “Booking pages” so families can book from WiSH.</p>`}
@@ -146,9 +140,9 @@ function AdminMeetings(ctx) {
       </section>`;
   }
 
-  // ---------- Week grid: booked and open times, one week at a time ----------
+  // ---------- Week grid: booked times, one week at a time ----------
+  // (Google hides a booking page's open times from scripts, so only bookings show.)
   let weekStart = {};
-  let oldServer = false; // the Google script is older than v54 and doesn't send open times   // LP -> Monday (ms, local) of the week shown
 
   const DAY = 864e5;
   const monday = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
@@ -172,9 +166,8 @@ function AdminMeetings(ctx) {
   }
 
   function weekGrid(lp, all, link, nameOf) {
-    const open = opens[lp];
     const booked = all.filter(b => !b.ignored);
-    const weeks = lpWeeks(lp, booked.map(b => b.start).concat((open || []).map(o => o.start)));
+    const weeks = lpWeeks(lp, booked.map(b => b.start));
     let w = weekStart[lp];
     if (w == null || !weeks.includes(w)) {
       const now = monday(Date.now());
@@ -199,10 +192,6 @@ function AdminMeetings(ctx) {
       const tip = `${when(b)}: ${b.studentIds.length ? b.studentIds.map(nameOf).join(', ') : 'not on the roster'}`;
       put(b.start, { kind: `bk${past(b) ? ' past' : ''}${b.studentIds.length ? '' : ' who'}`, attr: b.studentIds[0] ? `data-student="${esc(b.studentIds[0])}"` : '', tip, text: names });
     });
-    (open || []).filter(o => inWeek(o.start)).forEach(o => {
-      const taken = booked.some(b => b.start < o.end && b.end > o.start);
-      if (!taken) put(o.start, { kind: 'op', tip: `Open: ${when(o)}`, text: 'Open' });
-    });
     const days = weekend ? 7 : 5;
     const times = [...rows].sort((a, b) => a - b);
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -220,38 +209,19 @@ function AdminMeetings(ctx) {
       }).join('');
     }).join('');
     const i = weeks.indexOf(w);
-    const why = open === undefined ? 'Reading open times from your booking page…'
-      : !link ? ''
-      : open === null ? (oldServer ? 'Open times show after the next WiSH update.' : 'WiSH couldn’t read the open times from your booking page. Use “Booking page ↗” to see them.')
-      : '';
     return `<section class="card meet-card meet-grid">
       <div class="mg-top">
-        <h2>${esc(lp)} times <span class="meta">Week of ${esc(new Date(w).toLocaleDateString([], { month: 'short', day: 'numeric' }))}</span></h2>
+        <h2>${esc(lp)} booked times <span class="meta">Week of ${esc(new Date(w).toLocaleDateString([], { month: 'short', day: 'numeric' }))}</span></h2>
         <span class="mg-nav">
           <button class="btn small ghost" type="button" data-week="-1" ${i <= 0 ? 'disabled' : ''} aria-label="Previous week">‹ Previous</button>
           <button class="btn small ghost" type="button" data-week="1" ${i >= weeks.length - 1 ? 'disabled' : ''} aria-label="Next week">Next ›</button>
         </span>
       </div>
-      <div class="mg-legend"><span class="mg-slot bk">Booked</span><span class="mg-slot op">Open</span>
+      <div class="mg-legend">
         ${link ? `<a class="btn small ghost" href="${esc(link)}" target="_blank" rel="noopener">Booking page ↗</a>` : ''}</div>
-      ${why ? `<p class="meta">${esc(why)}</p>` : ''}
       ${times.length ? `<div class="mg-scroll"><div class="mg" style="grid-template-columns: 64px repeat(${days}, minmax(88px, 1fr))"><span></span>${head}${body}</div></div>`
-        : '<p class="meta">Nothing booked or open this week.</p>'}
+        : '<p class="meta">Nothing booked this week.</p>'}
     </section>`;
-  }
-
-  async function loadOpen(lp) {
-    if (lp in opens) return;
-    opens[lp] = undefined;
-    try {
-      const r = await call('adminMeetings', { lp });
-      if (!r.openLp) oldServer = true;
-      keepOpen(r);
-      if (!(lp in opens) || opens[lp] === undefined) opens[lp] = null;
-    } catch (err) {
-      opens[lp] = null;
-    }
-    if (pageLp === lp) render();
   }
 
   function fillLinks() {
@@ -289,7 +259,7 @@ function AdminMeetings(ctx) {
     const wk = e.target.closest('[data-week]');
     if (wk) {
       const lp = pageLp;
-      const weeks = lpWeeks(lp, (res.items || []).filter(b => b.lp === lp).map(b => b.start).concat((opens[lp] || []).map(o => o.start)));
+      const weeks = lpWeeks(lp, (res.items || []).filter(b => b.lp === lp).map(b => b.start));
       const i = weeks.indexOf(weekStart[lp]) + Number(wk.dataset.week);
       if (weeks[i] != null) { weekStart[lp] = weeks[i]; render(); }
       return;

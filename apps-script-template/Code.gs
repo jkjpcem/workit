@@ -22,7 +22,7 @@ const ADMIN_USERNAME = '';
 const ADMIN_PASSWORD = '';
 
 // Bumped when this file changes, so the dashboard can tell an ES their copy is out of date.
-const WORKIT_VERSION = 54;
+const WORKIT_VERSION = 55;
 // The ES dashboard. An ES's copy sends them back here when it has set itself up.
 const APP_URL = 'https://jkjpcem.github.io/workit/';
 
@@ -4056,67 +4056,6 @@ function studentMeetings_(id) {
   return { links: links, booked: studentBookings_(id) };
 }
 
-/**
- * Open times on one LP's booking page: [{ start, end }] (ms), or null when the page can't be read.
- * Google gives scripts no way to list a booking page's open times, so WiSH reads the public page
- * the families see and picks out the [start, end] pairs in it (each 5 minutes to 3 hours long,
- * inside the LP's dates). Remembered 15 minutes. Run checkOpenTimes() in the editor to test it.
- */
-function openTimes_(link, lp, fresh) {
-  if (!link) return null;
-  const cache = CacheService.getScriptCache();
-  const ck = 'open:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, link + lp)).slice(0, 20);
-  if (!fresh) {
-    const remembered = cache.get(ck);
-    if (remembered) return JSON.parse(remembered);
-  }
-  let out = null;
-  try {
-    const r = UrlFetchApp.fetch(link, { followRedirects: true, muteHttpExceptions: true, headers: { 'Accept-Language': 'en-US' } });
-    if (r.getResponseCode() === 200) out = openTimesIn_(r.getContentText(), lp);
-  } catch (err) { out = null; }
-  try { cache.put(ck, JSON.stringify(out), MEETINGS_SECONDS); } catch (err) { /* too big: read next time */ }
-  return out;
-}
-
-function openTimesIn_(html, lp) {
-  const r = (getLpDates_() || {})[lp];
-  const day = 24 * 3600 * 1000;
-  const from = r ? Date.parse(r.start + 'T00:00:00Z') - day : Date.now() - 60 * day;
-  const to = r ? Date.parse(r.end + 'T00:00:00Z') + 2 * day : Date.now() + 120 * day;
-  const seen = {};
-  const out = [];
-  // Pairs of times next to each other, in milliseconds or seconds, with or without quotes.
-  const re = /\[\s*"?(1\d{9}(?:\d{3})?)"?\s*,\s*"?(1\d{9}(?:\d{3})?)"?/g;
-  let m;
-  while ((m = re.exec(html))) {
-    let a = Number(m[1]), b = Number(m[2]);
-    if (m[1].length === 10) a *= 1000;
-    if (m[2].length === 10) b *= 1000;
-    const len = b - a;
-    if (len < 5 * 60000 || len > 3 * 3600000 || a < from || a > to || a < Date.now()) continue;
-    if (seen[a]) continue;
-    seen[a] = true;
-    out.push({ start: a, end: b });
-  }
-  out.sort((x, y) => x.start - y.start);
-  return out;
-}
-
-/** Run in the Apps Script editor: shows what WiSH finds on each booking page. */
-function checkOpenTimes() {
-  const s = meetingSettings_();
-  const lps = Object.keys(s.links);
-  if (!lps.length) { Logger.log('No booking links saved yet (Meetings page > Booking pages).'); return; }
-  lps.forEach(lp => {
-    const r = UrlFetchApp.fetch(s.links[lp], { followRedirects: true, muteHttpExceptions: true });
-    const html = r.getContentText();
-    const found = openTimesIn_(html, lp === 'ALL' ? getCurrentLp_() : lp);
-    Logger.log(lp + ': page ' + r.getResponseCode() + ', ' + html.length + ' characters, open times found: ' + found.length +
-      (found.length ? ' (first ' + new Date(found[0].start) + ')' : ''));
-  });
-}
-
 /** The Meetings page and the dashboard: links, settings and every booking with its student. */
 function adminMeetings_(body) {
   const s = meetingSettings_();
@@ -4125,9 +4064,6 @@ function adminMeetings_(body) {
   try {
     out.items = matchBookings_(readBookings_(!!body.fresh));
     out.calendar = CalendarApp.getDefaultCalendar().getName();
-    // Open times for the LP the page shows (body.lp), read from its booking page.
-    const lp = LEARNING_PERIODS.indexOf(body.lp) !== -1 ? body.lp : '';
-    if (lp) { out.openLp = lp; out.open = openTimes_(meetingLink_(s, lp), lp, !!body.fresh); }
   } catch (err) {
     out.error = /permission|authoriz|scope/i.test(err.message)
       ? 'allow' : 'WiSH couldn’t read your calendar: ' + err.message;
