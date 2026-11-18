@@ -1074,7 +1074,7 @@ label.feature-row { flex-direction: row; display: flex; gap: 14px; align-items: 
 :root[data-theme="dark"] .em-err { background: #3d1a1a; color: #ffb4b4; }
 .roster th[hidden] { display: none; }
 
-/* Meetings: week grid of booked and open times */
+/* Meetings: week grid of booked times */
 .meet-grid .mg-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .meet-grid .mg-top h2 { margin: 0; }
 .mg-nav { display: flex; gap: 6px; }
@@ -1096,4 +1096,3 @@ button.mg-slot.bk { cursor: pointer; }
 button.mg-slot.bk:hover { filter: brightness(1.2); }
 .mg-slot.bk.who { background: var(--st-redo, #c0392b); }
 .mg-slot.bk.past { opacity: .5; }
-.mg-slot.op { background: var(--card); color: var(--muted); border: 1.5px dashed color-mix(in srgb, var(--muted) 60%, transparent); }
