@@ -1073,3 +1073,27 @@ label.feature-row { flex-direction: row; display: flex; gap: 14px; align-items: 
 :root[data-theme="dark"] .em-row .tag.owes { background: #3a2f12; color: #ffd98a; }
 :root[data-theme="dark"] .em-err { background: #3d1a1a; color: #ffb4b4; }
 .roster th[hidden] { display: none; }
+
+/* Meetings: week grid of booked and open times */
+.meet-grid .mg-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.meet-grid .mg-top h2 { margin: 0; }
+.mg-nav { display: flex; gap: 6px; }
+.mg-legend { display: flex; align-items: center; gap: 10px; margin: 10px 0 12px; flex-wrap: wrap; }
+.mg-legend .mg-slot { width: auto; padding: 0 12px; }
+.mg-legend .btn { margin-left: auto; }
+.mg-scroll { overflow-x: auto; }
+.mg { display: grid; gap: 4px; font-size: 12px; min-width: 0; }
+.mg-h { text-align: center; font-weight: 700; font-size: 13px; padding-bottom: 4px; }
+.mg-h small { display: block; font-weight: 600; color: var(--muted); font-size: 11px; }
+.mg-h.today { color: var(--brand); }
+.mg-h.today small { color: var(--brand); }
+.mg-t { color: var(--muted); text-align: right; padding-right: 6px; line-height: 30px; font-weight: 600; white-space: nowrap; }
+.mg-c { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mg-slot { display: flex; align-items: center; justify-content: center; height: 30px; border-radius: 7px; font: inherit; font-weight: 650; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; border: 1.5px solid transparent; width: 100%; }
+.mg-slot.bk { background: var(--st-finalized); color: var(--card); }
+button.mg-slot.bk { cursor: pointer; }
+button.mg-slot.bk:hover { filter: brightness(1.2); }
+.mg-slot.bk.who { background: var(--st-redo, #c0392b); }
+.mg-slot.bk.past { opacity: .5; }
+.mg-slot.op { background: var(--card); color: var(--muted); border: 1.5px dashed color-mix(in srgb, var(--muted) 60%, transparent); }
