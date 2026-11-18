@@ -144,8 +144,10 @@ function AdminMeetings(ctx) {
     if (form.dataset.filled) return;
     form.dataset.filled = '1';
     $('#meet-all').value = res.links.ALL || '';
-    $('#meet-links').innerHTML = ctx.data().lps.map(lp => `<label class="meet-link"><span>${lp}</span>
-      <input name="${lp}" type="url" placeholder="Same as every LP" value="${esc(res.links[lp] || '')}" spellcheck="false"></label>`).join('');
+    $('#meet-all-box').open = !!res.links.ALL;
+    const now = ctx.data().currentLp;
+    $('#meet-links').innerHTML = ctx.data().lps.map(lp => `<label class="meet-link${lp === now ? ' now' : ''}"><span>${lp}${lp === now ? '<small>now</small>' : ''}</span>
+      <input name="${lp}" type="url" placeholder="${res.links.ALL ? 'Uses the page below' : 'https://calendar.app.google/…'}" value="${esc(res.links[lp] || '')}" spellcheck="false" aria-label="${lp} booking page"></label>`).join('');
     form.words.value = res.words || '';
   }
 

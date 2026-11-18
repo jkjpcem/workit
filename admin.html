@@ -280,7 +280,7 @@
                   <p class="good"><span aria-hidden="true">✓</span> Families who have turned in every sample and have no redo waiting don’t get these. They get the All done email instead.</p>
                 </div>
                 <div class="rem-sched" id="rem-meetings">
-                  <div class="rem-sched-head"><h3>LP meetings</h3><span>Uses the booking link on the Meetings page. Same send time, weekend and holiday rules as above.</span></div>
+                  <div class="rem-sched-head"><h3>LP meetings</h3><span>Uses the current LP’s booking link from the Meetings page. Same send time, weekend and holiday rules as above.</span></div>
                   <label class="chk"><input type="checkbox" name="book"> <span><b>Book your LP meeting</b><small>Only families who haven’t booked a meeting for this LP yet, on the schedule below. They stop as soon as a family books.</small></span></label>
                   <div class="weeks" id="rem-book-weeks"></div>
                   <div class="rem-row">
@@ -472,14 +472,11 @@
         <div id="meet-body"></div>
         <form class="card stack meet-side" id="meet-form">
           <h2>Booking pages</h2>
-          <p class="hint">In Google Calendar, make a booking page (Create → Appointment schedule) and paste its link here. Families get a “Book your LP meeting” button in WiSH, and your reminder emails can use <code>{booking link}</code>.</p>
-          <label>Booking page for every LP
-            <input name="ALL" id="meet-all" type="url" placeholder="https://calendar.app.google/…" spellcheck="false">
-          </label>
-          <p class="hint">One page works all year: WiSH puts each booking in an LP by its date. At the start of each LP, change the page’s available dates in Google.</p>
-          <details class="meet-per-lp">
-            <summary>A different page for one LP <span class="meta">(optional)</span></summary>
-            <div id="meet-links" class="meet-links"></div>
+          <p class="hint">Each LP, make a booking page in Google Calendar (Create → Appointment schedule) and paste its link next to that LP. Families get a “Book your LP meeting” button for the current LP, and <code>{booking link}</code> in your emails uses that LP’s link too.</p>
+          <div id="meet-links" class="meet-links"></div>
+          <details class="meet-per-lp" id="meet-all-box">
+            <summary>One page for any LP left empty <span class="meta">(optional)</span></summary>
+            <input name="ALL" id="meet-all" type="url" placeholder="https://calendar.app.google/…" spellcheck="false" aria-label="Booking page for any LP left empty">
           </details>
           <label>Other events to count <span class="meta">(optional)</span>
             <input name="words" placeholder="For example: LP meeting, Family conference" spellcheck="false">
